@@ -1,10 +1,11 @@
 # -------------------------------------------------------------------------------- #
-#                   Do CB using genes as NCE/NCO                                   #
-# 3.1 - add chromosome number information                                          #
-# 3.2 - choose A,Y,Z,W combinations                                                #
-# 3.2 - CB Effect Estimate                                                         #
+#    Prepare for Proximal/Confounding Bridge using sparse PCA of genes as NCE/NCO  #
+# 2.1 - get sparse PCA PCs                                                         #
+# 2.2 - choose A,Y,Z,W combinations                                                #
 # Requires: prev saved normalized gene expression (HDF5)                           #
 #           prev saved chromosome information                                      #
+#           prev saved sparse PCA information                                      #
+#           TF and non TF information                                              #
 # Ouputs: (nothing) but saves                                                      #
 #         CBGENE_AYZW in the rds file                                              #
 #                         "<save_dir>/cbgenes/<AYZW_setting_name>/CBGENE_AYZW.rds" #
@@ -45,21 +46,13 @@ assertthat::assert_that(length(args) > 1, msg="must give arg for specifying chos
 AYZW_setting_name = (args[2])
 
 # SETTINGS HERE
-# setting = list(seed = 942346,
-#                NUM_A             = NA, # NA if all As
-#                NUM_Y_PER_A_NEG   = 5,
-#                NUM_Y_PER_A_MAYBE = 0,
-#                MAX_Y_IMPORTANCE  = 2000, # limit how 'unimportant' a gene can be
-#                # NUM_NCENCO_pairs  = 100,  # number of NCE/NCO pairs (dimU, length of ZWs)
-#                NUM_NCE           = NA,  # number of NCE per AY test (prev #NCE/NCO equal) (NA=all avail)
-#                NUM_NCO           = NA,  # number of NCO per AY test 
-#                NUM_NCENCO_per_AY = 5,   # number of NCE/NCO sets per AY test
-#                NUM_AY_POS        = NA    # number of known causal/positive AY tests
-# )
-# set.seed(setting$seed)
-
-# change setting list to test for ALL AY pairs. Too many to test for all possible,
-# so choose all A's, all A's on the same chromosome, and 
+#
+# change setting list to test for AY pairs. 
+# (this sPCA version is different because sPCs are used as NCs instead of
+#  individual genes.)
+# Too many to test for all possible, so choose all A's, 
+# some Y's on the same chromosome and some Y's on diff chromosome.
+# choose all known AY pairs (targeted perturbations)
 setting = list(seed = 942346,
                NUM_A             = 5, # NA if all As (probably SHOULD)
                NUM_Y_PER_A_NEG   = 5,  # NA if all (probably should NOT)

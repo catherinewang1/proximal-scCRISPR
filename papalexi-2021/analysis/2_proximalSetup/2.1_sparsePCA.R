@@ -1,9 +1,14 @@
-
-
-
-
-
-
+# -------------------------------------------------------------------------------- #
+#    Prepare for Proximal/Confounding Bridge using sparse PCA of genes as NCE/NCO  #
+# 2.1 - get sparse PCA PCs                                                         #
+# 2.2 - choose A,Y,Z,W combinations                                                #
+# Requires: prev saved normalized gene expression (HDF5)                           #
+#           prev saved chromosome information                                      #
+#           TF and non TF information                                              #
+# Ouputs: (nothing) but saves                                                      #
+#         CBGENE_AYZW in the rds file                                              #
+#                         "<save_dir>/cbgenes/<AYZW_setting_name>/CBGENE_AYZW.rds" #
+# -------------------------------------------------------------------------------- #
 
 library(PMA)
 
@@ -12,6 +17,8 @@ library(PMA)
 # individual genes
 NUM_IMPORTANT_GENES = 4000
 DEVICE = 'laptop'
+RUN_SPCA_CV = FALSE # run sPCA tuning with cross-validation (ow used hard coded defaults)
+RUN_SPCA    = TRUE  # run sPCA (ow load in saved)
 # first set working dir to current file save location (should be in some sort of papalexi-2021/analysis/)
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
 
@@ -60,17 +67,13 @@ grnaTarget_names = ondisc::get_feature_covariates(grna_odm)[, 'target'] |> uniqu
 # =================== remove these genes from the top XX genes ====================================
 geneRemove_names = c(TF_names, grnaTarget_names) |> unique()
 
-
-
-length(geneRemove_names)
-length(TF_names)
-length(grnaTarget_names)
-
+# check
+# length(geneRemove_names)
+# length(TF_names)
+# length(grnaTarget_names)
 
 myGenenames     = readRDS(sprintf('%s/important_genes_name.rds', save_dir))
 myGenenames_idx = readRDS(sprintf('%s/important_genes_idx.rds',  save_dir))
-
-
 
 # keep idx genes not in remove list
 keep_idx = sapply(X   = 1:length(myGenenames), 
@@ -87,33 +90,27 @@ myGenenames_df = data.frame(importance_rank = 1:length(myGenenames),
                         grna_target = sapply(X   = 1:length(myGenenames), 
                                              FUN = function(i) {(myGenenames[i] %in% grnaTarget_names)}))
 
-
 write.csv(x = myGenenames_df, 
           file = sprintf('%s/important_genes_name_TF_Target.csv', save_dir), 
           row.names = FALSE) # top important genes noting the TF and gRNA targets
 
 
-
-# =================== remove these genes from the top XX genes ====================================
-
 # myGenenames_df = data.frame(myGenenames, myGenenames_idx)
 
-
-
-dim(gene_norm)
-# N_subsample = 5000
-N_subsample = ncol(gene_norm)
-set.seed(12345)
-gene_norm_noTFTargets = gene_norm[myGenenames_df |> dplyr::filter((!TF) & (!grna_target)) |> dplyr::pull(importance_rank), ]
-if(N_subsample == ncol(gene_norm)) {
-  gene_norm_SPC = t(gene_norm_noTFTargets) # sample 5k out of 21k cells
-} else {
-  gene_norm_SPC = t(gene_norm_noTFTargets[, sample(1:ncol(gene_norm), N_subsample)]) # sample 5k out of 21k cells
-}
-rm(gene_norm_noTFTargets); gc()
-# gene_norm_SPC = t(gene_norm[myGenenames_df |> dplyr::filter((!TF) & (!grna_target)) |> dplyr::pull(importance_rank),
-#                             sample(1:ncol(gene_norm), N_subsample)]) # sample 5k out of 21k cells
-dim(gene_norm_SPC)
+# dim(gene_norm)
+# # N_subsample = 5000
+# N_subsample = ncol(gene_norm)
+# set.seed(12345)
+# gene_norm_noTFTargets = gene_norm[myGenenames_df |> dplyr::filter((!TF) & (!grna_target)) |> dplyr::pull(importance_rank), ]
+# if(N_subsample == ncol(gene_norm)) {
+#   gene_norm_SPC = t(gene_norm_noTFTargets) # sample 5k out of 21k cells
+# } else {
+#   gene_norm_SPC = t(gene_norm_noTFTargets[, sample(1:ncol(gene_norm), N_subsample)]) # sample 5k out of 21k cells
+# }
+# rm(gene_norm_noTFTargets); gc()
+# # gene_norm_SPC = t(gene_norm[myGenenames_df |> dplyr::filter((!TF) & (!grna_target)) |> dplyr::pull(importance_rank),
+# #                             sample(1:ncol(gene_norm), N_subsample)]) # sample 5k out of 21k cells
+# dim(gene_norm_SPC)
 
 
 # ==================================================================================================
@@ -122,7 +119,7 @@ dim(gene_norm_SPC)
 
 # =================== Use SPC.cv to choose tuning parameters: ======================================
 # Use SPC.cv to choose tuning parameters:
-if(F) {
+if(RUN_SPCA_CV) {
   cv.out <- SPC.cv(gene_norm_SPC, 
                    
                    sumabsvs = c(seq(1.2, 5, len = 5), seq(6, floor(sqrt(ncol(gene_norm_SPC))), len = 5)),
@@ -134,13 +131,17 @@ if(F) {
   
   saveRDS(cv.out, 
           sprintf('%s/spca/cvout.rds', save_dir)) # save cv res
+
+  my_sumabsv = cv.out$bestsumabsv1se
+  my_K = 60
+} else {
+  my_sumabsv = 8
+  my_K = 60
 }
 
 
-my_sumabsv = 8
-my_K = 60
-if(F) {
-  
+if(RUN_SPCA) {
+  # run sPCA and save result
   out.orth <- SPC(gene_norm_SPC,
                   sumabsv=my_sumabsv, # tuning parameter
                   # sumabsv=cv.out$bestsumabsv1se, # 33.5 not strong enough. v's not sparse and number of nonzero coefs too large
@@ -150,108 +151,110 @@ if(F) {
           sprintf('%s/spca/outorth_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save res
   
 } else {
-  out.orth = readRDS(sprintf('%s/spca/outorth_sumabs=%.1f_K=%d_N=%d.rds', save_dir, 5, 60))
-}
+  # load in previously saved result
+  # out.orth = readRDS(sprintf('%s/spca/outorth_sumabs=%.1f_K=%d_N=%d.rds', save_dir, 5, 60))
+  out.orth = readRDS(sprintf('%s/spca/outorth_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample))
+} 
+
+
+# =================== Not used methods to construct NCs ===========================================================
+if(F) {
+  print(out.orth, verbose=TRUE)
+
+
+  out.orth
+  names(out.orth)
+
+  plot(out.orth$prop.var.explained, ylim = c(0, 1))
+  out.orth$cnames
+  out.orth$meanx
+  out.orth$vpos
+
+  # how many features in each Sparse PC:
+  dim(out.orth$v); dim(out.orth$v != 0)  # num cells x num Sparse PCs
+  plot(colSums(out.orth$v != 0), 
+       main = '#Genes per Sparse PC', xlab = 'Sparse PC', ylab = '#Genes')
+
+  # assign gene to NC idx without overlap between NCs (e.g. gene5 has nonzero coef in SparsePC2 and 3 --> assign only to 2nd NC)
+  out.orth$v |> dim()
+  abs(out.orth$v)
+
+  out.orth$v[1, ]
+  which.max(out.orth$v[1, ])
 
 
 
 
-
-# =================== Perform Sparse PCA ===========================================================
-print(out.orth,verbose=TRUE)
-
-
-out.orth
-names(out.orth)
-
-plot(out.orth$prop.var.explained, ylim = c(0, 1))
-out.orth$cnames
-out.orth$meanx
-out.orth$vpos
-
-# how many features in each Sparse PC:
-dim(out.orth$v); dim(out.orth$v != 0)  # num cells x num Sparse PCs
-plot(colSums(out.orth$v != 0), 
-     main = '#Genes per Sparse PC', xlab = 'Sparse PC', ylab = '#Genes')
-
-# assign gene to NC idx without overlap between NCs (e.g. gene5 has nonzero coef in SparsePC2 and 3 --> assign only to 2nd NC)
-out.orth$v |> dim()
-abs(out.orth$v)
-
-out.orth$v[1, ]
-which.max(out.orth$v[1, ])
+  # by gene, how many PCs does this gene have nonzero coefs in
+  plot(rowSums(out.orth$v != 0), 
+       main = '#nonzero Sparse PCs per Gene', xlab = 'importance rank (ish)', ylab = '#Sparse PCs')
 
 
+  out.orth$v == 0
+  out.orth$v[1:10, 1:2]
+  colSums(out.orth$v[, 1:2] * out.orth$v[, 1:2])
 
-
-# by gene, how many PCs does this gene have nonzero coefs in
-plot(rowSums(out.orth$v != 0), 
-     main = '#nonzero Sparse PCs per Gene', xlab = 'importance rank (ish)', ylab = '#Sparse PCs')
-
-
-out.orth$v == 0
-out.orth$v[1:10, 1:2]
-colSums(out.orth$v[, 1:2] * out.orth$v[, 1:2])
-
-# map each of the Sparse PCs to a NC. Then, remove repeats based on coef abs val
-which.absmax.nonzero <- function(vec) {
-  # if the maximum abs value is 0, then return NA
-  i = which.max(abs(vec))
-  if(vec[i] == 0) {
-    return(NA)
-  } else {
-    return(i)
-  }
-}
-gene_NC_noupdate = apply(out.orth$v, MARGIN = 1, FUN = which.absmax.nonzero) # which.max still returns something when ties...
-
-
-
-
-
-
-
-# i think we just need to increase the sparsity parameter
-# inefficient but updates coef vector after assigning the gene\
-cur_v = out.orth$v |> abs()
-gene_NC = rep(NA, nrow(cur_v))
-for(g_idx in 1:nrow(cur_v)) {
-  # find which PC has max coef
-  maxcoef = max(cur_v[g_idx, ]) 
-  
-  # if nonzer coef anywhere, assign to a NC
-  if(maxcoef != 0) {
-    whichNC = which.max(cur_v[g_idx, ])  
-    gene_NC[g_idx] = whichNC
-    
-    # zero out other PCs coefs and normalize. hmm should also update assigned PC? (move the weight? no for now)
-    othernonzero_PC = setdiff(which(cur_v[g_idx, ] != 0), whichNC)
-    for(nonzero_PC in othernonzero_PC) {
-      cur_v[g_idx, nonzero_PC] = 0
-      cur_v[     , nonzero_PC] = cur_v[, nonzero_PC] / sum(cur_v[, nonzero_PC]**2)
+  # map each of the Sparse PCs to a NC. Then, remove repeats based on coef abs val
+  which.absmax.nonzero <- function(vec) {
+    # if the maximum abs value is 0, then return NA
+    i = which.max(abs(vec))
+    if(vec[i] == 0) {
+      return(NA)
+    } else {
+      return(i)
     }
   }
-  
-  
+  gene_NC_noupdate = apply(out.orth$v, MARGIN = 1, FUN = which.absmax.nonzero) # which.max still returns something when ties...
+
+
+
+
+
+
+
+  # i think we just need to increase the sparsity parameter
+  # inefficient but updates coef vector after assigning the gene
+  cur_v = out.orth$v |> abs()
+  gene_NC = rep(NA, nrow(cur_v))
+  for(g_idx in 1:nrow(cur_v)) {
+    # find which PC has max coef
+    maxcoef = max(cur_v[g_idx, ]) 
+    
+    # if nonzer coef anywhere, assign to a NC
+    if(maxcoef != 0) {
+      whichNC = which.max(cur_v[g_idx, ])  
+      gene_NC[g_idx] = whichNC
+      
+      # zero out other PCs coefs and normalize. hmm should also update assigned PC? (move the weight? no for now)
+      othernonzero_PC = setdiff(which(cur_v[g_idx, ] != 0), whichNC)
+      for(nonzero_PC in othernonzero_PC) {
+        cur_v[g_idx, nonzero_PC] = 0
+        cur_v[     , nonzero_PC] = cur_v[, nonzero_PC] / sum(cur_v[, nonzero_PC]**2)
+      }
+    }
+    
+    
+  }
+  # checking should be just 1 or 0: by gene, how many 'PC's does this gene have nonzero coefs in
+  plot(rowSums(cur_v != 0), 
+       main = '#nonzero Updated Sparse PCs per Gene', xlab = 'importance rank (ish)', ylab = '#Sparse PCs')
+
+
+  plot(gene_NC_noupdate)
+  plot(gene_NC)
+  table(gene_NC); table(gene_NC_noupdate)
+
+
+  gene_NC |> table() |> as.numeric() |> hist(breaks = seq(1, to = 100, by = 1))
+
+  plot(data.frame(table(gene_NC))[,1],
+       data.frame(table(gene_NC))[,2])
+
+
+  out.orth$v
+  (out.orth$v[, 1] != 0) |> sum()
+
 }
-# checking should be just 1 or 0: by gene, how many 'PC's does this gene have nonzero coefs in
-plot(rowSums(cur_v != 0), 
-     main = '#nonzero Updated Sparse PCs per Gene', xlab = 'importance rank (ish)', ylab = '#Sparse PCs')
-
-
-plot(gene_NC_noupdate)
-plot(gene_NC)
-table(gene_NC); table(gene_NC_noupdate)
-
-
-gene_NC |> table() |> as.numeric() |> hist(breaks = seq(1, to = 100, by = 1))
-
-plot(data.frame(table(gene_NC))[,1],
-     data.frame(table(gene_NC))[,2])
-
-
-out.orth$v
-(out.orth$v[, 1] != 0) |> sum()
 
 
 # =================== Construct NCs ================================================================
