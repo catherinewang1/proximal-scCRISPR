@@ -61,12 +61,12 @@ N_subsample = 'all' # subsample size, or 'all' if using all cells
 
 # === Parameter Settings for which estimators to perform
 which_estimators = list(lm_YA        = TRUE,
-                        OCB_2SLS     = TRUE,
+                        OCB_2SLS     = FALSE,
                         OCB_2SLS_pci2s=TRUE,
-                        OCB_2SLSReg  = TRUE,
-                        OCB_GMM      = TRUE,
-                        OCB_GMMRw    = TRUE,
-                        OCB_GMMRwReg = TRUE,
+                        OCB_2SLSReg  = FALSE,
+                        OCB_GMM      = FALSE,
+                        OCB_GMMRw    = FALSE,
+                        OCB_GMMRwReg = FALSE,
                         OCB_LinOSPI  = FALSE,
                         OCB_LinOS    = FALSE,
                         OCB_LinOStrim= FALSE)
