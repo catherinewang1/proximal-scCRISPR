@@ -1,7 +1,6 @@
 # ---------------------------------------------------------------------------- #
 #                   Do CB using genes as NCE/NCO                               #
-# 3.1  - add chromosome number information                                     #
-# 3.2 - CB Effect Estimate                                                     #
+# 1.3  - add chromosome number information                                     #
 # Requires: prev saved normalized gene expression (HDF5)                       #
 # Ouputs: (nothing) but saves                                                  #
 #         gene_chr in the csv file                                             #
@@ -21,18 +20,6 @@ assertthat::assert_that(length(args) > 0, msg="must give arg for specifying devi
 
 DEVICE = args[1]
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
-
-# # location of papalexi-2021 folder
-# data_dir = switch(DEVICE,
-#                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/genData/papalexi', 
-#                   'desktop'='C:/Users/Catherine W/Documents/Research/genData/papalexi', 
-#                   'ubergenno'='/raid6/Catherine/papalexi')
-# # location of intermediate save files/plots are written
-# save_dir = switch(DEVICE,
-#                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/DoubleBridge/saves/papalexi_saves', 
-#                   'desktop'='C:/Users/Catherine W/Documents/Research/DoubleBridge/saves/papalexi_saves', 
-#                   'ubergenno'='/raid6/Catherine/papalexi/papalexi_saves')
-# assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
 
 
 # =================== Start ====================================================
@@ -95,8 +82,6 @@ chr_df = merge(data.frame('wikigene_name' = myGenenames,
 chr_df = chr_df |> group_by(wikigene_name) |> slice_min(ensembl_gene_id)
 
 write.csv(chr_df, file = sprintf('%s/chromosome/gene_chromosome.csv', save_dir), row.names = F)
-
-
 
 
 # =================== get GRNA chromosome info ======================================

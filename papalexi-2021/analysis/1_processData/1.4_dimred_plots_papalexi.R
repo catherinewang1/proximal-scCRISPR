@@ -9,38 +9,18 @@
 args = commandArgs(trailingOnly = TRUE)
     
 require(assertthat) # for some assert statements
-# require(rhdf5)      # read/write HDF5 format
 require(ondisc)
-# library(umap)       # perform umap
 library(ggplot2)
 library(dplyr)
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
 DEVICE = args[1]
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR and util_dir, depending on DEVICE value
-# # location of papalexi-2021 folder
-# data_dir = switch(DEVICE,
-#                'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/genData/papalexi', 
-#                'desktop'='C:/Users/Catherine W/Documents/Research/genData/papalexi', 
-#                'ubergenno'='/raid6/Catherine/papalexi')
-# # location of intermediate save files/plots are written
-# save_dir = switch(DEVICE,
-#                'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/DoubleBridge/saves/papalexi_saves', 
-#                'desktop'='C:/Users/Catherine W/Documents/Research/DoubleBridge/saves/papalexi_saves', 
-#                'ubergenno'='/raid6/Catherine/papalexi/papalexi_saves')
-# # location of utils code
-# CODE_DIR = switch(DEVICE,
-#                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/DoubleBridge/code/utils', 
-#                   'desktop'='C:/Users/Catherine W/Documents/Research/DoubleBridge/code/utils', 
-#                   'ubergenno'='/raid6/home/catheri2/DoubleBridge/code/utils')
 
 assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
 
 assertthat::assert_that(length(args) >= 2, msg="provide device and NUM_IMPORTANT_GENES (currently int <=4000)")
 NUM_IMPORTANT_GENES = as.integer(args[2])
-
-
-
 
 
 # =================== Start ========================================================================
@@ -55,9 +35,6 @@ grna_odm <- read_odm(odm_fp      = paste0(papalexi_dir, "/processed/grna_assignm
 chosen_genes = c('FTH1', 'EEF1A1', 'FAU') 
 chosen_grna_T  = c('IFNGR2g1', 'ATF2g1', 'CD86g1')
 all_grna_NT = grna_odm |> get_feature_covariates() |> filter(target_type == 'non-targeting') |> rownames()
-
-
-
 
 
 # =================== Constructing Dataframes of Dim Reds ========================
@@ -97,7 +74,5 @@ my_plot_dimred(dimred_type='pca',      gRNAcells=pca_cells$gRNAcells,      allce
 my_plot_dimred(dimred_type='pca_umap', gRNAcells=pca_umap_cells$gRNAcells, allcells=pca_umap_cells$allcells)
 
 
-
 # =================== END ==========================================================================
 print(sprintf("[%s] END", Sys.time()))
-

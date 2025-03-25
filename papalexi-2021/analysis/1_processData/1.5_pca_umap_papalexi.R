@@ -39,12 +39,6 @@ print(sprintf("[%s]    - scaling normalized gene exp", Sys.time()))
 gene_norm_scaled = apply(gene_norm, MARGIN = 1, FUN = scale)
 invisible(gc(verbose=FALSE))
 
-# filling NAs in gene_norm_scaled
-# anyNA(gene_norm_scaled) # but after feat sel, shouldn't have any?? some still 0sd
-# gene_norm_scaled[is.na(gene_norm_scaled)] = 0 
-# invisible(gc(verbose=FALSE))
-
-
 
 # =================== performing PCA ===========================================
 print(sprintf("[%s]    - performing PCA (to 50 PCs)", Sys.time()))
@@ -112,9 +106,3 @@ ggsave(plot=p,
 
 # =================== END ======================================================
 print(sprintf("[%s] END", Sys.time()))
-
-
-
-
-
-
