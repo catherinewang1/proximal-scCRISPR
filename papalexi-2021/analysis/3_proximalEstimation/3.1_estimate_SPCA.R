@@ -1,9 +1,8 @@
 # ---------------------------------------------------------------------------- #
-#                   Do CB using genes as NCE/NCO                               #
-# 3.1 - add chromosome number information                                      #
-# 3.2 - choose A,Y,Z,W combinations                                            #
-# 3.2 - CB Effect Estimate                                                     #
+#                   Do CB using sPCA of genes as NCE/NCO                       #
 # Requires: prev saved normalized gene expression (HDF5)                       #
+#           prev saved specified AY pairs
+#           prev saved sPCA PCs (for NCE/NCO)
 # Ouputs: (nothing) but saves                                                  #
 #         CBGENE_AYZW in the rds file                                          #
 #                         "<save_dir>/CBGENE_AYZW.rds"                         #
@@ -75,28 +74,8 @@ which_estimators = list(lm_YA        = TRUE,
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
 
-
-
 DEVICE = args[1]
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
-
-# DEVICE = args[1]
-# # location of papalexi-2021 folder
-# data_dir = switch(DEVICE,
-#                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/genData/papalexi',
-#                   'desktop'='C:/Users/Catherine W/Documents/Research/genData/papalexi',
-#                   'ubergenno'='/raid6/Catherine/papalexi')
-# # location of intermediate save files/plots are written
-# save_dir = switch(DEVICE,
-#                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/DoubleBridge/saves/papalexi_saves',
-#                   'desktop'='C:/Users/Catherine W/Documents/Research/DoubleBridge/saves/papalexi_saves',
-#                   'ubergenno'='/raid6/Catherine/papalexi/papalexi_saves')
-# # location of utils code
-# util_dir = switch(DEVICE,
-#                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/DoubleBridge/code/utils',
-#                   'desktop'='C:/Users/Catherine W/Documents/Research/DoubleBridge/code/utils',
-#                   'ubergenno'='/home/catheri2/DoubleBridge/code/utils')
-
 assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
 
 assertthat::assert_that(length(args) > 1, msg="must give arg for specifying chosen AYZW name 'Rscript <filename>.R ubergenno C'")
