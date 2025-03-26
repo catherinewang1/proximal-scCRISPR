@@ -9,6 +9,7 @@
 # ---------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop', 'allPerturbations')
+# args = c('laptop', 'A1')
 
 require(assertthat) # for some assert statements
 library(Matrix)
@@ -113,6 +114,7 @@ source(sprintf('%s/OCBLinBridge.R', util_dir)) # Lin Bridge Plug-In and One-Step
 
 source(sprintf('%s/getdfPCA.R', util_dir))     # for performing PCA
 
+source(sprintf('%s/constructDataList.R', util_dir)) # for formatting data for other fns
 source(sprintf('%s/CBEstAll.R', util_dir)) # for functions to estimate here
 source(sprintf('%s/CBEstAllSPCA.R', util_dir)) # add'l specifically for SPCA
 
@@ -795,7 +797,7 @@ ATEargs = data.frame(AY_idx = 1:nrow(AY))
 # NUMROWS = 10
 NUMROWS = nrow(ATEargs)
 # whichROWS = 300:nrow(ATEargs)
-whichROWS = 1:1164
+whichROWS = 1:10
 # whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
@@ -813,6 +815,9 @@ ATE_par = future.apply::future_mapply(get_ATE_est,
 #                    'CB', 'get_lmYA_est', 'get_ATE_est'))
 t1 = Sys.time()
 print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
+
+
+saveRDS(ATE_par, sprintf('%s/spca/cbgenes/%s/%s/ATE.csv', save_dir, AYZW_setting_name, CB_setting_name))
 
 # ATE_par[, 1]
 # ATE_par[[1, ]]
