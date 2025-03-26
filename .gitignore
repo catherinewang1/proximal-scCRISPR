@@ -1,6 +1,8 @@
 # saved files
 papalexi-2021/saves/
 
+# any default plots
+*Rplots.pdf
 
 # History files
 .Rhistory
