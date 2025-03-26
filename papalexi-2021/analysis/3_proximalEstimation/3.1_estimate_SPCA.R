@@ -57,6 +57,7 @@ save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as t
 my_sumabsv = 5
 my_K = 60
 N_subsample = 'all' # subsample size, or 'all' if using all cells
+N_subsample = 2000
 
 # === Parameter Settings for which estimators to perform
 which_estimators = list(lm_YA        = TRUE,

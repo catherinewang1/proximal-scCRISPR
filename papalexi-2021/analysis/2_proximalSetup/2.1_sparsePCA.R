@@ -1,5 +1,6 @@
 # -------------------------------------------------------------------------------- #
 #    Prepare for Proximal/Confounding Bridge using sparse PCA of genes as NCE/NCO  #
+# Perform Sparse PCA in order to construct Negative Controls by combining individual genes #
 # 2.1 - get sparse PCA PCs                                                         #
 # 2.2 - choose A,Y,Z,W combinations                                                #
 # Requires: prev saved normalized gene expression (HDF5)                           #
@@ -9,19 +10,27 @@
 #         CBGENE_AYZW in the rds file                                              #
 #                         "<save_dir>/cbgenes/<AYZW_setting_name>/CBGENE_AYZW.rds" #
 # -------------------------------------------------------------------------------- #
+args = commandArgs(trailingOnly = TRUE)
 
 library(PMA)
 
 
-# Perform Sparse PCA in order to construct Negative Controls by combining 
-# individual genes
-NUM_IMPORTANT_GENES = 4000
-DEVICE = 'laptop'
 RUN_SPCA_CV = FALSE # run sPCA tuning with cross-validation (ow used hard coded defaults)
 RUN_SPCA    = TRUE  # run sPCA (ow load in saved)
-# first set working dir to current file save location (should be in some sort of papalexi-2021/analysis/)
-source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
+# number of sampled cells used for creating sparse PCs (NA for all)
+N_subsample = 2000
+# N_subsample = NA 
 
+assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
+
+DEVICE = args[1]
+source('../PATHS.R') # load in data_dir and save_dir, depending on DEVICE value
+
+assertthat::assert_that(length(args) >= 2, msg="provide device and TEST_GENENUM (currently int <=4000)")
+NUM_IMPORTANT_GENES = as.integer(args[2])
+
+
+dir.create(sprintf('%s/spca/', save_dir), showWarnings = FALSE)
 
 # ==================================================================================================
 # =================== Load Normalized Gene Expr ====================================================
@@ -98,19 +107,19 @@ write.csv(x = myGenenames_df,
 # myGenenames_df = data.frame(myGenenames, myGenenames_idx)
 
 # dim(gene_norm)
-# # N_subsample = 5000
-# N_subsample = ncol(gene_norm)
-# set.seed(12345)
-# gene_norm_noTFTargets = gene_norm[myGenenames_df |> dplyr::filter((!TF) & (!grna_target)) |> dplyr::pull(importance_rank), ]
+
+set.seed(12345)
+gene_norm_noTFTargets = gene_norm[myGenenames_df |> dplyr::filter((!TF) & (!grna_target)) |> dplyr::pull(importance_rank), ]
 # if(N_subsample == ncol(gene_norm)) {
-#   gene_norm_SPC = t(gene_norm_noTFTargets) # sample 5k out of 21k cells
-# } else {
-#   gene_norm_SPC = t(gene_norm_noTFTargets[, sample(1:ncol(gene_norm), N_subsample)]) # sample 5k out of 21k cells
-# }
-# rm(gene_norm_noTFTargets); gc()
-# # gene_norm_SPC = t(gene_norm[myGenenames_df |> dplyr::filter((!TF) & (!grna_target)) |> dplyr::pull(importance_rank),
-# #                             sample(1:ncol(gene_norm), N_subsample)]) # sample 5k out of 21k cells
-# dim(gene_norm_SPC)
+if(is.na(N_subsample)) {  # NA --> use all cells    
+  gene_norm_SPC = t(gene_norm_noTFTargets) # all 21k cells
+} else {
+  gene_norm_SPC = t(gene_norm_noTFTargets[, sample(1:ncol(gene_norm), N_subsample)]) # sample 5k/XX out of 21k cells
+}
+rm(gene_norm_noTFTargets); gc()
+# gene_norm_SPC = t(gene_norm[myGenenames_df |> dplyr::filter((!TF) & (!grna_target)) |> dplyr::pull(importance_rank),
+#                             sample(1:ncol(gene_norm), N_subsample)]) # sample 5k out of 21k cells
+dim(gene_norm_SPC)
 
 
 # ==================================================================================================
@@ -135,7 +144,7 @@ if(RUN_SPCA_CV) {
   my_sumabsv = cv.out$bestsumabsv1se
   my_K = 60
 } else {
-  my_sumabsv = 8
+  my_sumabsv = 5 # 8
   my_K = 60
 }
 
@@ -158,7 +167,7 @@ if(RUN_SPCA) {
 
 
 # =================== Not used methods to construct NCs ===========================================================
-if(F) {
+if(T) {
   print(out.orth, verbose=TRUE)
 
 
@@ -286,11 +295,11 @@ NC_avg  |> dim()
 
 
 # =================== Save =========================================================================
-
+print(sprintf("[%s]         Saving NCs", Sys.time()))
 saveRDS(NC_loadings, 
         sprintf('%s/spca/NCloadings_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save 
 saveRDS(NC_avg, 
-        sprintf('%s/spca/NCavg_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save
+        sprintf(     '%s/spca/NCavg_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save
 
 
 

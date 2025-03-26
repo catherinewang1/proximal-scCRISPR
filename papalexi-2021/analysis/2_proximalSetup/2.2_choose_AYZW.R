@@ -55,9 +55,9 @@ AYZW_setting_name = (args[2])
 # choose all known AY pairs (targeted perturbations)
 setting = list(seed = 942346,
                NUM_A             = 5, # NA if all As (probably SHOULD)
-               NUM_Y_PER_A_NEG   = 5,  # NA if all (probably should NOT)
+               NUM_Y_PER_A_NEG   = 5, # NA if all (probably should NOT)
                NUM_Y_PER_A_MAYBE = 5, # NA if all on same chromosome (probably SHOULD)
-               MAX_Y_IMPORTANCE  = 2000, # limit how 'unimportant' a response gene can be
+               MAX_Y_IMPORTANCE  = 1000, # limit how 'unimportant' a response gene can be
                # NUM_NCENCO_pairs  = 100,  # number of NCE/NCO pairs (dimU, length of ZWs)
                # NUM_NCE           = NA,  # number of NCE per AY test (prev #NCE/NCO equal) (NA=all avail)
                # NUM_NCO           = NA,  # number of NCO per AY test 
