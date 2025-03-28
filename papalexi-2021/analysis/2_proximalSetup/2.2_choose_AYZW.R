@@ -53,17 +53,29 @@ AYZW_setting_name = (args[2])
 # Too many to test for all possible, so choose all A's, 
 # some Y's on the same chromosome and some Y's on diff chromosome.
 # choose all known AY pairs (targeted perturbations)
+# setting = list(seed = 942346,
+#                NUM_A             = 5, # NA if all As (probably SHOULD)
+#                NUM_Y_PER_A_NEG   = 5, # NA if all (probably should NOT)
+#                NUM_Y_PER_A_MAYBE = 5, # NA if all on same chromosome (probably SHOULD)
+#                MAX_Y_IMPORTANCE  = 1000, # limit how 'unimportant' a response gene can be
+#                # NUM_NCENCO_pairs  = 100,  # number of NCE/NCO pairs (dimU, length of ZWs)
+#                # NUM_NCE           = NA,  # number of NCE per AY test (prev #NCE/NCO equal) (NA=all avail)
+#                # NUM_NCO           = NA,  # number of NCO per AY test 
+#                # NUM_NCENCO_per_AY = 1,   # number of NCE/NCO sets per AY test
+#                NUM_AY_POS        = 5    # number of known causal/positive AY tests, NA if all As (probably SHOULD)
+# )
 setting = list(seed = 942346,
-               NUM_A             = 5, # NA if all As (probably SHOULD)
-               NUM_Y_PER_A_NEG   = 5, # NA if all (probably should NOT)
-               NUM_Y_PER_A_MAYBE = 5, # NA if all on same chromosome (probably SHOULD)
+               NUM_A             = NA, # NA if all As (probably SHOULD)
+               NUM_Y_PER_A_NEG   = 10, # NA if all (probably should NOT)
+               NUM_Y_PER_A_MAYBE = 0, # NA if all on same chromosome (probably SHOULD)
                MAX_Y_IMPORTANCE  = 1000, # limit how 'unimportant' a response gene can be
                # NUM_NCENCO_pairs  = 100,  # number of NCE/NCO pairs (dimU, length of ZWs)
                # NUM_NCE           = NA,  # number of NCE per AY test (prev #NCE/NCO equal) (NA=all avail)
                # NUM_NCO           = NA,  # number of NCO per AY test 
                # NUM_NCENCO_per_AY = 1,   # number of NCE/NCO sets per AY test
-               NUM_AY_POS        = 5    # number of known causal/positive AY tests, NA if all As (probably SHOULD)
+               NUM_AY_POS        = NA    # number of known causal/positive AY tests, NA if all As (probably SHOULD)
 )
+
 
 set.seed(setting$seed)
 

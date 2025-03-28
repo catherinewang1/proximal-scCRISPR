@@ -21,7 +21,7 @@ library(cowplot)
 
 library(future.apply)
 options(future.globals.maxSize= 850*1024^2) #1st num is MB
-plan(multisession, workers = 4)
+plan(multisession, workers = 8)
 # plan(sequential)
 
 # library(furrr)
@@ -797,8 +797,8 @@ ATEargs = data.frame(AY_idx = 1:nrow(AY))
 # NUMROWS = 10
 NUMROWS = nrow(ATEargs)
 # whichROWS = 300:nrow(ATEargs)
-whichROWS = 1:10
-# whichROWS = 1:NUMROWS
+# whichROWS = 1:3
+whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
 # # =================== Get ATEs (parallel) ====================================
