@@ -71,7 +71,7 @@ get_true_pval_make <- function(AY, gene_norm, NCs,
                                  CB_setting, save_path=NULL) {
 
     # create a list where all methods are FALSE, except for OCB_2SLS_pci2s
-    which_estimators_onlylmYA = list(lm_YA        = FALSE,
+    which_estimators_onlypci2s = list(lm_YA        = FALSE,
                                      OCB_2SLS     = FALSE,
                                      OCB_2SLS_pci2s=TRUE,
                                      OCB_2SLSReg  = FALSE,
@@ -84,48 +84,54 @@ get_true_pval_make <- function(AY, gene_norm, NCs,
 
     # make the get_ATE_est_NCs_make function using the new which_estimators, 
     # and inputting all the other provided params
-    get_ATE_est_NCs_lmYA = get_ATE_est_NCs_make(AY=AY, 
+    get_ATE_est_NCs_pci2s = get_ATE_est_NCs_make(AY=AY, 
                                             gene_norm=gene_norm,
                                             NCs=NCs,
                                             grna_rownames=grna_rownames, 
                                             grna=grna, 
                                             NT_idx=NT_idx, 
                                             imp_gene_names=imp_gene_names, 
-                                            which_estimators=which_estimators_onlylmYA, # <-- changed
+                                            which_estimators=which_estimators_onlypci2s, # <-- changed
                                             CB_setting=CB_setting, 
                                             save_path=save_path)
     
     #' takes in AY idx and returns OCB_2SLS_pci2s p-value
     #' @param idx (integer) index of the AY pair in the list
     #'                      of AY pairs
-    get_proxy_pval <- function(idx) {
+    get_true_pval <- function(idx) {
         # call fn to analyze
-        res = get_ATE_est_NCs_lmYA(idx)
+        res = get_ATE_est_NCs_pci2s(idx)
         # extract p-value (should be a df with 1 row?)
         return(res[1, "pval"])
     }
     
     # return the inner function (which takes in AY idx, and returns the OCB_2SLS_pci2s p-value)
-    return(get_proxy_pval)
+    return(get_true_pval)
 } 
 
 
 
 
 #' Calculate the active pvalue in the arbitrarily dependent case
+#' For proxy Q, true P, and random T|Q \sim Bern(1-gamma Q) for gamma \in (0,1]:
+#'  (1-T) Q + T (1-gamma)^{-1} P
+#'
 #' @param get_proxy_pval (function) that takes input AY idx, and returns proxy pvalue
 #' @param get_true_pval  (function) that takes input AY idx, and returns true pvalue
-#' 
+#' @param gamma (numeric) \in (0, 1]
+#'
 #' (prob also return some other values, e.g. if true pval was called, computation time, etc...)
 #' @return active pval
-get_active_arbdep_pval_make <- function(get_proxy_pval, get_true_pval) {
+get_active_arbdep_pval_make <- function(get_proxy_pval, get_true_pval, gamma = .5) {
 
     get_active_arbdep_pval <- function(idx) {
         # first call proxy
         pval_proxy = get_proxy_pval(idx)
         # then maybe call true
-        if(something??) {
-            return(get_true_pval(idx))
+        T_ = rbinom(n=1, size=1, prob= 1 - gamma * pval_proxy)
+        # (1-T) Q + T (1-gamma)^{-1} P
+        if(T_ > .5) {
+            return( (1/(1-gamma)) * get_true_pval(idx))
         } else {  
             return(pval_proxy)  
         }

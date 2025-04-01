@@ -7,7 +7,7 @@
 # ---------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop', 'allPerturbations')
-# args = c('laptop', 'A1')
+# args = c('laptop', 'A')
 
 require(assertthat) # for some assert statements
 library(Matrix)
@@ -36,7 +36,8 @@ K_folds = 5
 lambdas = (10)^(seq(from = -10, to = 3, length.out = 27))
 TRIM = .1
 # num_NC_pairs = c(1:8, 10, 15, 20, 25, 30) # number of NC pairs to try (<= total NC pairs, will be cut off)
-num_NC_pairs = c(1, 3, 5, 10, 20)
+# num_NC_pairs = c(1, 3, 5, 10, 20)
+num_NC_pairs = c(20)
 # num_NC_pairs = c(1:3)
 basisParams = list(basis1 = list(b_degree=1, h_degree=1, # linear
                                  b_phases=NULL, b_periods=NULL,
@@ -195,24 +196,20 @@ get_proxy_pval0 =  get_proxy_pval_make(AY=AY, gene_norm=gene_norm, NCs=NCs, grna
                                     NT_idx=NT_idx, imp_gene_names=imp_gene_names,
                                     # which_estimators=which_estimators, 
                                     CB_setting=CB_setting, 
-                                    save_path=switch(save_intermediateATEs,
-                                                     'yes' = sprintf('%s/spca/cbgenes/%s/%s', save_dir, AYZW_setting_name, CB_setting_name),
-                                                     'no'  = NULL))
+                                    save_path=NULL)
 
-get_true_pval0  =  get_proxy_pval_make(AY=AY, gene_norm=gene_norm, NCs=NCs, grna_rownames=grna_rownames, grna=grna, 
+get_true_pval0  =  get_true_pval_make(AY=AY, gene_norm=gene_norm, NCs=NCs, grna_rownames=grna_rownames, grna=grna, 
                                     NT_idx=NT_idx, imp_gene_names=imp_gene_names,
                                     # which_estimators=which_estimators, 
                                     CB_setting=CB_setting, 
-                                    save_path=switch(save_intermediateATEs,
-                                                     'yes' = sprintf('%s/spca/cbgenes/%s/%s', save_dir, AYZW_setting_name, CB_setting_name),
-                                                     'no'  = NULL))
+                                    save_path=NULL)
 
 get_active_pval0 = get_active_arbdep_pval_make(get_proxy_pval=get_proxy_pval0,
                                                 get_true_pval=get_true_pval0)
 
 # another fn to ignore errors (so that the others may continue running)
 get_active_pval <- function(AY_idx) {
-  res = tryCatch({get_ATE_est0(AY_idx=AY_idx)},
+  res = tryCatch({get_active_pval0(AY_idx)},
                     error = function(cond) {
                       # message(sprintf('Error est CondMomentOCBOS with %s', 
                       #                 gammaSetting)) 
@@ -264,15 +261,15 @@ ATEargs = data.frame(AY_idx = 1:nrow(AY))
 
 # NUMROWS = 10
 NUMROWS = nrow(ATEargs)
-# whichROWS = 300:nrow(ATEargs)
+whichROWS = 1:100
 # whichROWS = 1:3
-whichROWS = 1:NUMROWS
+# whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
 # # =================== Get ATEs (parallel) ====================================
 print(sprintf("[%s]    - Get ATEs (parallel)", Sys.time()))
 t0 = Sys.time()
-ATE_par = future.apply::future_mapply(get_ATE_est,
+ATE_par = future.apply::future_mapply(get_active_pval,
                                       AY_idx = ATEargs[whichROWS, 1], # ATEargs[1:NUMROWS, 1],
                                       future.globals = TRUE,
                                       future.seed = 56789)
@@ -285,7 +282,7 @@ t1 = Sys.time()
 print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
 
 
-saveRDS(ATE_par, sprintf('%s/spca/cbgenes/%s/%s/ATE.csv', save_dir, AYZW_setting_name, CB_setting_name))
+saveRDS(ATE_par, sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep.rds', save_dir, AYZW_setting_name, CB_setting_name))
 
 # ATE_par[, 1]
 # ATE_par[[1, ]]

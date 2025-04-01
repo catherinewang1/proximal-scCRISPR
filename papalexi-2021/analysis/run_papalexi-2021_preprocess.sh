@@ -7,6 +7,6 @@ cd ../
 cd 2_proximalSetup/
 Rscript 2.1_sparsePCA.R laptop 4000
 Rscript 2.2_choose_AYZW.R laptop A
-# cd ../
-# cd 3_proximalEstimation/
-# Rscript 3.1_estimate_SPCA.R laptop A
+cd ../
+cd 3_proximalEstimation/
+Rscript 3.X_estimate_SPCA_active.R laptop A
