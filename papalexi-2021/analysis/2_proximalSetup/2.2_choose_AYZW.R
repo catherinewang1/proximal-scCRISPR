@@ -66,7 +66,7 @@ AYZW_setting_name = (args[2])
 # )
 setting = list(seed = 942346,
                NUM_A             = NA, # NA if all As (probably SHOULD)
-               NUM_Y_PER_A_NEG   = 10, # NA if all (probably should NOT)
+               NUM_Y_PER_A_NEG   = 50, # NA if all (probably should NOT)
                NUM_Y_PER_A_MAYBE = 0, # NA if all on same chromosome (probably SHOULD)
                MAX_Y_IMPORTANCE  = 1000, # limit how 'unimportant' a response gene can be
                # NUM_NCENCO_pairs  = 100,  # number of NCE/NCO pairs (dimU, length of ZWs)
