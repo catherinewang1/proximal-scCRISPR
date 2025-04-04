@@ -124,17 +124,32 @@ get_true_pval_make <- function(AY, gene_norm, NCs,
 #' @return active pval
 get_active_arbdep_pval_make <- function(get_proxy_pval, get_true_pval, gamma = .5) {
 
-    get_active_arbdep_pval <- function(idx) {
+    get_active_arbdep_pval <- function(AY_idx) {
+        t0 = Sys.time()
+
         # first call proxy
-        pval_proxy = get_proxy_pval(idx)
+        pval_proxy = get_proxy_pval(AY_idx)
         # then maybe call true
         T_ = rbinom(n=1, size=1, prob= 1 - gamma * pval_proxy)
         # (1-T) Q + T (1-gamma)^{-1} P
         if(T_ > .5) {
-            return( (1/(1-gamma)) * get_true_pval(idx))
+            pval_true = get_true_pval(AY_idx)
+            active_pval = ( 1/(1-gamma)) * pval_true
         } else {  
-            return(pval_proxy)  
+            pval_true = NA
+            active_pval = pval_proxy
         }
+
+        t1 = Sys.time()
+
+        res = list(AY_idx = AY_idx,
+                   pval = active_pval,
+                   queried_true = T_,
+                   pval_proxy = pval_proxy, # redundant info but ok
+                   pval_true  = pval_true,
+                   gamma = gamma, 
+                   time = difftime(t1, t0, units = 'secs') |> as.numeric())
+        return(res)
     }
 
     # return the inner function (which takes in AY idx, and returns the active p-value)

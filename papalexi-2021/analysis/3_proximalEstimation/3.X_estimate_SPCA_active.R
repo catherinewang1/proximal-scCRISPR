@@ -19,8 +19,8 @@ library(cowplot)
 
 library(future.apply)
 options(future.globals.maxSize= 850*1024^2) #1st num is MB
-plan(multisession, workers = 8)
-# plan(sequential)
+# plan(multisession, workers = 8)
+plan(sequential)
 
 # library(furrr)
 # plan(multisession, workers = 2)
@@ -261,18 +261,18 @@ ATEargs = data.frame(AY_idx = 1:nrow(AY))
 
 # NUMROWS = 10
 NUMROWS = nrow(ATEargs)
-whichROWS = 1:100
-# whichROWS = 1:3
-# whichROWS = 1:NUMROWS
+# whichROWS = 1:100
+# whichROWS = 1:10
+whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
 # # =================== Get ATEs (parallel) ====================================
 print(sprintf("[%s]    - Get ATEs (parallel)", Sys.time()))
 t0 = Sys.time()
-ATE_par = future.apply::future_mapply(get_active_pval,
+pvals_par = future.apply::future_mapply(get_active_pval,
                                       AY_idx = ATEargs[whichROWS, 1], # ATEargs[1:NUMROWS, 1],
                                       future.globals = TRUE,
-                                      future.seed = 56789)
+                                      future.seed = 56789, SIMPLIFY = TRUE)
 # # manually state globals
 # future.globals = c('AY', 'AYZW', 'grna_rownames', 'grna', 
 #                    'NT_idx', 'get_importance_rank', 'gene_norm', 
@@ -281,8 +281,16 @@ ATE_par = future.apply::future_mapply(get_active_pval,
 t1 = Sys.time()
 print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
 
+# columns are lists...
+pvals_df = apply(pvals_par, FUN = unlist, MARGIN=1) |> as.data.frame()
+pvals_df$true_prob = 1 - pvals_df$gamma * pvals_df$pval_proxy # add col of prob of querying true
 
-saveRDS(ATE_par, sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep.rds', save_dir, AYZW_setting_name, CB_setting_name))
+
+saveRDS(pvals_df,
+        sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep.rds', save_dir, AYZW_setting_name, CB_setting_name))
+write.csv(x = pvals_df,
+          row.names = FALSE, 
+          file = sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep.csv', save_dir, AYZW_setting_name, CB_setting_name))
 
 # ATE_par[, 1]
 # ATE_par[[1, ]]
