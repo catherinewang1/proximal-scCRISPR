@@ -120,8 +120,7 @@ get_true_pval_make <- function(AY, gene_norm, NCs,
 #' @param get_true_pval  (function) that takes input AY idx, and returns true pvalue
 #' @param gamma (numeric) \in (0, 1]
 #'
-#' (prob also return some other values, e.g. if true pval was called, computation time, etc...)
-#' @return active pval
+#' @return (named list) active pval + other info
 get_active_arbdep_pval_make <- function(get_proxy_pval, get_true_pval, gamma = .5) {
 
     get_active_arbdep_pval <- function(AY_idx) {
@@ -164,6 +163,67 @@ get_active_arbdep_pval_make <- function(get_proxy_pval, get_true_pval, gamma = .
 
     # return the inner function (which takes in AY idx, and returns the active p-value)
     return(get_active_arbdep_pval)
+}
+
+
+
+
+#' Calculate the active pvalue in the arbitrarily dependent case
+#' using saved proxy and true p-values (e.g. when both are already run, randomly
+#' decide to use true pval with some prob, dep on parameter gamma)
+#'
+#' For proxy Q, true P, and random T|Q \sim Bern(1-gamma Q) for gamma \in (0,1]:
+#'  (1-T) Q + T (1-gamma)^{-1} P
+#' @param pvals_df (dataframe) with at least the columns
+#'      AY_idx     (numeric) AY test index
+#'      pval_proxy (numeric) proxy pvalue
+#'      pval_true  (numeric)  true pvalue
+#' @param gamma (numeric) \in (0, 1]
+#'
+#' @return (named list) active pval + other info
+get_active_arbdep_pval_using_saved_make <- function(pvals_df, gamma = .5) {
+    
+    # if proxy and true time info is provided
+    time_info_provided = all(c('time_proxy', 'time_true') %in% colnames(pvals_df))
+
+    get_active_arbdep_pval_using_saved <- function(AY_idx) {
+        
+        AY_row     = pvals_df[(pvals_df[1, 'AY_idx'] == AY_idx), ]
+        pval_proxy = AY_row[1, 'pval_proxy']
+        pval_true  = AY_row[1, 'pval_true']
+
+        # maybe call true
+        T_ = rbinom(n=1, size=1, prob= 1 - gamma * pval_proxy)
+
+
+        # (1-T) Q + T (1-gamma)^{-1} P
+        # if(T_ > .5) {
+        #     pval_true = get_true_pval(AY_idx)
+        #     pval_active = ( 1/(1-gamma)) * pval_true
+        # } else {  
+        #     pval_true   = NA
+        #     pval_active = pval_proxy
+        # }
+        pval_active = (1-T_) * pval_proxy + T_ * (1-gamma)^{-1} * pval_true
+
+        # add active time info if proxy and true time info is provided
+        if(time_info_provided) {
+            time_active = AY_row[1, 'time_proxy'] + T_ * AY_row[1, 'time_true']
+        } else {
+            time_active = NA
+        }
+        
+        res = list(AY_idx       = AY_idx,
+                   queried_true = T_,
+                   pval_active  = pval_active,
+                   pval_proxy   = pval_proxy, # redundant info but ok
+                   pval_true    = pval_true,
+                   gamma        = gamma, 
+                   time_active  = time_active)
+        return(res)
+    }
+    
+    return(get_active_arbdep_pval_using_saved)
 }
 
 
