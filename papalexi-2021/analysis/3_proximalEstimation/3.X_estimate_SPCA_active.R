@@ -71,6 +71,10 @@ which_estimators = list(lm_YA        = TRUE,
                         OCB_LinOS    = FALSE,
                         OCB_LinOStrim= FALSE)
 
+
+# === Param setting for active pval
+GAMMA = 0
+
 # === === === === === === === === === ===
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
@@ -203,9 +207,17 @@ get_true_pval0  =  get_true_pval_make(AY=AY, gene_norm=gene_norm, NCs=NCs, grna_
                                     # which_estimators=which_estimators, 
                                     CB_setting=CB_setting, 
                                     save_path=NULL)
+# get_proxy_pval0(1)
+# get_true_pval0(1)
 
 get_active_pval0 = get_active_arbdep_pval_make(get_proxy_pval=get_proxy_pval0,
-                                                get_true_pval=get_true_pval0)
+                                                get_true_pval=get_true_pval0,
+                                               # gamma = .5)
+                                               gamma = GAMMA) # tune the querying for true pval 
+
+# get_active_pval0(1)
+# get_active_pval(1)
+
 
 # another fn to ignore errors (so that the others may continue running)
 get_active_pval <- function(AY_idx) {
@@ -222,6 +234,9 @@ get_active_pval <- function(AY_idx) {
     return(res)
   }
 }
+
+
+# get_active_pval(1)
 
 # get_ATE_est0 = get_ATE_est_NCs_make(AY=AY, gene_norm=gene_norm, NCs=NCs, grna_rownames=grna_rownames, grna=grna, 
 #                                     NT_idx=NT_idx, imp_gene_names=imp_gene_names,
@@ -261,39 +276,71 @@ ATEargs = data.frame(AY_idx = 1:nrow(AY))
 
 # NUMROWS = 10
 NUMROWS = nrow(ATEargs)
-# whichROWS = 1:100
-# whichROWS = 1:10
-whichROWS = 1:NUMROWS
+# whichROWS = 1:1000
+whichROWS = 1:3
+# whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
+
+# !!! somehow, the parallel version is getting messed up (all the true pvals = proxy pvals exactly)
 # # =================== Get ATEs (parallel) ====================================
-print(sprintf("[%s]    - Get ATEs (parallel)", Sys.time()))
+if(F) {
+  print(sprintf("[%s]    - Get ATEs (parallel)", Sys.time()))
+  t0 = Sys.time()
+  pvals_par = future.apply::future_mapply(get_active_pval,
+                                          AY_idx = ATEargs[whichROWS, 1], # ATEargs[1:NUMROWS, 1],
+                                          future.globals = TRUE,
+                                          future.seed = 56789)
+  # # manually state globals
+  # future.globals = c('AY', 'AYZW', 'grna_rownames', 'grna', 
+  #                    'NT_idx', 'get_importance_rank', 'gene_norm', 
+  #                    'format_AYZW', 'get_CB_colnames', 'get_CB_est', 
+  #                    'CB', 'get_lmYA_est', 'get_ATE_est'))
+  t1 = Sys.time()
+  print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
+  
+  
+  t(pvals_par)
+  # columns are lists...
+  pvals_df = apply(pvals_par, FUN = unlist, MARGIN=1) |> as.data.frame()
+  pvals_df$true_prob = 1 - pvals_df$gamma * pvals_df$pval_proxy # add col of prob of querying true
+  
+  
+  saveRDS(pvals_df,
+          sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.rds', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
+  write.csv(x = pvals_df,
+            row.names = FALSE, 
+            file = sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.csv', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
+  
+  
+  
+  # ATE_par[, 1]
+  # ATE_par[[1, ]]
+  # length(ATE_par)
+  # unlist(ATE_par)
+  # ATE_par[1] |> as.data.frame()
+}
+
+
+# # =================== Get ATEs (sequential) ==================================
+print(sprintf("[%s]    - Get ATEs (sequential)", Sys.time()))
 t0 = Sys.time()
-pvals_par = future.apply::future_mapply(get_active_pval,
-                                      AY_idx = ATEargs[whichROWS, 1], # ATEargs[1:NUMROWS, 1],
-                                      future.globals = TRUE,
-                                      future.seed = 56789, SIMPLIFY = TRUE)
-# # manually state globals
-# future.globals = c('AY', 'AYZW', 'grna_rownames', 'grna', 
-#                    'NT_idx', 'get_importance_rank', 'gene_norm', 
-#                    'format_AYZW', 'get_CB_colnames', 'get_CB_est', 
-#                    'CB', 'get_lmYA_est', 'get_ATE_est'))
+
+pvals_seq = NULL
+for(AY_idx in ATEargs[whichROWS, 1]) {
+  pvals_seq = rbind(pvals_seq, 
+                    get_active_pval(AY_idx) |> data.frame())
+}
+
+
 t1 = Sys.time()
 print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
 
-# columns are lists...
-pvals_df = apply(pvals_par, FUN = unlist, MARGIN=1) |> as.data.frame()
-pvals_df$true_prob = 1 - pvals_df$gamma * pvals_df$pval_proxy # add col of prob of querying true
-
-
-saveRDS(pvals_df,
-        sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep.rds', save_dir, AYZW_setting_name, CB_setting_name))
-write.csv(x = pvals_df,
+saveRDS(pvals_seq,
+        sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.rds', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
+write.csv(x = pvals_seq,
           row.names = FALSE, 
-          file = sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep.csv', save_dir, AYZW_setting_name, CB_setting_name))
+          file = sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.csv', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
 
-# ATE_par[, 1]
-# ATE_par[[1, ]]
-# length(ATE_par)
-# unlist(ATE_par)
-# ATE_par[1] |> as.data.frame()
+
+

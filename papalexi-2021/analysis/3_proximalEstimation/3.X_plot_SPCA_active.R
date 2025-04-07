@@ -7,6 +7,7 @@ args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop', 'spca/cbgenes', 'allPerturbations', 'simple', '0')
 args = c('laptop', 'spca/cbgenes', 'A', 'simple', 'NA')
 
+GAMMA = 0
 
 
 suppressPackageStartupMessages(require(assertthat)) # for some assert statements
@@ -76,10 +77,9 @@ gene_TF_Target = read.csv(sprintf('%s/important_genes_name_TF_Target.csv', save_
 
 
 
-pvals = read.csv(sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep.rds', save_dir, AYZW_setting_name, CB_setting_name)
-)
+pvals = read.csv(sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.csv', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
 
-pvals = readRDS(sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep.rds', save_dir, AYZW_setting_name, CB_setting_name))
+pvals = readRDS(sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.rds', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
 
 nrow(AY); AY$type|>table()
 nrow(pvals)
@@ -105,7 +105,7 @@ dir.create(plot_savepath, showWarnings = FALSE, recursive = TRUE)
 
 # active pvals
 p_active = ggplot(pvals,
-       aes(x = pval)) +
+       aes(x = pval_active)) +
   geom_histogram() +
   labs(title = "Active") +
   facet_grid(vars(type))
@@ -128,6 +128,13 @@ p_true = ggplot(pvals,
 
 
 grid.arrange(p_active, p_proxy, p_true, nrow = 1)
+
+
+
+pvals
+
+
+
 
 
 

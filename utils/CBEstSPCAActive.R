@@ -126,29 +126,39 @@ get_active_arbdep_pval_make <- function(get_proxy_pval, get_true_pval, gamma = .
 
     get_active_arbdep_pval <- function(AY_idx) {
         t0 = Sys.time()
-
+        
         # first call proxy
+        t0_proxy   = Sys.time()
         pval_proxy = get_proxy_pval(AY_idx)
+        t_proxy    = difftime(Sys.time(), t0_proxy, units = 'secs') |> as.numeric()
+
         # then maybe call true
         T_ = rbinom(n=1, size=1, prob= 1 - gamma * pval_proxy)
         # (1-T) Q + T (1-gamma)^{-1} P
         if(T_ > .5) {
+            t0_true   = Sys.time()
             pval_true = get_true_pval(AY_idx)
-            active_pval = ( 1/(1-gamma)) * pval_true
+            t_true    = difftime(Sys.time(), t0_true, units = 'secs') |> as.numeric()
+
+            pval_active = ( 1/(1-gamma)) * pval_true
         } else {  
-            pval_true = NA
-            active_pval = pval_proxy
+            pval_true   = NA
+            t_true      = NA
+
+            pval_active = pval_proxy
         }
-
+        
         t1 = Sys.time()
-
-        res = list(AY_idx = AY_idx,
-                   pval = active_pval,
+        
+        res = list(AY_idx       = AY_idx,
                    queried_true = T_,
-                   pval_proxy = pval_proxy, # redundant info but ok
-                   pval_true  = pval_true,
-                   gamma = gamma, 
-                   time = difftime(t1, t0, units = 'secs') |> as.numeric())
+                   pval_active  = pval_active,
+                   pval_proxy   = pval_proxy, # redundant info but ok
+                   pval_true    = pval_true,
+                   gamma        = gamma, 
+                   time_active  = difftime(t1, t0, units = 'secs') |> as.numeric(),
+                   time_proxy   = t_proxy,
+                   time_true    = t_true)
         return(res)
     }
 
