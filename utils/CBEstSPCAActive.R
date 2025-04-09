@@ -48,6 +48,7 @@ get_proxy_pval_make <- function(AY, gene_norm, NCs,
     #' @param idx (integer) index of the AY pair in the list
     #'                      of AY pairs
     get_proxy_pval <- function(idx) {
+        # print(sprintf("[%s] get_proxy_pval called", Sys.time()))
         # call fn to analyze
         res = get_ATE_est_NCs_lmYA(idx)
         # extract p-value (should be a df with 1 row?)
@@ -99,6 +100,7 @@ get_true_pval_make <- function(AY, gene_norm, NCs,
     #' @param idx (integer) index of the AY pair in the list
     #'                      of AY pairs
     get_true_pval <- function(idx) {
+        # print(sprintf("[%s] get_true_pval called", Sys.time()))
         # call fn to analyze
         res = get_ATE_est_NCs_pci2s(idx)
         # extract p-value (should be a df with 1 row?)
@@ -135,9 +137,11 @@ get_active_arbdep_pval_make <- function(get_proxy_pval, get_true_pval, gamma = .
         T_ = rbinom(n=1, size=1, prob= 1 - gamma * pval_proxy)
         # (1-T) Q + T (1-gamma)^{-1} P
         if(T_ > .5) {
+            # print(sprintf("[%s] calling true pvalue fn", Sys.time()))
             t0_true   = Sys.time()
             pval_true = get_true_pval(AY_idx)
             t_true    = difftime(Sys.time(), t0_true, units = 'secs') |> as.numeric()
+            # print(sprintf("[%s]     true pval = %.2f", Sys.time(), pval_true))
 
             pval_active = ( 1/(1-gamma)) * pval_true
         } else {  

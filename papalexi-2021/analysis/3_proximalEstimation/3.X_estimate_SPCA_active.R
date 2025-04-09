@@ -18,9 +18,10 @@ library(cowplot)
 
 
 library(future.apply)
-options(future.globals.maxSize= 850*1024^2) #1st num is MB
-# plan(multisession, workers = 8)
-plan(sequential)
+# options(future.globals.maxSize= 850*1024^2) #1st num is MB
+options(future.globals.maxSize= 1000*1024^2) #1st num is MB
+plan(multisession, workers = 8)
+# plan(sequential)
 
 # library(furrr)
 # plan(multisession, workers = 2)
@@ -215,10 +216,6 @@ get_active_pval0 = get_active_arbdep_pval_make(get_proxy_pval=get_proxy_pval0,
                                                # gamma = .5)
                                                gamma = GAMMA) # tune the querying for true pval 
 
-# get_active_pval0(1)
-# get_active_pval(1)
-
-
 # another fn to ignore errors (so that the others may continue running)
 get_active_pval <- function(AY_idx) {
   res = tryCatch({get_active_pval0(AY_idx)},
@@ -235,61 +232,41 @@ get_active_pval <- function(AY_idx) {
   }
 }
 
-
+# get_active_pval0(1)
 # get_active_pval(1)
 
-# get_ATE_est0 = get_ATE_est_NCs_make(AY=AY, gene_norm=gene_norm, NCs=NCs, grna_rownames=grna_rownames, grna=grna, 
-#                                     NT_idx=NT_idx, imp_gene_names=imp_gene_names,
-#                                     which_estimators=which_estimators, CB_setting=CB_setting, 
-#                                     save_path=switch(save_intermediateATEs,
-#                                                      'yes' = sprintf('%s/spca/cbgenes/%s/%s', save_dir, AYZW_setting_name, CB_setting_name),
-#                                                      'no'  = NULL))
-# test = get_ATE_est0(AY_idx = 3)
 
 
 
-# get_ATE_est <- function(AY_idx) {
-#   res_df = tryCatch({get_ATE_est0(AY_idx=AY_idx)},
-#                     error = function(cond) {
-#                       # message(sprintf('Error est CondMomentOCBOS with %s', 
-#                       #                 gammaSetting)) 
-#                       return(NULL)
-#                     })
-#   # if errored, return NULL
-#   if(is.null(res_df)) {
-#     return(NULL)
-#   } else {
-#     return(res_df)
-#   }
-# }
 
-# NUM_NCENCO_per_AY = length(AYZW[[1]][[1]]) # prev defined, will be length of this sublist
-# ATEargs = expand.grid(AY_idx = 1:nrow(AY), 
-#                       ZW_idx  = 1:NUM_NCENCO_per_AY) |> 
-#   arrange(AY_idx, ZW_idx) # rearrange, AY pair first
 
 ATEargs = data.frame(AY_idx = 1:nrow(AY))
-# lessen the amount...
-# ATEargs = expand.grid(AY_idx = c(1:30, 120:134), ZW_idx  = 1:NUM_NCENCO_per_AY)
-
-
-
-# NUMROWS = 10
 NUMROWS = nrow(ATEargs)
+
+# lessen the amount...
 # whichROWS = 1:1000
-whichROWS = 1:3
+whichROWS = 1:120
+whichROWS = 1:32
 # whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
 
 # !!! somehow, the parallel version is getting messed up (all the true pvals = proxy pvals exactly)
+# issue was how future (how parallelization impl) treated global variables and somehow some fns were messing up...
 # # =================== Get ATEs (parallel) ====================================
-if(F) {
+if(T) {
   print(sprintf("[%s]    - Get ATEs (parallel)", Sys.time()))
   t0 = Sys.time()
-  pvals_par = future.apply::future_mapply(get_active_pval,
+  pvals_par = future.apply::future_mapply(FUN = get_active_pval0,
                                           AY_idx = ATEargs[whichROWS, 1], # ATEargs[1:NUMROWS, 1],
-                                          future.globals = TRUE,
+                                          # future.globals = FALSE, # <-- ok when FALSE when sequential, issue when future.globals = TRUE? idk why
+                                          future.globals = c('get_proxy_pval0', 'get_true_pval0', 'get_active_pval0',
+                                                             'bind_rows', 'get_CB_colnames', 
+                                                             'constructDataListv2', 'polybasis_transform',
+                                                             'AY', 'grna_rownames', 'grna',
+                                                             'NT_idx', 'NCs', 'gene_norm', 'imp_gene_names', 
+                                                             'GAMMA'), # <- listing out as it errors...
+                                          future.packages = c('Matrix'),
                                           future.seed = 56789)
   # # manually state globals
   # future.globals = c('AY', 'AYZW', 'grna_rownames', 'grna', 
@@ -299,10 +276,17 @@ if(F) {
   t1 = Sys.time()
   print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
   
+  # format into data.frame properly
+  pvals_df = NULL
+  for(i in 1:ncol(pvals_par)) {
+    pvals_df = rbind(pvals_df, 
+                     pvals_par[, i] |> data.frame())
+  }
   
-  t(pvals_par)
-  # columns are lists...
-  pvals_df = apply(pvals_par, FUN = unlist, MARGIN=1) |> as.data.frame()
+  # # format into data.frame improperly 
+  # pvals_df = apply(pvals_par, FUN = unlist, MARGIN=1) |> as.data.frame() # columns are lists...
+  
+  
   pvals_df$true_prob = 1 - pvals_df$gamma * pvals_df$pval_proxy # add col of prob of querying true
   
   
@@ -321,26 +305,46 @@ if(F) {
   # ATE_par[1] |> as.data.frame()
 }
 
-
-# # =================== Get ATEs (sequential) ==================================
-print(sprintf("[%s]    - Get ATEs (sequential)", Sys.time()))
-t0 = Sys.time()
-
-pvals_seq = NULL
-for(AY_idx in ATEargs[whichROWS, 1]) {
-  pvals_seq = rbind(pvals_seq, 
-                    get_active_pval(AY_idx) |> data.frame())
+# # =================== Get ATEs (sequential- mapply) ==================================
+if(F) {
+  print(sprintf("[%s]    - Get ATEs (sequential- mapply)", Sys.time()))
+  # testing the non-parallel version of mapply
+  pvals_mapply = mapply(get_active_pval,
+                        AY_idx = ATEargs[whichROWS, 1])
+  t(pvals_mapply)
 }
 
 
-t1 = Sys.time()
-print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
 
-saveRDS(pvals_seq,
-        sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.rds', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
-write.csv(x = pvals_seq,
-          row.names = FALSE, 
-          file = sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.csv', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
 
+# # =================== Get ATEs (sequential- loop) ==================================
+if(F) {
+  print(sprintf("[%s]    - Get ATEs (sequential- loop)", Sys.time()))
+  # testing the non-parallel version using loop
+  t0 = Sys.time()
+  
+  pvals_seq = NULL
+  for(AY_idx in ATEargs[whichROWS, 1]) {
+    pvals_seq = rbind(pvals_seq, 
+                      get_active_pval(AY_idx) |> data.frame())
+  }
+  
+  
+  t1 = Sys.time()
+  
+  
+  pvals_seq
+  
+  
+  print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
+  
+  saveRDS(pvals_seq,
+          sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.rds', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
+  write.csv(x = pvals_seq,
+            row.names = FALSE, 
+            file = sprintf('%s/spca/cbgenes/%s/%s/ATE_activearbdep_gamma=%.2f.csv', save_dir, AYZW_setting_name, CB_setting_name, GAMMA))
+  
+  
+}
 
 
