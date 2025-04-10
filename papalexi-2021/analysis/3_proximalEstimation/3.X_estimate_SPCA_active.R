@@ -20,7 +20,7 @@ library(cowplot)
 library(future.apply)
 # options(future.globals.maxSize= 850*1024^2) #1st num is MB
 options(future.globals.maxSize= 1000*1024^2) #1st num is MB
-plan(multisession, workers = 8)
+plan(multisession, workers = 24)
 # plan(sequential)
 
 # library(furrr)
@@ -245,9 +245,9 @@ NUMROWS = nrow(ATEargs)
 
 # lessen the amount...
 # whichROWS = 1:1000
-whichROWS = 1:120
-whichROWS = 1:32
-# whichROWS = 1:NUMROWS
+# whichROWS = 1:120
+# whichROWS = 1:2
+whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
 
