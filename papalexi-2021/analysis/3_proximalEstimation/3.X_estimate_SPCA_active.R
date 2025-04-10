@@ -244,9 +244,9 @@ ATEargs = data.frame(AY_idx = 1:nrow(AY))
 NUMROWS = nrow(ATEargs)
 
 # lessen the amount...
-# whichROWS = 1:1000
-whichROWS = 1:120
-whichROWS = 1:32
+whichROWS = 1:1000
+# whichROWS = 1:3
+# whichROWS = 1:32
 # whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 

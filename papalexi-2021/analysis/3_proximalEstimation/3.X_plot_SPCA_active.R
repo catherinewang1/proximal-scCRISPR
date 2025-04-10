@@ -131,7 +131,7 @@ grid.arrange(p_active, p_proxy, p_true, nrow = 1)
 
 
 
-pvals
+ pvals
 
 
 
