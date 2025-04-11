@@ -257,7 +257,7 @@ whichROWS = 1:NUMROWS
 if(T) {
   print(sprintf("[%s]    - Get ATEs (parallel)", Sys.time()))
   t0 = Sys.time()
-  pvals_par = future.apply::future_mapply(FUN = get_active_pval0,
+  pvals_par = future.apply::future_mapply(FUN = get_active_pval,
                                           AY_idx = ATEargs[whichROWS, 1], # ATEargs[1:NUMROWS, 1],
                                           # future.globals = FALSE, # <-- ok when FALSE when sequential, issue when future.globals = TRUE? idk why
                                           future.globals = c('get_proxy_pval0', 'get_true_pval0', 'get_active_pval0',
