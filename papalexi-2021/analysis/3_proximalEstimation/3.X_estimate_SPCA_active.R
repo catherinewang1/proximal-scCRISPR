@@ -225,7 +225,7 @@ get_active_pval <- function(AY_idx) {
                       return(NULL)
                     })
   # if errored, return NULL
-  if(is.null(res) | AY_idx == 2) {
+  if(is.null(res)) {
     return(NULL)
   } else {
     return(res)
