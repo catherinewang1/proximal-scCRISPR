@@ -225,7 +225,7 @@ get_active_pval <- function(AY_idx) {
                       return(NULL)
                     })
   # if errored, return NULL
-  if(is.null(res)) {
+  if(is.null(res) | AY_idx == 2) {
     return(NULL)
   } else {
     return(res)
@@ -246,8 +246,8 @@ NUMROWS = nrow(ATEargs)
 # lessen the amount...
 # whichROWS = 1:1000
 # whichROWS = 1:120
-# whichROWS = 1:2
-whichROWS = 1:NUMROWS
+whichROWS = 1:3
+# whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
 
@@ -267,7 +267,8 @@ if(T) {
                                                              'NT_idx', 'NCs', 'gene_norm', 'imp_gene_names', 
                                                              'GAMMA'), # <- listing out as it errors...
                                           future.packages = c('Matrix'),
-                                          future.seed = 56789)
+                                          future.seed = 56789, 
+                                          SIMPLIFY = FALSE)
   # # manually state globals
   # future.globals = c('AY', 'AYZW', 'grna_rownames', 'grna', 
   #                    'NT_idx', 'get_importance_rank', 'gene_norm', 
@@ -278,9 +279,9 @@ if(T) {
   
   # format into data.frame properly
   pvals_df = NULL
-  for(i in 1:ncol(pvals_par)) {
+  for(i in 1:length(whichROWS)) {
     pvals_df = rbind(pvals_df, 
-                     pvals_par[, i] |> data.frame())
+                     pvals_par[[i]] |> data.frame())
   }
   
   # # format into data.frame improperly 
