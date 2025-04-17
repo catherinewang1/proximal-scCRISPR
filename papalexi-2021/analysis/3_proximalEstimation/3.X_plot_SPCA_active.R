@@ -126,14 +126,37 @@ p_true = ggplot(pvals,
   facet_grid(vars(type))
 
 
-
-grid.arrange(p_active, p_proxy, p_true, nrow = 1)
-
+pdf(file = sprintf('%s/histogram.pdf', plot_savepath), width = 7, height = 4); grid.arrange(p_active, p_proxy, p_true, nrow = 1); dev.off()
 
 
- pvals
+
+pvals_tall = pvals |> 
+             select(type, pval_active, pval_proxy, pval_true) |> 
+             reshape::melt(id = 'type', variable_name = 'pval_type') |>
+             mutate(pval_type = mapply(function(x) {substring(x, first = 6) |> stringr::str_to_title()},
+                                      pval_type)) |>
+             rename(pval = value)
 
 
+# histogram
+ggplot(pvals_tall, aes(x = pval)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = .05) +
+  labs(title = 'Histogram') +
+  facet_grid(rows = vars(type), cols = vars(pval_type), scales = 'free_y')
+
+ggsave(file = sprintf('%s/histogram.pdf', plot_savepath), width = 7, height = 4)
+
+
+
+# QQ Uniform
+ggplot(pvals_tall, aes(sample = pval, color = pval_type)) +
+  geom_qq(aes(), distribution = stats::qunif, alpha = .4) +
+  geom_abline(aes(intercept = 0, slope = 1)) +
+  labs(title = 'QQ Uniform') +
+  facet_grid(rows = vars(type), 
+             cols = vars(pval_type),
+             scales = 'free_y')
+ggsave(file = sprintf('%s/qqunif.pdf', plot_savepath), width = 7, height = 4)
 
 
 
