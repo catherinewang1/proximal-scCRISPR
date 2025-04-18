@@ -162,9 +162,19 @@ ggsave(file = sprintf('%s/qqunif.pdf', plot_savepath), width = 7, height = 4)
 
 
 
+# QQ Uniform -log()
+pvals_tall_qqplot = pvals_tall |> group_by(type, pval_type) |> mutate(observed = sort(pval), expected = ppoints(n())) |> ungroup()
+ggplot(pvals_tall_qqplot, aes(x = -log(expected, 10), 
+              y = -log(observed, 10), 
+              color = pval_type)) +
+  geom_point(alpha = .4) +
+  geom_abline(aes(intercept = 0, slope = 1)) +
+  scale_y_continuous(limits = c(0, 50)) +
+  labs(title = 'QQ Uniform') +
+  # facet_grid(rows = vars(type), 
+  #            cols = vars(pval_type),
+  #            scales = 'free', space = "free") +
+  facet_wrap(vars(type, pval_type), nrow = 2, ncol = 3, )
 
-
-
-
-
+ggsave(file = sprintf('%s/qqunif_log.pdf', plot_savepath), width = 7, height = 5)
 
