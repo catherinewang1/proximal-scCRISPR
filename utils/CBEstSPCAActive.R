@@ -192,12 +192,13 @@ get_active_arbdep_pval_using_saved_make <- function(pvals_df, gamma = .5) {
 
     get_active_arbdep_pval_using_saved <- function(AY_idx) {
         
-        AY_row     = pvals_df[(pvals_df[1, 'AY_idx'] == AY_idx), ]
+        AY_row     = pvals_df[(pvals_df[, 'AY_idx'] == AY_idx), ]
         pval_proxy = AY_row[1, 'pval_proxy']
         pval_true  = AY_row[1, 'pval_true']
 
         # maybe call true
-        T_ = rbinom(n=1, size=1, prob= 1 - gamma * pval_proxy)
+        queried_true_prob = 1 - gamma * pval_proxy
+        T_ = rbinom(n=1, size=1, prob= queried_true_prob)
 
 
         # (1-T) Q + T (1-gamma)^{-1} P
@@ -212,18 +213,24 @@ get_active_arbdep_pval_using_saved_make <- function(pvals_df, gamma = .5) {
 
         # add active time info if proxy and true time info is provided
         if(time_info_provided) {
-            time_active = AY_row[1, 'time_proxy'] + T_ * AY_row[1, 'time_true']
+            # actual time (using if queried)
+            time_active        = AY_row[1, 'time_proxy'] +                T_ * AY_row[1, 'time_true']
+            # expected time (usimg probability of query)
+            time_active_expect = AY_row[1, 'time_proxy'] + queried_true_prob * AY_row[1, 'time_true']
         } else {
-            time_active = NA
+            time_active        = NA
+            time_active_expect = NA
         }
         
         res = list(AY_idx       = AY_idx,
                    queried_true = T_,
+                   queried_true_prob = queried_true_prob,
                    pval_active  = pval_active,
                    pval_proxy   = pval_proxy, # redundant info but ok
                    pval_true    = pval_true,
                    gamma        = gamma, 
-                   time_active  = time_active)
+                   time_active  = time_active,
+                   time_active_expect = time_active_expect)
         return(res)
     }
     
