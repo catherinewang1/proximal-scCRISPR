@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------------------- #
 #                   Active p-values (using sPCA of genes as NCE/NCO)           #
-# using already saved proxy and true pvalues
+# using already saved proxy and true pvalues                                   #
 # Requires: prev saved proxy and true pvals                                    #
 # Ouputs: (nothing) but saves                                                  #
 # ---------------------------------------------------------------------------- #
@@ -14,6 +14,7 @@ suppressPackageStartupMessages(library(ggplot2))    # plotting
 suppressPackageStartupMessages(library(cowplot))
 suppressPackageStartupMessages(library(gridExtra))
 suppressPackageStartupMessages(library(RColorBrewer))
+suppressPackageStartupMessages(library(latex2exp))
 
 theme_set(theme_cowplot() +
             theme(plot.title = element_text(hjust = .5),
@@ -88,46 +89,106 @@ pvals_GAMMAs = merge(AY, pvals_GAMMAs, by = 'AY_idx') # add AY info (e.g. test t
 pvals_GAMMAs = pvals_GAMMAs |> group_by(type, gamma) |> mutate(observed = sort(pval_active), expected = ppoints(n())) |> ungroup()
 
 
+# Nicer Labels for type
+pvals_GAMMAs = merge(pvals_GAMMAs, 
+                     data.frame('type'      = c('negative', 'maybe', 'positive'),
+                                # 'type_long' = c(TeX('Non-Causal AY'), TeX('Candidate AY'), TeX('Causal AY'))), 
+                                # 'type_long' = c('Non-Causal', 'Candidate', 'Causal')), 
+                                'type_long' = c('Null', 'Candidate', 'Alternative')), 
+                     by = 'type')
+pvals_GAMMAs$type_long = factor(pvals_GAMMAs$type_long, ordered = TRUE, levels = c('Null', 'Alternative'))
+
+# type_map = c("negative" = "Non-Causal AY",
+#              "maybe"    = "Candidate AY",
+#              "positive" = "Causal AY")
+# type_labeller = labeller(type = type_map)
+# pvals_GAMMAs$type = factor(pvals_GAMMAs$type)
+# levels(pvals_GAMMAs$type) <- c("negative" = TeX("$$Non-Causal AY"),
+#                                "maybe"    = TeX("Candidate AY"),
+#                                "positive" = TeX("Causal AY"))
+
+# nicer labels for gamma
+pvals_GAMMAs$gamma_numeric = pvals_GAMMAs$gamma 
+pvals_GAMMAs$gamma = factor(pvals_GAMMAs$gamma)
+levels(pvals_GAMMAs$gamma) <- c('0' = TeX("$\\gamma=0$"), '.25' = TeX("$\\gamma=.25$"), '.5' = TeX("$\\gamma=.5$"), '.75' = TeX("$\\gamma=.75$"))
 
 
-# =================== Make Plots ======================================
+# =================== Make Plots ===============================================
 print(sprintf("[%s]    - Make Plots", Sys.time()))
 
 plot_savepath = sprintf('%s/%s/%s/%s/plotsActive/lmYAthresh=%05.02f', save_dir, cbgenes_setting_name, AYZW_setting_name, CB_setting_name, lmYA_threshold)
 dir.create(plot_savepath, showWarnings = FALSE, recursive = TRUE)
 
+# custom ggproto- to limit axis to 0,1
+cutoff01 <- list(scale_y_continuous(limits = c(-.01, 1.01)),
+                 scale_x_continuous(limits = c(-.01, 1.01)))
 
-
-# prob of querying true
-ggplot(pvals_GAMMAs, 
+# prob of querying true ========================================================
+p_histogram = ggplot(pvals_GAMMAs, 
        aes(x = queried_true_prob)) +
-  geom_histogram(aes(y = after_stat(density)), bins = 25)  +
-  facet_grid(type ~ gamma, scales = 'free_y')
+  geom_histogram(bins = 25)  + # aes(y = after_stat(density))
+  labs(title = 'Probability of Querying True',
+       x = 'Probability of Querying True p-value') +
+  facet_grid(type_long ~ gamma, scales = 'free_y', labeller = label_parsed)
+
+p_histogram
 ggsave(file = sprintf('%s/gamma_queryprob.pdf', plot_savepath), width = 7, height = 4)
 
+p_histogram + scale_x_continuous(limits = c(-.01, 1.01))
+ggsave(file = sprintf('%s/gamma_queryprob01.pdf', plot_savepath), width = 7, height = 4)
 
-# histogram of active
-ggplot(pvals_GAMMAs, 
+# histogram of active ==========================================================
+p_histogram = ggplot(pvals_GAMMAs, 
        aes(x = pval_active)) +
-  geom_histogram(aes(y = after_stat(density)), bins = 25) +
-  facet_grid(type ~ gamma, scales = 'free_y')
+  geom_histogram(aes(y = after_stat(density)), binwidth = .1) +
+  labs(title = 'Histogram of Active p-values',
+       x = 'Active p-value') +
+  facet_grid(type_long ~ gamma, scales = 'free_y', labeller = label_parsed)
+
+p_histogram
 ggsave(file = sprintf('%s/gamma_histogram.pdf', plot_savepath), width = 7, height = 4)
 
+p_histogram + scale_x_continuous(limits = c(-.01, 1.01))
+ggsave(file = sprintf('%s/gamma_histogram01.pdf', plot_savepath), width = 7, height = 4)
 
-# plot QQ-plot (against Unif(0,1)) of ACTIVE pvals across differnt gamma values
-ggplot(pvals_GAMMAs, 
-       aes(x = expected,
-           y = observed, group = gamma, color = GAMMA)) +
-  geom_point() +
-  facet_grid(type ~ gamma)
-ggsave(file = sprintf('%s/gamma_qqunif_faceted.pdf', plot_savepath), width = 7, height = 4)
 
-ggplot(pvals_GAMMAs, 
+
+# plot QQ-plot (against Unif(0,1))  ============================================
+# of ACTIVE pvals across differnt gamma values
+
+# ggplot(pvals_GAMMAs, 
+#        aes(x = expected,
+#            y = observed, group = gamma, color = GAMMA)) +
+#   geom_point() +
+#   labs(title = 'QQ-plot of Active p-values vs Unif(0,1)',
+#        x = 'Expected', y = 'Observed') +
+#   facet_grid(type_long ~ gamma, labeller = label_parsed)
+# ggsave(file = sprintf('%s/gamma_qqunif_faceted.pdf', plot_savepath), width = 7, height = 4)
+
+p_qqplot <- ggplot(pvals_GAMMAs, 
        aes(x = expected,
-           y = observed, group = gamma, color = gamma)) +
+           y = observed, color = gamma_numeric)) +
   geom_abline(aes(intercept = 0, slope = 1)) +
   geom_point(alpha = .8) +
-  scale_color_viridis_b(begin = 0, end = 1)+
-  facet_grid(~type)
+  scale_color_viridis_b(begin = 0, end = 1, breaks = c(0, .2, .4, .6), labels = c(0, .25, .5, .75)) +
+  labs(title = 'QQ-plot of Active p-values vs Unif(0,1)',
+       x = 'Expected', y = 'Observed',
+       color = TeX("$\\gamma$")) +
+  facet_grid(~type_long, labeller = label_parsed) +
+  theme(legend.text = element_text(vjust = -.7))
+
+p_qqplot
 ggsave(file = sprintf('%s/gamma_qqunif.pdf', plot_savepath), width = 7, height = 4)
+
+p_qqplot + cutoff01
+ggsave(file = sprintf('%s/gamma_qqunif01.pdf', plot_savepath), width = 7, height = 4)
+
+
+
+
+
+
+
+
+
 
