@@ -184,11 +184,37 @@ p_qqplot + cutoff01
 ggsave(file = sprintf('%s/gamma_qqunif01.pdf', plot_savepath), width = 7, height = 4)
 
 
+# plot runtimes  ============================================
+
+pvals_time = merge(pvals_GAMMAs,
+                   pvals |> select(AY_idx, time_proxy, time_true),
+                   by = 'AY_idx')
+
+pvals_time_tall = reshape::melt(pvals_time, 
+              id.vars = c('AY_idx', 'type_long', 'gamma'), 
+              measure.vars = c('time_proxy', 'time_true', 'time_active_expect'),
+              variable_name = 'time_type') |> rename(time = value)
 
 
+p_runtime = ggplot(pvals_time_tall, 
+       aes(x = time, fill = time_type)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 color = 'gray20',  bins = 18, alpha = .7, 
+                 position = 'nudge')  + 
+  scale_fill_brewer(palette = "Dark2", label = c("time_proxy" = "proxy",
+                                                 "time_true"    = "true",
+                                                 "time_active_expect" = "active")) +
+  labs(title = 'Runtimes',
+       x = 'time (s)',
+       fill = 'test') +
+  facet_grid(type_long ~ gamma, scales = 'free_y', labeller = label_parsed)
+
+p_runtime
+ggsave(file = sprintf('%s/gamma_runtime.pdf', plot_savepath), width = 7, height = 4)
 
 
-
-
+labeller(type = c("time_proxy" = "proxy",
+                                  "time_true"    = "true",
+                                  "time_active_expect" = "active"))
 
 
