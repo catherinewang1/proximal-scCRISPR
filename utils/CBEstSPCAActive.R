@@ -5,7 +5,88 @@
 # ie. get_ATE_est_NCs_make
 
 
+require(lpdensity) # estimation of density for indep p-value active
 
+# =================== Independent p-values ============================================
+
+#' @param lpdensEstimate (matrix) result from lpdens call with (result)$Estimate
+#' @examples 
+#' est1 = lpdensity::lpdensity(data = dfsim_null0$x, bwselect = "imse-dpi", grid = seq(from = 0, to = 1, length.out = 1000))
+#' myDensEstimate <- makeGetDensityEstimate(est1$Estimate)
+makeGetDensityEstimate <- function(lpdensEstimate) {
+  #' to get estimates, we just take the closest grid point (close enough hopefully)
+  #' @param x (numeric) between 0,1 to get the estimated density at f(x)
+  getDensityEstimate <- function(x) {
+    lpdensEstimate[base::findInterval(x, lpdensEstimate[,'grid']), 'f_p']
+  }
+  
+  return(getDensityEstimate)
+}
+
+
+
+#' Set c parameter. Then creates and 
+#' outputs a function that takes in density qx value
+#' and returns the probability of auditing, ax
+#' (From eqn, choose c = -L where L is the lower bound for qx)
+#' (e.g. qx \in [.05, \infty) --> use c = -.05)
+#' @example 
+#' ax01 = create_ax(-.01) # L = .01
+#' qx = seq(from = .001, to = 5, length.out = 200)
+#' plot(qx, ax01(qx), type = 'l')
+create_ax <- function(c) {
+  ax <- function(qx) {   c / qx + 1   }
+  ax
+}
+
+
+#' Calculate the active pvalue in the arbitrarily dependent case
+#' using saved proxy and true p-values (e.g. when both are already run, randomly
+#' decide to use true pval with some prob, dep on parameter gamma)
+#' @param pvals_df (dataframe) with at least the columns
+#'      pval_proxy (numeric) proxy pvalue
+#'      pval_true  (numeric)  true pvalue
+#' @param pval_proxy_null (vector) of pvalues using proxy method on null hypothesis tests
+#'                                 density of the null distn will be estimated on this
+get_active_indep_pval_using_saved <- function(pvals_df, pval_proxy_null) {
+        
+    # estimate density of null proxy
+    lpdensResult = lpdensity::lpdensity(data = pval_proxy_null, bwselect = "imse-dpi", grid = seq(from = 0, to = 1, length.out = 1000))
+    myDensEstimate = makeGetDensityEstimate(lpdensResult$Estimate)
+    
+    # estimated densities
+    estqx = myDensEstimate(pvals_df$pval_proxy)
+    # audit/query probabilities
+    get_query_prob = create_ax(-min(estqx, na.rm = TRUE)) # L = min of estimated dens
+    query_prob = get_query_prob(estqx)
+
+    T_ = rbinom(n = nrow(pvals_df), size = 1, prob = query_prob)
+    pval_active_indep  = (1 - T_) * pvals_df$pval_proxy + (T_) * pvals_df$pval_true
+    
+    # add active time info if proxy and true time info is provided
+    time_info_provided = all(c('time_proxy', 'time_true') %in% colnames(pvals_df))
+    if(time_info_provided) {
+        # actual time   (using if actually queried)
+        time_active         = pvals_df$time_proxy +         T_ * pvals_df$time_true
+        # expected time (usimg probability of query) 
+        time_active_expect  = pvals_df$time_proxy + query_prob * pvals_df$time_true
+    } else {
+        time_active        = NA
+        time_active_expect = NA
+    }
+    
+    return(data.frame(pval_active_indep = pval_active_indep,
+                      time_active_indep = time_active,
+                      time_active_indep_expect = time_active_expect))
+}
+
+
+
+
+
+
+
+# =================== Arbitrary Dependence p-values ===================================
 
 
 #' Make fn that gets the PROXY / BIASED p-value 

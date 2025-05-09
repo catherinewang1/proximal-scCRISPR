@@ -63,10 +63,38 @@ AY$AY_idx = 1:nrow(AY)
 pvals = merge(AY, pvals, by = 'AY_idx')
 
 
+# get indep active p-values
+set.seed(1234567)
+n_train = 1000
+train_idx = sample(which(pvals$type == 'negative'))[1:n_train]  # split to train/test
+
+
+pvals_indep_active = get_active_indep_pval_using_saved(pvals_df = pvals[-train_idx,], pval_proxy_null = pvals[train_idx, 'pval_proxy'])
+
+pvals_indep_active = cbind(pvals[-train_idx, c('AY_idx', 'type', 'pval_proxy', 'pval_true')],
+                           pvals_indep_active)
+
+
+pvals_indep_active = pvals_indep_active |> 
+                      rename(pval_active = pval_active_indep, 
+                             time_active = time_active_indep,
+                             time_active_expect = time_active_indep_expect)
+# add expected under unif(0,1) for qqplots
+pvals_indep_active = pvals_indep_active |> group_by(type) |> mutate(observed = sort(pval_active), expected = ppoints(n())) |> ungroup()
+# Nicer Labels for type
+pvals_indep_active = merge(pvals_indep_active, 
+                     data.frame('type'      = c('negative', 'maybe', 'positive'),
+                                # 'type_long' = c(TeX('Non-Causal AY'), TeX('Candidate AY'), TeX('Causal AY'))), 
+                                # 'type_long' = c('Non-Causal', 'Candidate', 'Causal')), 
+                                'type_long' = c('Null', 'Candidate', 'Alternative')), 
+                     by = 'type')
+pvals_indep_active$type_long = factor(pvals_indep_active$type_long, ordered = TRUE, levels = c('Null', 'Alternative'))
+
+head(pvals_indep_active)
 
 
 
-# get active p-values for different gamma values
+# get arbdep active p-values for different gamma values
 GAMMAs = seq(from = 0, to = 1, length.out = 5)[1:4]
 pvals_GAMMAs = NULL
 for(GAMMA in GAMMAs) {
@@ -216,5 +244,71 @@ ggsave(file = sprintf('%s/gamma_runtime.pdf', plot_savepath), width = 7, height 
 labeller(type = c("time_proxy" = "proxy",
                                   "time_true"    = "true",
                                   "time_active_expect" = "active"))
+
+# ==============================================================================
+# Now include indep active p-values
+# ==============================================================================
+pvals_indep_active$gamma_numeric = -1
+pvals_all = rbind(pvals_GAMMAs |> select(AY_idx, type_long, gamma_numeric, pval_active, time_active_expect, expected, observed),
+                  pvals_indep_active |> select(AY_idx, type_long, gamma_numeric, pval_active, time_active_expect, expected, observed))
+pvals_all$gamma = factor(pvals_all$gamma_numeric)
+levels(pvals_all$gamma) <- c('-1' = TeX("$\\gamma=-1$"), '0' = TeX("$\\gamma=0$"), '.25' = TeX("$\\gamma=.25$"), '.5' = TeX("$\\gamma=.5$"), '.75' = TeX("$\\gamma=.75$"))
+
+gamma_colors = viridis::viridis(4, begin = 0, end = 1)[1:4]
+
+
+
+# qqplot of active pvals vs Unif(0,1) ==========================================
+qqplot_both = ggplot(pvals_all, 
+                   aes(x = expected,
+                       y = observed,
+                       color = gamma)) +
+  geom_abline(aes(intercept = 0, slope = 1)) +
+  geom_point(alpha = .8, size = .8) +
+  # scale_color_viridis_b(begin = 0, end = 1, breaks = c(-1, 0, .2, .4, .6), labels = c('Indep', 0, .25, .5, .75)) +
+  scale_color_manual(values = c('gray32', gamma_colors), 
+                     labels = c(TeX('Independent'), TeX('Arb Dep, \\gamma=0'), TeX('Arb Dep, \\gamma=.25'), TeX('Arb Dep, \\gamma=.50'), TeX('Arb Dep, \\gamma=.75'))) +
+  labs(title = 'QQ-plot of Active p-values vs Unif(0,1)',
+       x = 'Expected', y = 'Observed',
+       color = 'active pval type') +
+  facet_grid(~type_long, labeller = label_parsed) +
+  theme(legend.text = element_text(vjust = .7, size = 10),
+        legend.title = element_text(size = 12))
+
+
+qqplot_both
+ggsave(file = sprintf('%s/indep_arbdep_qqunif.pdf', plot_savepath), width = 7, height = 4)
+
+qqplot_both + cutoff01
+ggsave(file = sprintf('%s/indep_arbdep_qqunif01.pdf', plot_savepath), width = 7, height = 4)
+
+
+# plot runtimes  ============================================
+runtime_both = ggplot(pvals_all, 
+       aes(x = time_active_expect,
+           fill = gamma)) +
+  geom_abline(aes(intercept = 0, slope = 1)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 color = 'gray20',  bins = 18, alpha = .7, 
+                 position = 'nudge')  + 
+  # scale_color_viridis_b(begin = 0, end = 1, breaks = c(-1, 0, .2, .4, .6), labels = c('Indep', 0, .25, .5, .75)) +
+  scale_fill_manual(values = c('gray32', gamma_colors), 
+                     labels = c(TeX('Independent'), TeX('Arb Dep, \\gamma=0'), TeX('Arb Dep, \\gamma=.25'), TeX('Arb Dep, \\gamma=.50'), TeX('Arb Dep, \\gamma=.75'))) +
+  labs(title = 'Runtimes',
+       x = 'time (s)',
+       fill = 'active pval type') +
+  facet_grid(type_long~gamma, labeller = label_parsed) +
+  theme(legend.text = element_text(vjust = .7, size = 10),
+        legend.title = element_text(size = 12))
+
+runtime_both
+ggsave(file = sprintf('%s/indep_arbdep_runtime.pdf', plot_savepath), width = 7, height = 4)
+
+
+pvals |> group_by(type) |> summarize(time_proxy_mean = mean(time_proxy),
+                                     time_proxy_sd   = sd(time_proxy, na.rm=TRUE),
+                                     time_true_mean  = mean(time_true),
+                                     time_true_sd    = sd(time_true, na.rm=TRUE))
+
 
 
