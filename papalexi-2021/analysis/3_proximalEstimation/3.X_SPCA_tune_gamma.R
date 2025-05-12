@@ -253,10 +253,45 @@ pvals_all = rbind(pvals_GAMMAs |> select(AY_idx, type_long, gamma_numeric, pval_
                   pvals_indep_active |> select(AY_idx, type_long, gamma_numeric, pval_active, time_active_expect, expected, observed))
 pvals_all$gamma = factor(pvals_all$gamma_numeric)
 levels(pvals_all$gamma) <- c('-1' = TeX("$\\gamma=-1$"), '0' = TeX("$\\gamma=0$"), '.25' = TeX("$\\gamma=.25$"), '.5' = TeX("$\\gamma=.5$"), '.75' = TeX("$\\gamma=.75$"))
+levels(pvals_all$gamma) <- c('-1' = TeX("Independent"), 
+                             '0' = TeX("Arb Dep, $\\gamma=0$"), 
+                             '.25' = TeX("Arb Dep, $\\gamma=.25$"), 
+                             '.5' = TeX("Arb Dep, $\\gamma=.5$"), 
+                             '.75' = TeX("Arb Dep, $\\gamma=.75$"))
+gamma_colors = viridis::rocket(6)[2:5]
 
-gamma_colors = viridis::viridis(4, begin = 0, end = 1)[1:4]
+other_colors = viridis::viridis(4, begin = 0, end = 1)[2:4]
+
+# form pvals_all2 that has proxy and true pvalues too
+pvals1 = pvals
+pvals1 = merge(pvals1, 
+               data.frame('type'      = c('negative', 'maybe', 'positive'),
+                          # 'type_long' = c(TeX('Non-Causal AY'), TeX('Candidate AY'), TeX('Causal AY'))), 
+                          # 'type_long' = c('Non-Causal', 'Candidate', 'Causal')), 
+                          'type_long' = c('Null', 'Candidate', 'Alternative')), 
+               by = 'type')
+pvals1$type_long = factor(pvals1$type_long, ordered = TRUE, levels = c('Null', 'Alternative'))
+
+pvals1$gamma_numeric = -3
+pvals_proxy = pvals1 |> rename(pval = pval_proxy, time = time_proxy) |> select(AY_idx, type_long, gamma_numeric, pval, time)
+pvals1$gamma_numeric = -2
+pvals_true  = pvals1 |> rename(pval = pval_true,  time = time_true)  |> select(AY_idx, type_long, gamma_numeric, pval, time)
 
 
+
+pvals_all2 = rbind(pvals_proxy,
+                   pvals_true,
+                   pvals_all |> rename(pval = pval_active, time = time_active_expect) |> select(AY_idx, type_long, gamma_numeric, pval, time))
+pvals_all2$gamma = factor(pvals_all2$gamma_numeric)
+levels(pvals_all2$gamma) <- c('-3' = TeX("Proxy"),
+                              '-2' = TeX("True"),
+                             '-1' = TeX("Independent"), 
+                             '0' = TeX("Arb Dep, $\\gamma=0$"), 
+                             '.25' = TeX("Arb Dep, $\\gamma=.25$"), 
+                             '.5' = TeX("Arb Dep, $\\gamma=.5$"), 
+                             '.75' = TeX("Arb Dep, $\\gamma=.75$"))
+
+pvals_all2 = pvals_all2 |> group_by(type_long, gamma) |> mutate(observed = sort(pval), expected = ppoints(n())) |> ungroup()
 
 # qqplot of active pvals vs Unif(0,1) ==========================================
 qqplot_both = ggplot(pvals_all, 
@@ -283,11 +318,77 @@ qqplot_both + cutoff01
 ggsave(file = sprintf('%s/indep_arbdep_qqunif01.pdf', plot_savepath), width = 7, height = 4)
 
 
+qqplot_all = ggplot(pvals_all2, 
+                     aes(x = expected,
+                         y = observed,
+                         color = gamma)) +
+  geom_abline(aes(intercept = 0, slope = 1)) +
+  geom_point(alpha = .9, size = .8) +
+  # scale_color_viridis_b(begin = 0, end = 1, breaks = c(-1, 0, .2, .4, .6), labels = c('Indep', 0, .25, .5, .75)) +
+  scale_color_manual(values = c(other_colors, gamma_colors), 
+                     labels = c(TeX('Proxy'), TeX('True'), TeX('Independent'), TeX('Arb Dep, \\gamma=0'), TeX('Arb Dep, \\gamma=.25'), TeX('Arb Dep, \\gamma=.50'), TeX('Arb Dep, \\gamma=.75'))) +
+  labs(title = 'QQ-plot of p-values vs Unif(0,1)',
+       x = 'Expected', y = 'Observed',
+       color = 'pval type') +
+  facet_grid(~type_long, labeller = label_parsed) +
+  theme(legend.text = element_text(vjust = .7, size = 10),
+        legend.title = element_text(size = 12))  +
+  guides(color = guide_legend(override.aes = list(size = 4)))
+
+qqplot_all
+ggsave(file = sprintf('%s/all_qqunif.pdf', plot_savepath), width = 10, height = 5)
+
+qqplot_all + cutoff01
+ggsave(file = sprintf('%s/all_qqunif01.pdf', plot_savepath), width = 10, height = 5)
+
+# Histogram of active pvals ====================================================
+hist_both = ggplot(pvals_all, 
+                     aes(x = pval_active,
+                         fill = gamma)) +
+  geom_histogram(aes(y = after_stat(density)), alpha = .8, size = .8, breaks = seq(0, 4, length.out = 4*10), color = 'black') +
+  # scale_color_viridis_b(begin = 0, end = 1, breaks = c(-1, 0, .2, .4, .6), labels = c('Indep', 0, .25, .5, .75)) +
+  scale_fill_manual(values = c('gray32', gamma_colors), 
+                     labels = c(TeX('Independent'), TeX('Arb Dep, \\gamma=0'), TeX('Arb Dep, \\gamma=.25'), TeX('Arb Dep, \\gamma=.50'), TeX('Arb Dep, \\gamma=.75'))) +
+  labs(title = 'Histogram of Active p-values',
+       x = 'p-values', y = 'density',
+       fill = 'active pval type') +
+  facet_grid(type_long~gamma, labeller = label_parsed, scales = 'free') +
+  theme(legend.text = element_text(vjust = .7, size = 10),
+        legend.title = element_text(size = 12),
+        legend.position = 'none',
+        strip.text = element_text(size = 10),
+        axis.text.x = element_text(size = 7))
+
+hist_both + scale_x_continuous(limits = c(0, 1))
+ggsave(file = sprintf('%s/indep_arbdep_hist01.pdf', plot_savepath), width = 7, height = 4)
+
+
+hist_all = ggplot(pvals_all2, 
+       aes(x = pval,
+           fill = gamma)) +
+  geom_histogram(aes(y = after_stat(density)), alpha = .8, size = .8, breaks = seq(0, 4, length.out = 4*10), color = 'black') +
+  # scale_color_viridis_b(begin = 0, end = 1, breaks = c(-1, 0, .2, .4, .6), labels = c('Indep', 0, .25, .5, .75)) +
+  scale_fill_manual(values = c(other_colors, gamma_colors), 
+                    labels = c(TeX('Proxy'), TeX('True'), TeX('Independent'), TeX('Arb Dep, \\gamma=0'), TeX('Arb Dep, \\gamma=.25'), TeX('Arb Dep, \\gamma=.50'), TeX('Arb Dep, \\gamma=.75'))) +
+  labs(title = 'Histogram of p-values',
+       x = 'p-values', y = 'density',
+       fill = 'active pval type') +
+  facet_grid(type_long~gamma, labeller = label_parsed, scales = 'free') +
+  theme(legend.text = element_text(vjust = .7, size = 10),
+        legend.title = element_text(size = 12),
+        legend.position = 'none',
+        strip.text = element_text(size = 10),
+        axis.text.x = element_text(size = 8))
+
+hist_all + scale_x_continuous(limits = c(0, 1))
+ggsave(file = sprintf('%s/all_hist01.pdf', plot_savepath), width = 10, height = 5)
+
+
+
 # plot runtimes  ============================================
 runtime_both = ggplot(pvals_all, 
        aes(x = time_active_expect,
            fill = gamma)) +
-  geom_abline(aes(intercept = 0, slope = 1)) +
   geom_histogram(aes(y = after_stat(density)), 
                  color = 'gray20',  bins = 18, alpha = .7, 
                  position = 'nudge')  + 
@@ -299,16 +400,129 @@ runtime_both = ggplot(pvals_all,
        fill = 'active pval type') +
   facet_grid(type_long~gamma, labeller = label_parsed) +
   theme(legend.text = element_text(vjust = .7, size = 10),
-        legend.title = element_text(size = 12))
+        legend.title = element_text(size = 12),
+        legend.position = 'none',
+        strip.text = element_text(size = 9))
 
 runtime_both
-ggsave(file = sprintf('%s/indep_arbdep_runtime.pdf', plot_savepath), width = 7, height = 4)
+ggsave(file = sprintf('%s/indep_arbdep_runtime_hist.pdf', plot_savepath), width = 7, height = 4)
 
 
-pvals |> group_by(type) |> summarize(time_proxy_mean = mean(time_proxy),
-                                     time_proxy_sd   = sd(time_proxy, na.rm=TRUE),
-                                     time_true_mean  = mean(time_true),
-                                     time_true_sd    = sd(time_true, na.rm=TRUE))
+# pvals |> group_by(type) |> summarize(time_proxy_mean = mean(time_proxy),
+#                                      time_proxy_sd   = sd(time_proxy, na.rm=TRUE),
+#                                      time_true_mean  = mean(time_true),
+#                                      time_true_sd    = sd(time_true, na.rm=TRUE))
 
+# library(ggpattern)
+
+
+ggplot(pvals_all, 
+       aes(y = time_active_expect,
+           # x = paste0(gamma_numeric, type_long),
+           fill = gamma)) +
+  # geom_boxplot_pattern(aes(pattern = type_long), pattern_fill='black', pattern_fill2='black', orientation = 'x') +
+  # scale_pattern_manual(values = c('magick', 'stripe')) +
+  geom_boxplot(aes(alpha = type_long), outliers = FALSE) +
+  # geom_violin(aes(x = type_long, y = time_active_expect, alpha = type_long), orientation = 'x') +
+  scale_alpha_manual(values = c(.5, 1)) +
+  scale_fill_manual(values = c('gray32', gamma_colors), guide = 'none', 
+                    labels = c(TeX('Independent'), TeX('Arb Dep, \\gamma=0'), TeX('Arb Dep, \\gamma=.25'), TeX('Arb Dep, \\gamma=.50'), TeX('Arb Dep, \\gamma=.75'))) +
+  labs(title = 'Expected Runtimes',
+       y = 'time (s)',
+       fill = 'active pval type',
+       alpha = 'test type:',
+       x = '') +
+  facet_grid(~gamma, labeller = label_parsed, switch = 'both') +
+  theme(legend.position = c(.5,.1),
+        legend.text = element_text(vjust = .7, size = 10),
+        legend.direction = 'horizontal',
+        legend.justification = 'center',
+        legend.title = element_text(size = 12),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text = element_text(size = 8)) +
+  guides(alpha = guide_legend(override.aes = list(fill = 'gray10')))
+
+ggsave(file = sprintf('%s/indep_arbdep_runtime_boxplot.pdf', plot_savepath), width = 7, height = 4)
+
+
+
+ggplot(pvals_all, 
+       aes(y = time_active_expect,
+           # x = paste0(gamma_numeric, type_long),
+           fill = gamma)) +
+  # geom_boxplot_pattern(aes(pattern = type_long), pattern_fill='black', pattern_fill2='black', orientation = 'x') +
+  # scale_pattern_manual(values = c('magick', 'stripe')) +
+  # geom_boxplot(aes(alpha = type_long), outliers = FALSE) +
+  geom_violin(aes(x = type_long, y = time_active_expect, alpha = type_long), orientation = 'x') +
+  scale_alpha_manual(values = c(.5, 1)) +
+  scale_fill_manual(values = c('gray32', gamma_colors), guide = 'none',
+                    labels = c(TeX('Independent'), TeX('Arb Dep, \\gamma=0'), TeX('Arb Dep, \\gamma=.25'), TeX('Arb Dep, \\gamma=.50'), TeX('Arb Dep, \\gamma=.75'))) +
+  labs(title = 'Expected Runtimes',
+       y = 'time (s)',
+       fill = 'active pval type',
+       alpha = 'test type',
+       x = '') +
+  facet_grid(~gamma, labeller = label_parsed, switch = 'both') +
+  theme(legend.position = c(.5,.1),
+        legend.text = element_text(vjust = .7, size = 10),
+        legend.direction = 'horizontal',
+        legend.justification = 'center',
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text = element_text(size = 8)) +
+  guides(alpha = guide_legend(override.aes = list(fill = 'gray10')))
+
+ggsave(file = sprintf('%s/indep_arbdep_runtime_violin.pdf', plot_savepath), width = 7, height = 4)
+
+
+ggplot(pvals_all2, 
+       aes(y = time,
+           fill = gamma)) +
+  geom_boxplot(aes(alpha = type_long), outliers = FALSE) +
+  scale_alpha_manual(values = c(.5, 1)) +
+  scale_fill_manual(values = c(other_colors, gamma_colors), guide = 'none', 
+                    labels = c(TeX('Independent'), TeX('Arb Dep, \\gamma=0'), TeX('Arb Dep, \\gamma=.25'), TeX('Arb Dep, \\gamma=.50'), TeX('Arb Dep, \\gamma=.75'))) +
+  labs(title = 'Expected Runtimes',
+       y = 'time (s)',
+       fill = 'active pval type',
+       alpha = 'test type:',
+       x = '') +
+  facet_grid(~gamma, labeller = label_parsed, switch = 'both') +
+  theme(legend.position = c(.5,.1),
+        legend.text = element_text(vjust = .7, size = 10),
+        legend.direction = 'horizontal',
+        legend.justification = 'center',
+        legend.title = element_text(size = 12),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text = element_text(size = 8)) +
+  guides(alpha = guide_legend(override.aes = list(fill = 'gray10')))
+ggsave(file = sprintf('%s/all_runtime_boxplot.pdf', plot_savepath), width = 10, height = 5)
+
+
+
+ggplot(pvals_all2, 
+       aes(fill = gamma)) +
+  geom_violin(aes(x = type_long, y = time, alpha = type_long), orientation = 'x') +
+  scale_alpha_manual(values = c(.5, 1)) +
+  scale_fill_manual(values = c(other_colors, gamma_colors), guide = 'none', 
+                    labels = c(TeX('Independent'), TeX('Arb Dep, \\gamma=0'), TeX('Arb Dep, \\gamma=.25'), TeX('Arb Dep, \\gamma=.50'), TeX('Arb Dep, \\gamma=.75'))) +
+  labs(title = 'Expected Runtimes',
+       y = 'time (s)',
+       fill = 'active pval type',
+       alpha = 'test type:',
+       x = '') +
+  facet_grid(~gamma, labeller = label_parsed, switch = 'both') +
+  theme(legend.position = c(.5,.1),
+        legend.text = element_text(vjust = .7, size = 10),
+        legend.direction = 'horizontal',
+        legend.justification = 'center',
+        legend.title = element_text(size = 12),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text = element_text(size = 8)) +
+  guides(alpha = guide_legend(override.aes = list(fill = 'gray10')))
+ggsave(file = sprintf('%s/all_runtime_violin.pdf', plot_savepath), width = 10, height = 5)
 
 
