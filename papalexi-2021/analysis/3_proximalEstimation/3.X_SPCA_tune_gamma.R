@@ -330,16 +330,16 @@ qqplot_all = ggplot(pvals_all2,
   labs(title = 'QQ-plot of p-values vs Unif(0,1)',
        x = 'Expected', y = 'Observed',
        color = 'pval type') +
-  facet_grid(~type_long, labeller = label_parsed) +
+  facet_grid(type_long~., labeller = label_parsed) +
   theme(legend.text = element_text(vjust = .7, size = 10),
         legend.title = element_text(size = 12))  +
   guides(color = guide_legend(override.aes = list(size = 4)))
 
 qqplot_all
-ggsave(file = sprintf('%s/all_qqunif.pdf', plot_savepath), width = 10, height = 5)
+ggsave(file = sprintf('%s/all_qqunif.pdf', plot_savepath), width = 5, height = 5)
 
 qqplot_all + cutoff01
-ggsave(file = sprintf('%s/all_qqunif01.pdf', plot_savepath), width = 10, height = 5)
+ggsave(file = sprintf('%s/all_qqunif01.pdf', plot_savepath), width = 5, height = 5)
 
 # Histogram of active pvals ====================================================
 hist_both = ggplot(pvals_all, 
@@ -498,6 +498,7 @@ ggplot(pvals_all2,
         axis.ticks.x = element_blank(),
         strip.text = element_text(size = 8)) +
   guides(alpha = guide_legend(override.aes = list(fill = 'gray10')))
+
 ggsave(file = sprintf('%s/all_runtime_boxplot.pdf', plot_savepath), width = 10, height = 5)
 
 
@@ -523,6 +524,7 @@ ggplot(pvals_all2,
         axis.ticks.x = element_blank(),
         strip.text = element_text(size = 8)) +
   guides(alpha = guide_legend(override.aes = list(fill = 'gray10')))
+
 ggsave(file = sprintf('%s/all_runtime_violin.pdf', plot_savepath), width = 10, height = 5)
 
 
