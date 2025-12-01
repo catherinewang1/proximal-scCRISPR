@@ -1,6 +1,6 @@
 
 
-# Analysis of `papalexi-2021`
+# Analysis of `papalexi-2021` using proximal causal inference
 
 
 # Folders
@@ -28,12 +28,44 @@ saved files include:
  + `<save_dir>/chromosome/grna_chromosome.csv`
 
 
-
-## `2_otherEstimates`
-
+## `2_setupAY`
 
 
-## `3_proximalEstimate`
+Setup a selection of perturbations (A) and genes (Y) to test the causal effects for.
+Specify the settings for choosing tests in `<save_dir>/AY/AY_setting.R`.
+
+Files in the folder `2_setupAY`
+
+ + `2.1_choose_AY.R`
+
+saved files include:
+
+ + `<save_dir>/AY/<setting_name>/`
+ + `<save_dir>/AY/<setting_name>/AY.csv`
+ + `<save_dir>/AY/<setting_name>/AYZW_setting.rds`
+ + `<save_dir>/AY/<setting_name>/AYZW_setting.txt`   
+
+
+
+## `3_estimateEffects`
+
+Estimate effects from a variety of methods.  
+
+
+Files in the folder `3_estimateEffects`
+
+ + `3.1_papalexi_countinuous.R`
+ + `3.2_papalexi_countGLM.R`
+ + `3.3_papalexi_sceptre.R`
+
+saved files include:
+
+ + `<save_dir>/AY/<setting_name>/<proximal_setting_name>/`
+ + `<save_dir>/AY/<setting_name>/<proximal_setting_name>/effects_continuous.csv`
+ + `<save_dir>/AY/<setting_name>/<proximal_setting_name>/proximal_setting.rds`
+ + `<save_dir>/AY/<setting_name>/<proximal_setting_name>/intermediateATEs/`
+
+## `4_compareEstimators`
 
 
 

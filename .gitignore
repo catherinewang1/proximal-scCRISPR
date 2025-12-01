@@ -3,6 +3,13 @@
 # saved objects (large)
 papalexi-2021/saves/
 
+# old code
+papalexi/2021/analysis/1_processData/old/
+papalexi/2021/analysis/2_setupAY/old/
+papalexi/2021/analysis/3_estimateEffects/old/
+papalexi/2021/analysis/4_compareEstimators/old/
+
+
 # locally rendered md
 README.html
 

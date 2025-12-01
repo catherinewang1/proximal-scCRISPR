@@ -7,17 +7,17 @@
 # location of papalexi-2021 folder
 data_dir = switch(DEVICE,
                'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/genData/papalexi', 
-               'ubergenno'='<UPDATE!>')
+               'ubergenno'='/raid6/Catherine/papalexi')
 
 # location of intermediate save files/plots are written
 save_dir = switch(DEVICE,
-               'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/Proximal2025/papalexi-2021/saves', 
-               'ubergenno'='<UPDATE!>')
+               'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/proximal-scCRISPR-github/proximal-scCRISPR/papalexi-2021/saves', 
+               'ubergenno'='/home/catheri22/proximal-scCRISPR-github/papalexi-2021/saves')
 
 # really should be named util_dir
 util_dir = switch(DEVICE,
-                  'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/Proximal2025/utils', 
-                  'ubergenno'='<UPDATE!>')
+                  'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/proximal-scCRISPR-github/proximal-scCRISPR/utils', 
+                  'ubergenno'='/home/catheri22/proximal-scCRISPR-github/utils')
 
 
 assertthat::assert_that(!is.null(data_dir), msg='DEVICE must be: laptop or ubergenno')

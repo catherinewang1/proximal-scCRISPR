@@ -152,7 +152,7 @@ estimate_ATE_make <- function(AY, gene_norm, NCs,
     # === Oracle (none) and Naive (no adj) ===
     # === === === === === === === === ===  ===
     # Oracle models using unmeas conf: Y ~ A + U1 + ...
-    U_colnames = grep('U', colnames(df), value = T)
+    U_colnames = grep('U', colnames(df_all), value = T)
     unmeas_conf_formula = paste0('Y ~ A + ', paste(U_colnames, collapse = ' + '))
     # lm_YAU  = lm(paste0('Y ~ A + ', paste(U_colnames, collapse = ' + ')), df)
     
@@ -178,7 +178,8 @@ estimate_ATE_make <- function(AY, gene_norm, NCs,
 
     if(which_estimators$lm_YAU) {
       # Cannot perf lmYAU bc U are not given!! (or U df has nothing)
-      if(is.null(U_confounders) | length(grep('U', colnames(df), value = T)) == 0) {
+      if(is.null(U_confounders) | length(U_colnames) == 0) {
+        # print('skip lmYAU')
         res = bind_rows(res, 
                         data.frame(
                           method = 'lmYAU',
@@ -190,6 +191,7 @@ estimate_ATE_make <- function(AY, gene_norm, NCs,
                           pval  = NA,
                           time_sec = NA))
       } else {
+        # print('perform lmYAU')
         t0 = Sys.time()
         lm_YAU = lm(unmeas_conf_formula, df_all)
         t1 = Sys.time()
@@ -336,7 +338,7 @@ estimate_effect_count_make <- function(AY,
                                        ) {
 
 
-  if(!is.null(save_path)) {    dir.create(sprintf('%s/intermediateATEs/', save_path), showWarnings = FALSE)    }
+  if(!is.null(save_path)) {    dir.create(sprintf('%s/intermediateATEsCountGLM/', save_path), showWarnings = FALSE)    }
   
   #' construct a dataframe of all the data 
   #' (to be defined inside a outer function to have access to objects)
@@ -483,7 +485,7 @@ estimate_effect_count_make <- function(AY,
     # save ATEs one by one (AY_idx, ZW_idx) if wanted
     if(!is.null(save_path)) {
       write.csv(res,
-                sprintf('%s/intermediateATEs/ATE_%d.csv', save_path, AY_idx),
+                sprintf('%s/intermediateATEsCountGLM/ATE_%d.csv', save_path, AY_idx),
                 row.names = FALSE)
     }
      

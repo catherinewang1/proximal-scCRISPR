@@ -1,13 +1,12 @@
 # ------------------------------------------------------------------------------------------------ #
-#     Just try estimators
-# 
-# 
+#     Estimate Effect (ATE) with continuous (normalized) outcome Y 
+# linear regression
+# linear regression with 'un'-measured confounders
+# proximal (outcome) using pci2s package
 # ------------------------------------------------------------------------------------------------ #
-
 args = commandArgs(trailingOnly = TRUE)
-args = c('laptop', 'A1')
-
-
+# args = c('laptop', 'A1')
+# args = c('laptop', 'A')
 
 
 
@@ -35,7 +34,7 @@ theme_set(theme_cowplot() +
 
 
 # === Parameter Settings for Proximal Methods ===
-num_NC_pairs = c(1, 3, 5, 10, 20)
+num_NC_pairs = c(1, 3, 5, 10, 15, 20)
 save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as they are estimated
 
 proximal_setting_name = 'simple'
@@ -47,9 +46,9 @@ N_subsample = 5000 # subsample size, or 'all' if using all cells
 
 # === Parameter Settings for which estimators to perform
 which_estimators = list(lm_YA        = TRUE,
-	                    lm_YAU       = TRUE,
-	                    pois_YAU     = TRUE,
-	                    nb_YAU       = TRUE,
+	                      lm_YAU       = TRUE,
+	                      # pois_YAU     = TRUE,
+	                      # nb_YAU       = TRUE,
                         # OCB_2SLS     = FALSE,
                         OCB_2SLS_pci2s=TRUE #,
                         # OCB_2SLSReg  = FALSE,
@@ -79,12 +78,12 @@ CB_setting = list()
 CB_setting$num_NC_pairs = num_NC_pairs
 CB_setting$proximal_setting_name = 'simple'
 
-dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, proximal_setting_name), recursive = TRUE, showWarnings = FALSE)
+dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, proximal_setting_name), recursive = FALSE, showWarnings = FALSE)
 capture.output(print(CB_setting),
-               file = sprintf('%s/AY/%s/%s/CB_setting.txt',
+               file = sprintf('%s/AY/%s/%s/proximal_setting.txt',
                               save_dir, AYZW_setting_name, proximal_setting_name))
 saveRDS(CB_setting,
-        sprintf('%s/AY/%s/%s/CB_setting.rds',
+        sprintf('%s/AY/%s/%s/proximal_setting.rds',
                 save_dir, AYZW_setting_name, proximal_setting_name))
 
 
@@ -191,7 +190,7 @@ NT_idx = which(apply(X = grna_odm[[NT_names, ]], MARGIN = 2, FUN = sum) > 0)
 # =============================================================================
 
 
-source(sprintf('%s/estimate_effects.R', util_dir)) # for functions to estimate here
+# source(sprintf('%s/estimate_effects.R', util_dir)) # for functions to estimate here
 
 
 
@@ -205,7 +204,8 @@ estimate_ATE_0 = estimate_ATE_make(AY                      = AY,
                                    which_estimators        = which_estimators, 
                                    save_path = switch(save_intermediateATEs,
                                                      'yes' = sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, proximal_setting_name),
-                                                     'no'  = NULL))
+                                                     'no'  = NULL),
+                                   U_confounders           = cell_covariates)
 # test = estimate_ATE_0(AY_idx = 3)
 
 
@@ -264,6 +264,21 @@ print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
 # length(ATE_par)
 # unlist(ATE_par)
 # ATE_par[1] |> as.data.frame()
+
+
+ATE_df = NULL
+for(AY_idx in whichROWS) {
+  if(!is.null(ATE_par[[AY_idx]])) {
+    ATE_df = rbind(ATE_df,
+                   cbind(data.frame(AY_idx=AY_idx),
+                         AY[AY_idx, ] |> `rownames<-`( NULL ),
+                         ATE_par[[AY_idx]]))
+  }
+}
+
+write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, proximal_setting_name), row.names = FALSE)
+
+
 
 
 
