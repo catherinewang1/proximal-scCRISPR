@@ -245,7 +245,7 @@ estimate_ATE_make <- function(AY, gene_norm, NCs,
     
     # t0 = Sys.time()
     for(num_NCs in num_NC_pairs) {
-      print(num_NCs)
+      # print(num_NCs)
       df = df_all[, c('A', 'Y', paste0('Z', 1:num_NCs), paste0('W', 1:num_NCs))] # subset only these cols
       
       
