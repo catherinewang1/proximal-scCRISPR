@@ -1,0 +1,10 @@
+
+
+# saved objects (large)
+papalexi-2021/saves/
+
+# locally rendered md
+README.html
+
+# saved pdfs (e.g. plots)
+*.pdf

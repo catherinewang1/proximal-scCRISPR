@@ -1,0 +1,354 @@
+---
+title: "3.Y_ATEbySE"
+format: html
+editor: source
+---
+
+
+# Setup
+
+
+load libraries, set up parameters, set up save folders
+```{r}
+# args = commandArgs(trailingOnly = TRUE)
+args = c('laptop', 'allPerturbations')
+
+
+require(assertthat) # for some assert statements
+
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+
+theme_set(theme_cowplot() +
+            theme(plot.title = element_text(hjust = .5),
+                  plot.subtitle = element_text(hjust = .5),
+                  strip.background = element_rect(color = 'black', fill = 'white')))
+
+assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
+
+DEVICE = args[1]
+source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
+
+assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
+
+assertthat::assert_that(length(args) > 1, msg="must give arg for specifying chosen AYZW name 'Rscript <filename>.R ubergenno C'")
+AYZW_setting_name = args[2]
+
+dir.create(sprintf('%s/spca/cbgenes/%s/ATEbySE/', save_dir, AYZW_setting_name), recursive = TRUE, showWarnings = FALSE)
+cbgenes_setting_name = 'spca/cbgenes'
+CB_setting_name = 'simple'
+```
+
+
+
+load and format data
+```{r }
+#| echo=FALSE
+# load chosen AYZW names
+AY   = read.csv(sprintf('%s/spca/cbgenes/%s/AY.csv', save_dir, AYZW_setting_name))
+
+# # Load lin regressions
+# ATE_lm = read.csv(sprintf('%s/spca/cbgenes/%s/lmYAU/ATE_lmYAU.csv', save_dir, AYZW_setting_name))
+# 
+# # Load Poisson and Negative binomial regressions
+# ATE_glm = read.csv(sprintf('%s/spca/cbgenes/%s/glmYAU/ATE_glmYAU.csv', save_dir, AYZW_setting_name))
+
+
+# Load CB methods (pci2s and MEst using max numNC)
+ATE_CB = read.csv(sprintf('%s/%s/%s/%s/ATE.csv', save_dir, cbgenes_setting_name, AYZW_setting_name, CB_setting_name))
+ATE_CB = ATE_CB |> filter(EstMethod == 'OCB2SLSpci2s' | EstMethod == 'OCBMEstRWbasis1' | EstMethod == 'lmYA') |>
+  filter(numNC == 20 | is.na(numNC)) |> select(-X)
+ATE_CB[ATE_CB$EstMethod == 'OCBMEstRWBasis1', 'method_type'] = 'mest'
+ATE_CB[ATE_CB$EstMethod == 'lmYA',            'method_type'] = 'lmYA'
+
+
+lmYA = merge(AY |> mutate(AY_idx = 1:nrow(AY)),
+             ATE_CB |> filter(EstMethod == 'lmYA'), 
+             by = 'AY_idx')
+
+ 
+
+
+dim(ATE_CB); head(ATE_CB)
+ATE_CB |> pull(method_type)  |> table()
+
+
+
+# ATE = read.csv(sprintf('%s/spca/cbgenes/%s/glmYAU/ATE_glmYAU.csv', save_dir, AYZW_setting_name))
+df = merge(AY |> mutate(AY_idx = 1:nrow(AY)), 
+           ATE_CB, 
+           by = 'AY_idx')
+head(df); dim(df)
+df$method |> table()
+
+
+
+# add 'naive' lmYA ATE estimate as a column, calculate ATE_ratio = ATE / ATE_lmYA
+df = merge(df,
+           lmYA |> select(AY_idx, ATE) |> rename(ATE_lmYA = ATE),
+           by = 'AY_idx') |>
+     mutate(ATE_ratio = ATE / ATE_lmYA) |> 
+     mutate(ATEoverSE = ATE / se)
+head(df); dim(df)
+df$method |> table()
+
+
+df$method_type = factor(df$method_type, levels = c('lmYA', '2SLS', 'MEst'))
+df$type        = factor(df$type       , levels = c('negative', 'maybe', 'positive'))
+hist(df$ATE_lmYA)
+```
+
+
+# Plot: Ratio of proximal est / naive lmYA estimate
+
+```{r}
+#| warning = FALSE
+# Ratio of proximal est / naive lmYA estimate. Want < 1 (reduce bias)
+ggplot(df |> filter(type == 'negative' | type == 'positive') |> 
+         filter(method_type != 'lmYA') |> 
+         filter(abs(ATE_lmYA) >  1), 
+       # aes(x = ATE_ratio |> abs())) +
+       aes(x = ATE_ratio)) +
+  geom_vline(aes(xintercept = 0)) +
+  geom_vline(aes(xintercept = 1)) +
+  geom_vline(aes(xintercept = -1)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = .2) +
+  scale_x_continuous(limits = c(-3, 3)) +
+  facet_grid(rows = vars(type),
+             cols = vars(method_type),
+             scales = 'free_y')
+```
+
+
+# Plot: ATE / se
+
+This should be N(0,1), because we get the p-value by comparing this normalized value to N(0,1) because we think this value is asymptotically N(0,1)
+
+
+
+Overall Plots:
+```{r}
+# ATE / se (should ~ N(0,1))
+ggplot(df |> mutate(ATEoverSE = ATE / se) |> 
+         filter(method_type != 'lmYA') |> 
+         filter(type == 'negative' | type == 'positive') ,
+       aes(x = ATEoverSE)) +
+  geom_histogram(binwidth = .25) +
+  facet_grid(rows = vars(type),
+             cols = vars(method_type),
+             scales = 'free')
+
+```
+
+
+```{r}
+
+#' get the vector of ATE / SE for the specified
+#' myType (positive, negative, maybe) and
+#' myMethod (2SLS, MEst)
+get_ATEoverSE <- function(myType, myMethod, makePlots=FALSE) {
+  # myType = 'negative'; myMethod = 'MEst'
+  df2 = df |> filter(type == myType & method_type == myMethod)
+  
+  
+  # qqnorm(df2$ATEoverSE );qqline(df2$ATEoverSE )
+  
+  mean(df2$ATEoverSE)
+  var(df2$ATEoverSE)
+  
+  if(makePlots) {
+    # plot histogram
+    p_hist = ggplot() +
+      geom_histogram(data = df2, 
+                     aes(x = ATEoverSE, y = after_stat(density)), binwidth = .25, alpha = .7) +
+      scale_x_continuous(limits = c(-5, 5)) +
+      labs(title = 'Histogram of ATE / SE',
+           subtitle = sprintf('type = %s, method = %s', myType, myMethod))
+    
+    # compare to N(0,1)
+    p_qqorm_standard = ggplot(df2,
+           aes(sample = ATEoverSE)) +
+      geom_qq(distribution = stats::qnorm) +
+      geom_abline(aes(intercept = 0, slope = 1)) +
+      labs(title = 'ATE / SE vs N(0,1)',
+           subtitle = sprintf('type = %s, method = %s', myType, myMethod))
+    
+    # Compare to N(0, sample var)
+    sample_qnorm <- function(p) {stats::qnorm(p, mean = 0, sd = sd(df2$ATEoverSE))}
+    p_qqorm_sample = ggplot(df2,
+           aes(sample = ATEoverSE)) +
+      geom_qq(distribution = sample_qnorm) +
+      geom_abline(aes(intercept = 0, slope = 1)) +
+      labs(title = sprintf('ATE / SE vs N(0, sample sd =%.2f)', sd(df2$ATEoverSE)),
+           subtitle = sprintf('type = %s, method = %s', myType, myMethod))
+    
+    
+    # # test if geom_qq is est mean and var, or if comparing to N(0,1). Yes comparing to N(0,1)
+    # ggplot(NULL,
+    #        aes(sample = rnorm(1000, mean = 0, sd = 10))) +
+    #   geom_qq(distribution = stats::qnorm) +
+    #   geom_abline()
+    return(list(dfsubset         = df2,
+                p_hist           = p_hist,
+                p_qqorm_standard = p_qqorm_standard,
+                p_qqorm_sample   = p_qqorm_sample))
+  } else {
+    return(list(dfsubset = dfsubset))
+  }
+  
+}
+
+```
+
+for 2SLS estimator
+```{r}
+#| fig.height = 5,  fig.width = 15 
+ATEoverSE_2SLS = get_ATEoverSE(myType = 'negative', myMethod = '2SLS', makePlots = TRUE)
+gridExtra::grid.arrange(ATEoverSE_2SLS$p_hist, ATEoverSE_2SLS$p_qqorm_standard, ATEoverSE_2SLS$p_qqorm_sample, nrow = 1)
+```
+
+for MEstimator: the distribution of ATE / SE does not seem to follow the normal distribution. Even though the sample average is around 0, and the standard deviation is around 1. The distribution appears to have lighter? tails. Maybe we can consider comparing these normalized values (ATE / se) by the 
+```{r}
+#| fig.height = 5, fig.width = 15
+ATEoverSE_MEst = get_ATEoverSE(myType = 'negative', myMethod = 'MEst', makePlots = TRUE)
+gridExtra::grid.arrange(ATEoverSE_MEst$p_hist, ATEoverSE_MEst$p_qqorm_standard, ATEoverSE_MEst$p_qqorm_sample, nrow = 1)
+```
+
+
+
+
+2SLS
+```{r}
+#| warning = FALSE
+xs = seq(from = -5, to = 5, length.out = 200) 
+ATEoverSE_2SLS$p_hist +
+  # normal(0,1)
+  geom_line(aes(x = xs, y = dnorm(xs, mean=0, sd=1)), color = 'black') +
+  geom_line(aes(x = xs, y = dt(xs, df =  1)),        color = 'purple1') +
+  geom_line(aes(x = xs, y = dt(xs, df =  2)),        color = 'purple2') +
+  geom_line(aes(x = xs, y = dt(xs, df =  4)),        color = 'purple3') +
+  geom_line(aes(x = xs, y = dt(xs, df = 10)),        color = 'purple4')
+```
+
+
+T-distribution has heavier tails than the normal. But this observed distribution has lighter tales...
+what if we try using a t-distribution? What is the effective sample size of the se...? Typically, ~$n - p - 1$ but there is a more complicated procedure 
+```{r}
+#| warning = FALSE
+# MEstimator
+xs = seq(from = -5, to = 5, length.out = 200) 
+ATEoverSE_MEst$p_hist +
+  # normal(0,1)
+  geom_line(aes(x = xs, y = dnorm(xs, mean=0, sd=1)), color = 'black') +
+  geom_line(aes(x = xs, y = dt(xs, df =  1)),        color = 'purple1') +
+  geom_line(aes(x = xs, y = dt(xs, df =  2)),        color = 'purple2') +
+  geom_line(aes(x = xs, y = dt(xs, df =  4)),        color = 'purple3') +
+  geom_line(aes(x = xs, y = dt(xs, df = 10)),        color = 'purple4')
+
+
+```
+
+
+
+# Empirical CDF Correction
+
+Efron, 2006
+
+
+Adjust for the distribution of statistics using an estimate of the empirical width and center:
+
+
+
+
+
+```{r}
+dfMEst = df |> filter(method_type == 'MEst')  |> filter(type %in% c('negative', 'positive'))
+z_original    = dfMEst |> pull(ATEoverSE)
+z_permutation = dfMEst |> pull(ATEoverSE) # should be z, from null (but dont have these??)
+
+# function to adjust for empirical cdf using emp
+ecdf_mest = ecdf(z_permutation)
+# get the adjusted p-values according to adjusted emp null
+ecdf_mest_ATEoverSE = qnorm(ecdf_mest(z_original))
+
+dfMEst$ecdf_mest_ATEoverSE = ecdf_mest_ATEoverSE
+
+# plot histogram
+ggplot(data = dfMEst) +
+      geom_histogram(aes(x = ATEoverSE, y = after_stat(density)), 
+                     binwidth = .25, alpha = .7) +
+      scale_x_continuous(limits = c(-5, 5)) +
+      facet_grid(rows = vars(type)) +
+      labs(title = 'Histogram of ATE / SE',
+           subtitle = sprintf('type = %s, method = %s', 'NA', 'MEst (ecdf)'))
+
+# plot histogram
+ggplot(data = dfMEst) +
+      geom_histogram(aes(x = ecdf_mest_ATEoverSE, y = after_stat(density)), 
+                     binwidth = .25, alpha = .7) +
+      scale_x_continuous(limits = c(-5, 5)) +
+      facet_grid(rows = vars(type)) +
+      labs(title = 'Histogram of ATE / SE  (ecdf)',
+           subtitle = sprintf('type = %s, method = %s', 'NA', 'MEst (ecdf)'))
+    
+# compare to N(0,1)
+ggplot(data = dfMEst,
+           aes(sample = ecdf_mest_ATEoverSE, color = type)) +
+      geom_qq(distribution = stats::qnorm) +
+      geom_abline(aes(intercept = 0, slope = 1)) +
+      labs(title = 'ATE / SE vs N(0,1)',
+           subtitle = sprintf('type = %s, method = %s',  'NA', 'MEst (ecdf)'))
+
+```
+
+
+Does not work very well on the 2SLS because of the ratio of negative and positive tests?? Ideally, the ecdf should be estimated on null test statistics (e.g. from a permutation test).
+
+
+
+```{r}
+df2SLS = df |> filter(method_type == '2SLS')  |> filter(type %in% c('negative', 'positive'))
+df2SLS |> group_by(type) |> summarize(count = n())
+
+z_original    = df2SLS |> pull(ATEoverSE)
+z_permutation = df2SLS |> pull(ATEoverSE) # should be z, from null (but dont have these??)
+
+# function to adjust for empirical cdf using emp
+ecdf_2SLS = ecdf(z_permutation)
+# get the adjusted p-values according to adjusted emp null
+ecdf_2SLS_ATEoverSE = qnorm(ecdf_mest(z_original))
+
+df2SLS$ecdf_2SLS_ATEoverSE = ecdf_2SLS_ATEoverSE
+
+
+# plot histogram
+ggplot(data = df2SLS) +
+      geom_histogram(aes(x = ATEoverSE, y = after_stat(density)), 
+                     binwidth = .25, alpha = .7) +
+      scale_x_continuous(limits = c(-5, 5)) +
+      facet_grid(rows = vars(type)) +
+      labs(title = 'Histogram of ATE / SE',
+           subtitle = sprintf('type = %s, method = %s', 'NA', '2SLS'))
+
+# plot histogram
+ggplot(data = df2SLS) +
+      geom_histogram(aes(x = ecdf_2SLS_ATEoverSE, y = after_stat(density)), 
+                     binwidth = .25, alpha = .7) +
+      scale_x_continuous(limits = c(-5, 5)) +
+      facet_grid(rows = vars(type)) +
+      labs(title = 'Histogram of ATE / SE (ecdf)',
+           subtitle = sprintf('type = %s, method = %s', 'NA', '2SLS (ecdf)'))
+    
+# compare to N(0,1)
+ggplot(data = df2SLS,
+           aes(sample = ecdf_2SLS_ATEoverSE, color = type)) +
+      geom_qq(distribution = stats::qnorm) +
+      geom_abline(aes(intercept = 0, slope = 1)) +
+      labs(title = 'ATE / SE vs N(0,1)',
+           subtitle = sprintf('type = %s, method = %s',  'NA', '2SLS (ecdf)'))
+```
+
+
+
+
