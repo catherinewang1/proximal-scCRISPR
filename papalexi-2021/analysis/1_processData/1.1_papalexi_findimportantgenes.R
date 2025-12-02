@@ -88,7 +88,20 @@ gene_dev_df = merge(gene_dev_df, important_genes_ranks, by = 'gene_idx', all.x=T
 
 write.csv(gene_dev_df,    file = sprintf('%s/gene_deviance.csv',       save_dir), row.names = F)
 
-write.csv(gene_dev_df |> filter(importance_rank <= NUM_IMPORTANT_GENES) |> arrange(importance_rank),    
+
+
+# targeted genes (a perturbation targets these genes, must include in 'top')
+targeted_genes = grna_odm |> ondisc::get_feature_covariates() |> 
+                 filter(target != 'non-targeting') |> 
+                 pull(target) |> unique()
+
+gene_deviance_topnoTFonly = gene_dev_df |> 
+                            mutate(is_grna_target = (gene_name %in% targeted_genes)) |> 
+                            filter(importance_rank <= NUM_IMPORTANT_GENES | is_grna_target) |> 
+                            arrange(importance_rank)
+
+
+write.csv(gene_deviance_topnoTFonly,    
           file = sprintf('%s/gene_deviance_topnoTFonly.csv',       save_dir), row.names = F)
 
 

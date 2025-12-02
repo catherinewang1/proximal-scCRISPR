@@ -33,14 +33,21 @@ gene_odm <- ondisc::read_odm(odm_fp      = paste0(data_dir, "/papalexi-2021/proc
 grna_odm <- ondisc::read_odm(odm_fp      = paste0(data_dir, "/papalexi-2021/processed/grna_assignment/assignment_matrix.odm"),
                              metadata_fp = paste0(data_dir, "/papalexi-2021/processed/grna_assignment/metadata.rds"))
 
+
+
+
+
 # load all into memory
 # gene <- gene_odm[[,1:ncol(gene_odm)]] # entire gene ds (18649 genes x 20729 cells)
 # grna <- grna_odm[[,1:ncol(grna_odm)]] # entire grna ds (110   grnas x 20729 cells)
 # important_genes_idx   = readRDS(sprintf('%s/important_genes_idx.rds', save_dir))
 gene_dev = read.csv(sprintf('%s/gene_deviance_topnoTFonly.csv', save_dir)) |> 
-           dplyr::arrange(importance_rank) |>
-           dplyr::filter(importance_rank <= NUM_IMPORTANT_GENES)
+           dplyr::filter(importance_rank <= NUM_IMPORTANT_GENES | is_grna_target) |> # refilter in case NUM_IMPORTANT_GENES changes
+           dplyr::arrange(importance_rank, gene_name) |>
+           dplyr::mutate(gene_norm_idx = 1:n()) # idx in gene_norm (for future indexing, before used importance_rank, but now targeted_genes are added)
 
+
+write.csv(gene_dev, sprintf('%s/gene_deviance_gene_norm.csv', save_dir), row.names = FALSE)
 
 invisible(gc(verbose=FALSE))
 
@@ -63,6 +70,7 @@ HDF5Array::setHDF5DumpName('gene')
 
 gene_important = gene_odm[[gene_dev$gene_idx,
                            1:ncol(gene_odm)]] # load top gene expr into memory (NUM_IMPORTANT_GENES x #cells)
+# row.names(gene_important) = gene_dev$gene_name
 gene_hd5 = as(gene_important, "HDF5Matrix")
 rhdf5::h5closeAll()
 invisible(gc(verbose=FALSE))
@@ -73,7 +81,7 @@ print(sprintf("[%s]    - performing normalization", Sys.time()))
 gene_norm = scry::nullResiduals(gene_hd5, 
                                 fam  = "binomial", 
                                 type = "deviance") # #imp genes x 20729
-
+row.names(gene_norm) = gene_dev$gene_name
 
 # =================== save normalized gene expression ==============================================
 print(sprintf("[%s]    - saving normalized gene expression", Sys.time()))
@@ -82,7 +90,7 @@ print(sprintf("[%s]    - saving normalized gene expression", Sys.time()))
 h5f         = rhdf5::H5Fopen(h5file); 
 name_exists = rhdf5::H5Lexists(h5f, 'gene_norm')
 rhdf5::h5closeAll()
-if (name_exists) {  rhdf5::h5delete(file = h5file, name = 'gene_norm') }
+if (name_exists) {  rhdf5::h5delete(file = h5file, name = 'gene_norm'); rhdf5::h5delete(file = h5file, name = ".gene_norm_dimnames/1") }
 rm(h5f, name_exists)
 
 # save normalized gene expression of top genes in 'gene.h5' under 'gene_norm'

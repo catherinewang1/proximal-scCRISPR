@@ -110,9 +110,11 @@ AY   = read.csv(sprintf('%s/AY/%s/AY.csv', save_dir, AYZW_setting_name))
 # saveRDS(AYZW, sprintf('%s/spca/cbgenes/%s/AYZW.rds', save_dir, AYZW_setting_name))
 
 # load gene importance info: gene_name, gene_idx (idx for raw), importance_rank (rank + idx for normalized)
-gene_importance = read.csv(sprintf('%s/gene_deviance_topnoTFonly.csv', save_dir)) |> 
-                  dplyr::select(gene_name, gene_idx, importance_rank)
+# gene_importance = read.csv(sprintf('%s/gene_deviance_topnoTFonly.csv', save_dir)) |> 
+#                   dplyr::select(gene_name, gene_idx, importance_rank)
 
+gene_importance = read.csv(sprintf('%s/gene_deviance_gene_norm.csv', save_dir)) |> 
+                  dplyr::select(gene_name, gene_idx, importance_rank, gene_norm_idx)
 
 # imp_gene_names = readRDS(sprintf('%s/important_genes_name.rds', save_dir))
 # imp_gene_idx   = readRDS(sprintf('%s/important_genes_idx.rds',  save_dir))
@@ -154,7 +156,7 @@ cell_covariates = cell_covariates |>
 h5file      = paste0(save_dir, "/gene.h5"); print(h5file)
 reading_hd5file  = rhdf5::H5Fopen(name = h5file)
 readin_gene_norm = reading_hd5file&'gene_norm'
-gene_norm = readin_gene_norm[1:NUM_IMPORTANTGENES, ] # eg dim = 4000 x 20729 = #important x #cells
+gene_norm = readin_gene_norm[, 1:ncol(gene_odm)] # eg dim = 4000 x 20729 = #important x #cells
 rhdf5::h5closeAll()
 invisible(gc(verbose=FALSE))
 

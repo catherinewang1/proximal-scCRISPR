@@ -7,7 +7,7 @@
 #                         "<save_dir>/cbgenes/<AYZW_setting_name>/CBGENE_AYZW.rds" #
 # -------------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('laptop', 'A')
+# args = c('laptop', 'B')
 
 
 
@@ -260,17 +260,23 @@ AY_pos = grna_chr |> filter(target != 'non-targeting') |>
 
 
 max_imp_gene = nrow(gene_chr) # only normalized these top XX important genes, so e can only use these
-min_n_nonzero = .5*setting$GENE_N_NONZERO_CELLS_MIN # allo for a smaller threshold for these positive tests
-AY_pos |> filter(Y %in% 
-    (gene_metainfo |> 
-      filter(importance_rank <= max_imp_gene & 
-               n_nonzero_cell >= min_n_nonzero 
-             ) |>
-      pull(wikigene_name)) 
-    )
+min_n_nonzero = .5*setting$GENE_N_NONZERO_CELLS_MIN # allow for a smaller threshold for these positive tests
+
+print(dim(AY_pos))
+print(head(AY_pos))
+
+Y_pos = gene_metainfo |> 
+        filter(importance_rank <= max_imp_gene &     # needs to be in (larger) top XXX s.t. this gene is normalized (this line is useless)
+                 n_nonzero_cell >= min_n_nonzero) |> # min # cells w nonzero counts for this gene 
+        pull(wikigene_name)
 
 
-AY_pos = AY_pos |> filter(Y %in% all_Y$Y) # only allow 'important' and abundant Y
+
+AY_pos = AY_pos |> filter(Y %in% Y_pos) # only allow 'important' and abundant Y
+
+
+print(dim(AY_pos))
+print(head(AY_pos))
 
 
 if(!is.na(setting$NUM_AY_POS)) {

@@ -44,7 +44,7 @@ require(MASS) # negative binomial fit
 #'                      column cell received row perturbation
 #' @param NT_idx (vector) of idx of Non-Targeting cells
 #' @param gene_importance (dataframe) of gene names and their ranks (rank=idx in gene_norm)
-#'                         must have cols: gene_name, importance_rank
+#'                         must have cols: gene_name, gene_norm_idx
 #' @param which_estimators (list) indicating which estimation methods to perf
 #' @param save_path (string) of the save path for saving intermediate ATE est
 #'                           NULL if not to be saved
@@ -100,7 +100,7 @@ estimate_ATE_make <- function(AY, gene_norm, NCs,
     # using already loaded in gene_norm (faster)
     # -------------------------------------------    
     # Y = gene_norm[get_importance_rank(AY_row$Y),     c(A_idx, NT_idx)]
-    Y_generank = gene_importance |> dplyr::filter(gene_name == AY_row$Y) |> pull(importance_rank)
+    Y_generank = gene_importance |> dplyr::filter(gene_name == AY_row$Y) |> pull(gene_norm_idx)
     if(length(Y_generank) != 1) {}
     Y = gene_norm[Y_generank,     c(A_idx, NT_idx)]
 

@@ -51,7 +51,7 @@ myAttributes = c("wikigene_name", "wikigene_id", "chromosome_name",
 
 gene_dev = read.csv(sprintf('%s/gene_deviance_topnoTFonly.csv', save_dir)) |> 
            dplyr::arrange(importance_rank) |>
-           dplyr::filter(importance_rank <= NUM_IMPORTANT_GENES)
+           dplyr::filter(importance_rank <= NUM_IMPORTANT_GENES | is_grna_target)
 myGenenames     = gene_dev$gene_name
 myGenenames_idx = gene_dev$gene_idx
 
