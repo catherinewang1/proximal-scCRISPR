@@ -13,5 +13,12 @@ papalexi/2021/analysis/4_compareEstimators/old/
 # locally rendered md
 README.html
 
+
 # saved pdfs (e.g. plots)
 *.pdf
+
+# saved html (e.g. renders from rmd/qmd)
+*.html
+
+# html files from rmd/qmd renders
+*4.1_visualizeEstimatorRes_files/
