@@ -318,8 +318,9 @@ estimate_ATE_make <- function(AY, gene_norm, NCs,
 
 
 
-#' Estimate Effects (return coefficient of treatment A, not the 'ATE'!) 
+#' Creates a function that estimates effects (return coefficient of treatment A, not the 'ATE'!) 
 #' for count methods (poisson, negative binomial)
+#' This function takes AY_idx as input, and returns a df of estimates w/ other estimation info
 #' @param AY (dataframe) of AY pair info
 #' @param which_estimators (list) indicating which estimation methods to perf
 #' @param gene_odm (on disc manager) of gene data (<- mught change to memory loaded version for speed)
@@ -349,9 +350,11 @@ estimate_effect_count_make <- function(AY,
   #' @param AY_idx (integer) from 1 to nrow(AY) 
   #' @example a = format_AYZW_inner(AY_idx = 2); head(a)
   get_df <- function(AY_idx) {
+    # print('get AY row')
     AY_row = AY[AY_idx, ]
     # Get A
     # -------------------------------------------
+    # print('get A')
     # idx of all 'treated' cells
     A_idx = which(as.logical(grna_odm[[AY_row$A, ]]))
     # subset cells of 'treated' (w A grna) and 'control' (NT gran)
@@ -377,15 +380,18 @@ estimate_effect_count_make <- function(AY,
     
     # Get Y
     # using already loaded in gene_norm (faster)
-    # -------------------------------------------    
-    Y = gene_odm[AY_row$Y,     c(A_idx, NT_idx)]
+    # -------------------------------------------
+    # print('get Y')    
+    Y = gene_odm[[AY_row$Y,     c(A_idx, NT_idx)]]
     
 
     # Assemble together
-    # -------------------------------------------    
+    # -------------------------------------------   
+    # print('assemble df') 
     dfAY = data.frame(A = as.vector(A), 
-                      Y = Y)
+                      Y = as.vector(Y))
     
+    # print('add u confounders')
     if(is.null(U_confounders)) { 
       return(dfAY)
     } else {
@@ -396,13 +402,12 @@ estimate_effect_count_make <- function(AY,
       return(cbind(dfAY, dfU))
     }
     
-
-
   }
 
   estimate_effect_count <- function(AY_idx) {
 
     # === Construct df ===
+    # print('get df')
     df_all   = get_df(AY_idx=AY_idx)
     df_all$A = as.numeric(df_all$A) # convert trtmt A to numeric 0/1 if not already (alt T/F)
     
@@ -415,13 +420,15 @@ estimate_effect_count_make <- function(AY,
                           se  =   numeric(0),
                           pval =   numeric(0))
     
-    
+    # print('start estimating')
+
     # Oracle models using (un)meas conf: Y ~ A + U1 + U2 +...
-    U_colnames = grep('U', colnames(df), value = T)
+    U_colnames = grep('U', colnames(df_all), value = T)
     unmeas_conf_formula = paste0('Y ~ A + ', paste(U_colnames, collapse = ' + '))
-    
+    # print(sprintf('unmeas conf formula: %s', unmeas_conf_formula))
     # === Poisson Y ~ A      (no confounder adj)
     if(which_estimators$pois_YA) {
+      # print('pois_YA')
       pois_YA = glm('Y ~ A', df_all, family = 'poisson')
       res = bind_rows(res, 
                       data.frame(
@@ -431,12 +438,13 @@ estimate_effect_count_make <- function(AY,
                         basis = NA,
                         ATE =    coef(pois_YA )[['A']],
                         se  = summary(pois_YA)$coefficients['A', 'Std. Error'],
-                        pval= summary(pois_YA)$coefficients['A', 'Pr(>|t|)']))
+                        pval= summary(pois_YA)$coefficients['A', 'Pr(>|z|)']))
       rm(pois_YA)
     }
 
     # === Poisson Y ~ A + Us (   confounder adj)
     if(which_estimators$pois_YAU) {
+      # print('pois_YAU')
       pois_YAU = glm(unmeas_conf_formula, df_all, family = 'poisson')
       res = bind_rows(res, 
                       data.frame(
@@ -446,14 +454,16 @@ estimate_effect_count_make <- function(AY,
                         basis = NA,
                         ATE =    coef(pois_YAU )[['A']],
                         se  = summary(pois_YAU)$coefficients['A', 'Std. Error'],
-                        pval= summary(pois_YAU)$coefficients['A', 'Pr(>|t|)']))
+                        pval= summary(pois_YAU)$coefficients['A', 'Pr(>|z|)']))
       rm(pois_YAU)
     }
 
 
     # === Negative Binomial Y ~ A      (no confounder adj)
     if(which_estimators$nb_YA) {
+      # print('nb_YA')
       nb_YA = glm('Y ~ A', df_all, family = 'poisson')
+      # print(summary(nb_YA)$coefficients)
       res = bind_rows(res, 
                       data.frame(
                         method = 'nbYAU',
@@ -462,12 +472,13 @@ estimate_effect_count_make <- function(AY,
                         basis = NA,
                         ATE =    coef(nb_YA )[['A']],
                         se  = summary(nb_YA)$coefficients['A', 'Std. Error'],
-                        pval= summary(nb_YA)$coefficients['A', 'Pr(>|t|)']))
+                        pval= summary(nb_YA)$coefficients['A', 'Pr(>|z|)']))
       rm(nb_YA)
     }
 
     # === Negative Binomial Y ~ A + Us (   confounder adj)
     if(which_estimators$nb_YAU) {
+      # print('nb_YAU')
       nb_YAU = glm(unmeas_conf_formula, df_all, family = 'poisson')
       res = bind_rows(res, 
                       data.frame(
@@ -477,7 +488,7 @@ estimate_effect_count_make <- function(AY,
                         basis = NA,
                         ATE =    coef(nb_YAU )[['A']],
                         se  = summary(nb_YAU)$coefficients['A', 'Std. Error'],
-                        pval= summary(nb_YAU)$coefficients['A', 'Pr(>|t|)']))
+                        pval= summary(nb_YAU)$coefficients['A', 'Pr(>|z|)']))
       rm(nb_YAU)
     }
   
@@ -493,7 +504,7 @@ estimate_effect_count_make <- function(AY,
 
   }
 
-  return(estimate_ATE)
+  return(estimate_effect_count)
 }
 
 

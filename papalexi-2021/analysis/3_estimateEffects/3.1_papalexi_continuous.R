@@ -77,6 +77,9 @@ AYZW_setting_name = args[2]
 CB_setting = list() 
 CB_setting$num_NC_pairs = num_NC_pairs
 CB_setting$proximal_setting_name = 'simple'
+CB_setting$my_sumabsv = my_sumabsv
+CB_setting$my_K       = my_K
+CB_setting$N_subsample = my_K
 
 dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, proximal_setting_name), recursive = FALSE, showWarnings = FALSE)
 capture.output(print(CB_setting),
@@ -252,7 +255,8 @@ t0 = Sys.time()
 ATE_par = future.apply::future_mapply(estimate_ATE,
                                       AY_idx = ATEargs[whichROWS, 1], # ATEargs[1:NUMROWS, 1],
                                       future.globals = TRUE,
-                                      future.seed = 123456)
+                                      future.seed = 123456, 
+                                      SIMPLIFY = FALSE)
 # # manually state globals
 # future.globals = c('AY', 'AYZW', 'grna_rownames', 'grna', 
 #                    'NT_idx', 'get_importance_rank', 'gene_norm', 
