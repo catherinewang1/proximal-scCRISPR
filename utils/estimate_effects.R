@@ -462,7 +462,7 @@ estimate_effect_count_make <- function(AY,
     # === Negative Binomial Y ~ A      (no confounder adj)
     if(which_estimators$nb_YA) {
       # print('nb_YA')
-      nb_YA = glm('Y ~ A', df_all, family = 'poisson')
+      nb_YA = MASS::glm.nb('Y ~ A', df_all)
       # print(summary(nb_YA)$coefficients)
       res = bind_rows(res, 
                       data.frame(
@@ -479,7 +479,7 @@ estimate_effect_count_make <- function(AY,
     # === Negative Binomial Y ~ A + Us (   confounder adj)
     if(which_estimators$nb_YAU) {
       # print('nb_YAU')
-      nb_YAU = glm(unmeas_conf_formula, df_all, family = 'poisson')
+      nb_YAU = MASS::glm.nb(unmeas_conf_formula, df_all)
       res = bind_rows(res, 
                       data.frame(
                         method = 'nbYAU',
