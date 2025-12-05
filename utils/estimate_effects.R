@@ -275,7 +275,7 @@ estimate_ATE_make <- function(AY, gene_norm, NCs,
                           ATE = pci2s_res$summary_second_stage['A', 'Estimate'],
                           se  = pci2s_res$summary_second_stage['A', 'Std. Error'],
                           pval= pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
-                         time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+                          time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
         rm(pci2s_res, t0, t1)
       }
       
@@ -326,6 +326,7 @@ estimate_ATE_make <- function(AY, gene_norm, NCs,
 #' @param gene_odm (on disc manager) of gene data (<- mught change to memory loaded version for speed)
 #' @param grna_odm (on disc manager) of grna data (<- mught change to memory loaded version for speed)
 #' @param NT_idx (vector) of idx of Non-Targeting cells
+#' @param library_size (vector) of offset values for pois and nb fits (e.g. library size = sum(counts))
 #' @param U_confounders (matrix/dataframe) of unmeasured confounders 
 #' @param save_path (string) of the save path for saving intermediate ATE est
 #'                           NULL if not to be saved
@@ -334,7 +335,8 @@ estimate_effect_count_make <- function(AY,
                                        gene_odm, # <- maybe change to loaded in memory (for speed)
                                        grna_odm,
                                        NT_idx,
-                                       U_confounders,
+                                       library_size,
+                                       U_confounders=NULL,
                                        save_path=NULL
                                        ) {
 
@@ -388,8 +390,9 @@ estimate_effect_count_make <- function(AY,
     # Assemble together
     # -------------------------------------------   
     # print('assemble df') 
-    dfAY = data.frame(A = as.vector(A), 
-                      Y = as.vector(Y))
+    dfAY = data.frame(A            = as.vector(A), 
+                      Y            = as.vector(Y),
+                      library_size = as.vector(library_size[c(A_idx, NT_idx)]))
     
     # print('add u confounders')
     if(is.null(U_confounders)) { 
@@ -411,25 +414,28 @@ estimate_effect_count_make <- function(AY,
     df_all   = get_df(AY_idx=AY_idx)
     df_all$A = as.numeric(df_all$A) # convert trtmt A to numeric 0/1 if not already (alt T/F)
     
-    
-    res = data.frame(     method = character(0),
-                          method_type = character(0),
-                          numNC =   numeric(0),
-                          basis = character(0),
-                          ATE =   numeric(0),
-                          se  =   numeric(0),
-                          pval =   numeric(0))
+    res = data.frame( method      = character(0),
+                      method_type = character(0),
+                      numNC       =   numeric(0),
+                      basis       = character(0),
+                      ATE         =   numeric(0),
+                      se          =   numeric(0),
+                      pval        =   numeric(0),
+                      time_sec    = numeric(0))
     
     # print('start estimating')
 
     # Oracle models using (un)meas conf: Y ~ A + U1 + U2 +...
     U_colnames = grep('U', colnames(df_all), value = T)
-    unmeas_conf_formula = paste0('Y ~ A + ', paste(U_colnames, collapse = ' + '))
+    unmeas_conf_formula = paste0('Y ~ A + offset(log(library_size)) + ', paste(U_colnames, collapse = ' + '))
     # print(sprintf('unmeas conf formula: %s', unmeas_conf_formula))
     # === Poisson Y ~ A      (no confounder adj)
     if(which_estimators$pois_YA) {
       # print('pois_YA')
-      pois_YA = glm('Y ~ A', df_all, family = 'poisson')
+      t0 = Sys.time()
+      pois_YA = glm('Y ~ A + offset(log(library_size))', df_all, family = 'poisson')
+      t1 = Sys.time()
+
       res = bind_rows(res, 
                       data.frame(
                         method = 'poisYA',
@@ -438,14 +444,18 @@ estimate_effect_count_make <- function(AY,
                         basis = NA,
                         ATE =    coef(pois_YA )[['A']],
                         se  = summary(pois_YA)$coefficients['A', 'Std. Error'],
-                        pval= summary(pois_YA)$coefficients['A', 'Pr(>|z|)']))
-      rm(pois_YA)
+                        pval= summary(pois_YA)$coefficients['A', 'Pr(>|z|)'],
+                        time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+      rm(pois_YA, t0, t1)
     }
 
     # === Poisson Y ~ A + Us (   confounder adj)
     if(which_estimators$pois_YAU) {
       # print('pois_YAU')
+      t0 = Sys.time()
       pois_YAU = glm(unmeas_conf_formula, df_all, family = 'poisson')
+      t1 = Sys.time()
+
       res = bind_rows(res, 
                       data.frame(
                         method = 'poisYAU',
@@ -454,15 +464,21 @@ estimate_effect_count_make <- function(AY,
                         basis = NA,
                         ATE =    coef(pois_YAU )[['A']],
                         se  = summary(pois_YAU)$coefficients['A', 'Std. Error'],
-                        pval= summary(pois_YAU)$coefficients['A', 'Pr(>|z|)']))
-      rm(pois_YAU)
+                        pval= summary(pois_YAU)$coefficients['A', 'Pr(>|z|)'],
+                        time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+      rm(pois_YAU, t0, t1)
     }
 
+    # TODO: Add OFFSET!! (offset = library size, use 'offset' arg)... 
+    # ... need to add new offset arg in this function too i think...
 
     # === Negative Binomial Y ~ A      (no confounder adj)
     if(which_estimators$nb_YA) {
       # print('nb_YA')
-      nb_YA = MASS::glm.nb('Y ~ A', df_all)
+      t0 = Sys.time()
+      nb_YA = MASS::glm.nb('Y ~ A + offset(log(library_size))', df_all)
+      t1 = Sys.time()
+
       # print(summary(nb_YA)$coefficients)
       res = bind_rows(res, 
                       data.frame(
@@ -472,14 +488,18 @@ estimate_effect_count_make <- function(AY,
                         basis = NA,
                         ATE =    coef(nb_YA )[['A']],
                         se  = summary(nb_YA)$coefficients['A', 'Std. Error'],
-                        pval= summary(nb_YA)$coefficients['A', 'Pr(>|z|)']))
-      rm(nb_YA)
+                        pval= summary(nb_YA)$coefficients['A', 'Pr(>|z|)'],
+                        time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+      rm(nb_YA, t0, t1)
     }
 
     # === Negative Binomial Y ~ A + Us (   confounder adj)
     if(which_estimators$nb_YAU) {
       # print('nb_YAU')
+      t0 = Sys.time()
       nb_YAU = MASS::glm.nb(unmeas_conf_formula, df_all)
+      t1 = Sys.time()
+
       res = bind_rows(res, 
                       data.frame(
                         method = 'nbYAU',
@@ -488,8 +508,9 @@ estimate_effect_count_make <- function(AY,
                         basis = NA,
                         ATE =    coef(nb_YAU )[['A']],
                         se  = summary(nb_YAU)$coefficients['A', 'Std. Error'],
-                        pval= summary(nb_YAU)$coefficients['A', 'Pr(>|z|)']))
-      rm(nb_YAU)
+                        pval= summary(nb_YAU)$coefficients['A', 'Pr(>|z|)'],
+                        time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+      rm(nb_YAU, t0, t1)
     }
   
 

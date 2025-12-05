@@ -150,10 +150,17 @@ grna_rownames = grna_odm |> ondisc::get_feature_covariates() |> rownames()
 cell_covariates = gene_odm |> ondisc::get_cell_covariates()
 # change batch info, bc lane determines rep_1, so redundant info
 # table(extra_covariates |> dplyr::select(lane, bio_rep))
+library_size = cell_covariates$n_umis
 cell_covariates = cell_covariates |> 
                       dplyr::mutate(lane_bio_rep = paste0(lane, '_', bio_rep)) |>
                       dplyr::select(-lane, -bio_rep) |>
                       dplyr::select(-n_nonzero, -n_umis)
+# Does not include offset! library size for cell i = \sum_gene count_{i, gene}
+# phase     p_mito lane_bio_rep
+# l1_AAACCTGAGCCAGAAC    G1 0.02295577  Lane1_rep_1
+# l1_AAACCTGAGTGGACGT    G1 0.04512939  Lane1_rep_1
+
+
 
 # # load normalized gene exp
 # h5file      = paste0(save_dir, "/gene.h5"); print(h5file)
@@ -202,11 +209,14 @@ estimate_effect_0 = estimate_effect_count_make(
                                 gene_odm         = gene_odm, # <- maybe change to loaded in memory (for speed)
                                 grna_odm         = grna_odm,
                                 NT_idx           = NT_idx,
+	                              library_size     = library_size,
                                 U_confounders    = cell_covariates,
                                 save_path        = switch(save_intermediateATEs,
                                                     'yes' = sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, proximal_setting_name),
                                                     'no'  = NULL)
                                 )
+
+
 # test = estimate_effect_0(AY_idx = 3)
 
 
