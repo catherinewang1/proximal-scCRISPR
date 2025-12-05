@@ -229,8 +229,8 @@ if(F) {
 }
 
 
-# my_sumabsv = 8
-my_sumabsv = 34.5 # cv.out$bestsumabsv1se and  cv.out$bestsumabsv
+my_sumabsv = 8
+# my_sumabsv = 34.5 # cv.out$bestsumabsv1se and  cv.out$bestsumabsv
 my_K = 60
 if(F) {
   

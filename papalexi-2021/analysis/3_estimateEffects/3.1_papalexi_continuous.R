@@ -33,16 +33,21 @@ theme_set(theme_cowplot() +
                   plot.subtitle = element_text(hjust = .5)))
 
 
-# === Parameter Settings for Proximal Methods ===
-num_NC_pairs = c(1, 3, 5, 10, 15, 20)
-save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as they are estimated
 
-proximal_setting_name = 'simple'
 
 # === Parameter Settings from SPCA
-my_sumabsv = 34.5 # used for getting the name of the spca saved filename
+# my_sumabsv = 34.5 # used for getting the name of the spca saved filename
+my_sumabsv = 8
 my_K = 60
 N_subsample = 5000 # subsample size, or 'all' if using all cells
+
+
+# === Parameter Settings for Proximal Methods ===
+num_NC_pairs = c(1, 3, 5, 8, 10, 15, 20)
+save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as they are estimated
+
+proximal_setting_name = sprintf('SPCA%.1f', my_sumabsv)
+
 
 # === Parameter Settings for which estimators to perform
 which_estimators = list(lm_YA        = TRUE,
@@ -76,7 +81,7 @@ AYZW_setting_name = args[2]
 # save parameter settings
 CB_setting = list() 
 CB_setting$num_NC_pairs = num_NC_pairs
-CB_setting$proximal_setting_name = 'simple'
+CB_setting$proximal_setting_name = proximal_setting_name
 CB_setting$my_sumabsv = my_sumabsv
 CB_setting$my_K       = my_K
 CB_setting$N_subsample = my_K
