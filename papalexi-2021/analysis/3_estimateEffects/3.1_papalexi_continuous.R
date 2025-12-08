@@ -33,20 +33,30 @@ theme_set(theme_cowplot() +
                   plot.subtitle = element_text(hjust = .5)))
 
 
+# === Parameter Settings for PCA
+proximal_setting_name = 'PCA'
+
+my_sumabsv = NA
+my_K = NA
+N_subsample = NA # subsample size, or 'all' if using all cells
 
 
-# === Parameter Settings from SPCA
-# my_sumabsv = 34.5 # used for getting the name of the spca saved filename
-my_sumabsv = 8
-my_K = 60
-N_subsample = 5000 # subsample size, or 'all' if using all cells
+# # === Parameter Settings from SPCA
+# proximal_setting_name = sprintf('SPCA%.1f', my_sumabsv)
+
+# # my_sumabsv = 34.5 # used for getting the name of the spca saved filename
+# my_sumabsv = 8
+# my_K = 60
+# N_subsample = 5000 # subsample size, or 'all' if using all cells
+
 
 
 # === Parameter Settings for Proximal Methods ===
 num_NC_pairs = c(1, 3, 5, 8, 10, 15, 20)
 save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as they are estimated
 
-proximal_setting_name = sprintf('SPCA%.1f', my_sumabsv)
+
+
 
 
 # === Parameter Settings for which estimators to perform
@@ -166,19 +176,26 @@ reading_hd5file  = rhdf5::H5Fopen(name = h5file)
 readin_gene_norm = reading_hd5file&'gene_norm'
 gene_norm = readin_gene_norm[, 1:ncol(gene_odm)] # eg dim = 4000 x 20729 = #important x #cells
 rhdf5::h5closeAll()
+rm(h5file, readin_gene_norm, reading_hd5file)
 invisible(gc(verbose=FALSE))
 
 
 
+# load Negative Controls
+if(proximal_setting_name == 'PCA') {
+  # use PCA Loadings
+  NCs = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir)) 
+} else {
+  # use Sparse PCA Loadings
+  if(N_subsample == 'all') {  N_subsample = ncol(gene_odm) }
+  NCs = readRDS(sprintf('%s/spca/NCloadings_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) 
+  # Or the constructed clusters (averages)
+  # NCs = readRDS(sprintf('%s/spca/NCavg_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save
+  # NCs = data.frame(NCs)
+  # colnames(NCs) = paste0('NC', 1:ncol(NCs))
+}
 
 
-# use Sparse PCA Loadings
-if(N_subsample == 'all') {  N_subsample = ncol(gene_odm) }
-NCs = readRDS(sprintf('%s/spca/NCloadings_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save 
-# Or the constructed clusters (averages)
-# NCs = readRDS(sprintf('%s/spca/NCavg_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save
-# NCs = data.frame(NCs)
-# colnames(NCs) = paste0('NC', 1:ncol(NCs))
 
 
 
@@ -253,6 +270,7 @@ NUMROWS = nrow(ATEargs)
 # whichROWS = 1:1164
 whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
+
 
 # =================== Get ATEs (parallel) ====================================
 print(sprintf("[%s]    - Get ATEs (parallel)", Sys.time()))
