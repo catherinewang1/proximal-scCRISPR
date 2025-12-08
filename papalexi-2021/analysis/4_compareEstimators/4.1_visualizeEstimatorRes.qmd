@@ -4,6 +4,8 @@ format:
   html:
     theme: flatly
     toc: true
+    embed-resources: true
+    self-contained-math: true
 editor: source
 execute: 
   echo: false
@@ -47,26 +49,25 @@ source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on 
 
 # Continuous
 # ========================================================================================================================================================================
-
-proximal_setting_name = 'simple'
-plot_dir_continuous = sprintf('%s/AY/%s/%s/plots/', save_dir, AYZW_setting_name, proximal_setting_name) # create plot_dir (based on save_dir + settings)
+proximal_setting_name_continuous = 'SPCA34.5'
+plot_dir_continuous = sprintf('%s/AY/%s/%s/plots/', save_dir, AYZW_setting_name, proximal_setting_name_continuous) # create plot_dir (based on save_dir + settings)
 dir.create(plot_dir_continuous, showWarnings = FALSE)
 
 
 # config colors for plot
-method_long_colors = c( colorRampPalette(c('white', 'forestgreen'))(8)[c(4, 8)], 
-                        viridis::plasma(10)[c(3, 4, 5, 6, 7, 8, 9)])
+method_long_colors = c( colorRampPalette(c('white', '#00a300'))(8)[c(4, 8)], 
+                        viridis::plasma(11)[c(3, 4, 5, 6, 7, 8, 9, 10)])
 barplot(1:length(method_long_colors), col = method_long_colors)
 
 
-effects_continuous = read.csv(sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, proximal_setting_name))
+effects_continuous = read.csv(sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, proximal_setting_name_continuous))
 effects_continuous = effects_continuous |> mutate(method_long = paste0(method, numNC))
 
 
 
 effects_continuous$method_long = factor(effects_continuous$method_long, 
-       levels = c( "lmYANA",                 "lmYAUNA" ,       "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
-       labels = c("Lin Reg", "Lin Reg (w/ confounders)", "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
+       levels = c( "lmYANA",                 "lmYAUNA" ,       "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",      "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
+       labels = c("Lin Reg", "Lin Reg (w/ confounders)", "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=8)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
 
 effects_continuous$type = factor(effects_continuous$type,
        levels = c('negative', 'positive'),
@@ -77,10 +78,10 @@ dim(effects_continuous); head(effects_continuous)
 
 # Count GLM
 # ========================================================================================================================================================================
-proximal_setting_name = 'simpleCount'
+proximal_setting_name_count = 'simpleCount'
 
 
-plot_dir_count = sprintf('%s/AY/%s/%s/plots/', save_dir, AYZW_setting_name, proximal_setting_name) # create plot_dir (based on save_dir + settings)
+plot_dir_count = sprintf('%s/AY/%s/%s/plots/', save_dir, AYZW_setting_name, proximal_setting_name_count) # create plot_dir (based on save_dir + settings)
 dir.create(plot_dir_count, showWarnings = FALSE)
 
 
@@ -92,7 +93,7 @@ method_long_colors_count = c(colorRampPalette(c('white', 'darkblue'))(8)[c(4, 8)
 barplot(1:length(method_long_colors_count), col = method_long_colors_count)
 
 
-effects_count = read.csv(sprintf('%s/AY/%s/%s/effects_countGLM.csv', save_dir, AYZW_setting_name, proximal_setting_name))
+effects_count = read.csv(sprintf('%s/AY/%s/%s/effects_countGLM.csv', save_dir, AYZW_setting_name, proximal_setting_name_count))
 effects_count = effects_count |> mutate(method_long = paste0(method, numNC))
 
 effects_count$method_long = factor(effects_count$method_long, 
@@ -113,10 +114,8 @@ dim(effects_count); head(effects_count)
 # ========================================================================================================================================================================
 
 # save results of 'all' together in continuous folder
-proximal_setting_name = 'simple'
-plot_dir_all = sprintf('%s/AY/%s/%s/plotsAll/', save_dir, AYZW_setting_name, proximal_setting_name) # create plot_dir (based on save_dir + settings)
+plot_dir_all = sprintf('%s/AY/%s/%s/plotsAll/', save_dir, AYZW_setting_name, proximal_setting_name_continuous) # create plot_dir (based on save_dir + settings)
 dir.create(plot_dir_all, showWarnings = FALSE)
-
 
 
 
@@ -138,9 +137,9 @@ effects = effects |> mutate(method_long = paste0(method, numNC))
 
 effects$method_long = factor(effects$method_long, 
        levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,       
-                         "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
+                         "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",       "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
        labels = c( "Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)", "Lin Reg", "Lin Reg (w/ confounders)", 
-                   "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
+                   "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=8)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
 
 # effects$type = factor(effects$type,
 #        levels = c('negative', 'positive'),
@@ -181,7 +180,7 @@ ggplot(effects_continuous,
   scale_fill_manual(values = method_long_colors) +
   facet_grid(rows = vars(type), cols = vars(method, numNC), scales = 'free') +
   labs(title = 'Histogram of p-values',
-       x = 'ATE Estimate',
+       x = 'p-value',
        fill = 'Method')
 
 ggsave(sprintf('%s/pval_hist.pdf', plot_dir_continuous), height = 5, width= 15)
@@ -193,8 +192,8 @@ QQ-plot (basically)
 # the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
 plot_df = effects_continuous |> mutate(method_long = paste0(method, numNC)) |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n())
 plot_df$method_long = factor(plot_df$method_long, 
-       levels = c( "lmYANA",                 "lmYAUNA" ,       "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
-       labels = c("Lin Reg", "Lin Reg (w/ confounders)", "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
+       levels = c( "lmYANA",                 "lmYAUNA" ,       "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",      "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
+       labels = c("Lin Reg", "Lin Reg (w/ confounders)", "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=8)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
 
 # plot_df$type = factor(plot_df$type,
 #        levels = c('negative', 'positive'),
@@ -226,8 +225,8 @@ p = ggplot(plot_df,
   # scale_x_continuous(limits = c(2, 3.5)) +
   # scale_y_continuous(limits = c(0, 200)) +
   scale_color_manual(values = method_long_colors) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
-  labs(title = '-log(p-value) by -log(theoretical)', 
-       x = latex2exp::TeX('-$log_{10}$(theoretical)'), y = latex2exp::TeX('-$log_{10}$(p-value)'),
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
        color = 'Method') +
   # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
   facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right")
@@ -313,7 +312,7 @@ ggplot(effects_count,
   scale_fill_manual(values = method_long_colors_count) +
   facet_grid(rows = vars(type), cols = vars(method_long), scales = 'free') +
   labs(title = 'Histogram of p-values',
-       x = 'ATE Estimate',
+       x = 'p-value',
        fill = 'Method')
 
 ggsave(sprintf('%s/pval_hist.pdf', plot_dir_count), height = 5, width= 15)
@@ -359,8 +358,8 @@ p = ggplot(plot_df,
   # scale_x_continuous(limits = c(2, 3.5)) +
   # scale_y_continuous(limits = c(0, 200)) +
   scale_color_manual(values = method_long_colors_count) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
-  labs(title = '-log(p-value) by -log(theoretical)', 
-       x = latex2exp::TeX('-$log_{10}$(theoretical)'), y = latex2exp::TeX('-$log_{10}$(p-value)'),
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
        color = 'Method') +
   # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
   facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right")
@@ -413,7 +412,7 @@ ggsave(sprintf('%s/pval_qqplot_log_tail3.pdf', plot_dir_count), height = 6, widt
 # Compare continuous + count together (TODO: add sceptre)
 
 
-
+## Plots showcasing all methods
 
 
 Histogram of estimates
@@ -443,7 +442,7 @@ ggplot(effects,
   scale_fill_manual(values = method_long_colors_all) +
   facet_grid(rows = vars(type), cols =  vars(method, numNC), scales = 'free') +
   labs(title = 'Histogram of p-values',
-       x = 'ATE Estimate',
+       x = 'p-value',
        fill = 'Method')
 
 ggsave(sprintf('%s/pval_hist.pdf', plot_dir_all), height = 5, width= 20)
@@ -461,9 +460,9 @@ QQ-plot (basically)
 plot_df = effects |> mutate(method_long = paste0(method, numNC)) |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n())
 plot_df$method_long = factor(plot_df$method_long, 
        levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,       
-                         "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
+                         "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",      "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
        labels = c( "Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)", "Lin Reg", "Lin Reg (w/ confounders)", 
-                   "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
+                   "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=8)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
 
 # plot_df$type = factor(plot_df$type,
 #        levels = c('negative', 'positive'),
@@ -496,8 +495,8 @@ p = ggplot(plot_df,
   # scale_x_continuous(limits = c(2, 3.5)) +
   # scale_y_continuous(limits = c(0, 200)) +
   scale_color_manual(values = method_long_colors_all) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
-  labs(title = '-log(p-value) by -log(theoretical)', 
-       x = latex2exp::TeX('-$log_{10}$(theoretical)'), y = latex2exp::TeX('-$log_{10}$(p-value)'),
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
        color = 'Method') +
   # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
   facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right")
@@ -575,12 +574,134 @@ ggsave(sprintf('%s/pval_qqplot_log_tail3.pdf', plot_dir_all), height = 6, width=
 
 
 
+## Best Plots (Focusing on SPCA 8.0)
+
+
+Edit the plots to showcase the results. This will be specific for each setting. For example, we can crop to highlight the tails and subset for different methods (e.g. not all NCs because that can be too many and hard to see).
+
+
+```{r}
+# redo the colors bc we subset for numNC so we can choose better
+method_long_colors_best = c(method_long_colors_count, # keep count GLM and lin reg colors
+                            method_long_colors[c(1, 2)], 
+                            viridis::plasma(8)[c(3, 4, 5, 6)])
+
+barplot(1:length(method_long_colors_best), col = method_long_colors_best)
+```
+
+
+
+Histogram of Estimates
+```{r fig.width=15, fig.height = 5}
+ggplot(effects_continuous |> filter(is.na(numNC) | numNC %in% c(5, 10, 15, 20)),
+       aes(x = ATE, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .15) +
+  geom_vline(aes(xintercept = 0), color = 'gray20', linewidth = .4) +
+  scale_x_continuous(limits = c(-2.25, 2.25)) +
+  scale_fill_manual(values = method_long_colors_best[-(1:4)]) +
+  facet_grid(rows = vars(type), cols = vars(method_long), scales = 'free') + 
+  labs(title = 'Histogram of Estimates',
+       fill = 'Method')
+
+ggsave(sprintf('%s/estimates_hist_2.pdf', plot_dir_all), height = 5, width= 16)
+```
+
+
+Histogram of p-values
+```{r fig.width=15, fig.height = 5}
+ggplot(effects |> filter(is.na(numNC) | numNC %in% c(5, 10, 15, 20)) |>
+         mutate(method_long_facet = factor(paste0(method, numNC), 
+       levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,       
+                         "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",      "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
+       labels = c( "Poisson\n", "Poisson\n(w/ confounders)", "Negative Binomial\n", "Negative Binomial\n(w/ confounders)", "Linear Reg\n", "Linear Reg\n(w/ confounders)", 
+                   "Proximal\n(#NC=1)", "Proximal\n(#NC=3)", "Proximal\n(#NC=5)", "Proximal\n(#NC=8)", "Proximal\n(#NC=10)", "Proximal\n(#NC=15)", "Proximal\n(#NC=20)"))),
+       aes(x = pval, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .05) +
+  scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_fill_manual(values = method_long_colors_best) +
+  facet_grid(rows = vars(type), cols = vars(method_long_facet), scales = 'free') +
+  labs(title = 'Histogram of p-values',
+       x = 'p-value',
+       fill = 'Method')
+
+ggsave(sprintf('%s/pval_hist_2.pdf', plot_dir_all), height = 5, width= 25)
+```
 
 
 
 
 
 
+
+QQ-plot (basically)
+```{r fig.height = 6, fig.width= 8}
+# config df for plotting
+# the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
+plot_df = effects |> mutate(method_long = paste0(method, numNC)) |> group_by(type, method_long, numNC) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) 
+plot_df$method_long = factor(plot_df$method_long, 
+       levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,       
+                         "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",      "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
+       labels = c( "Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)", "Lin Reg", "Lin Reg (w/ confounders)", 
+                   "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=8)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
+
+plot_df = plot_df |> filter(is.na(numNC) | numNC %in% c(5, 10, 15, 20))
+# plot_df$type = factor(plot_df$type,
+#        levels = c('negative', 'positive'),
+#        labels = c(    'Null', 'Alternative'))
+
+
+#----- p-values: qqplot vs uniform = rejection rate by pval threshold ---------- 'pval_qqplot.pdf'
+ggplot(plot_df,
+       aes(x = pval, y = rejection_rate, color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_point() +
+  geom_line(linewidth = 1, alpha = .8, key_glyph = 'rect') +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_color_manual(values = method_long_colors_best) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = 'Rejection Rate by P-value Threshold', 
+       x = 'p-value threshold', y = 'rejection rate',
+       color = 'Method') +
+  facet_grid(rows = vars(type)) 
+
+ggsave(sprintf('%s/pval_qqplot_2.pdf', plot_dir_all), height = 6, width = 7)
+
+
+#----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf'
+p = ggplot(plot_df,
+       aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_line(linewidth = .3, alpha = .8) +
+  geom_point(size = 1.5, alpha = .8, key_glyph = 'rect') +
+  # scale_x_continuous(limits = c(2, 3.5)) +
+  # scale_y_continuous(limits = c(0, 200)) +
+  scale_color_manual(values = method_long_colors_best) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
+       color = 'Method') +
+  # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
+  facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right")
+
+
+p
+ggsave(sprintf('%s/pval_qqplot_log_best.pdf', plot_dir_all), height = 8, width= 8)
+
+# use gg4x to set limits separately 
+# https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975
+#----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail_best.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.35, 1.5)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.35, 1.5))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 25)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 25))   )  
+  )
+ggsave(sprintf('%s/pval_qqplot_log_tail_best.pdf', plot_dir_all), height = 8, width= 8)
+
+
+
+```
 
 
 

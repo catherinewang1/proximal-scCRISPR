@@ -4,10 +4,10 @@
 papalexi-2021/saves/
 
 # old code
-papalexi/2021/analysis/1_processData/old/
-papalexi/2021/analysis/2_setupAY/old/
-papalexi/2021/analysis/3_estimateEffects/old/
-papalexi/2021/analysis/4_compareEstimators/old/
+papalexi-2021/analysis/1_processData/old/
+papalexi-2021/analysis/2_setupAY/old/
+papalexi-2021/analysis/3_estimateEffects/old/
+papalexi-2021/analysis/4_compareEstimators/old/
 
 
 # locally rendered md
@@ -19,6 +19,8 @@ README.html
 
 # saved html (e.g. renders from rmd/qmd)
 *.html
+!papalexi-2021/analysis/4_compareEstimators/4.1_visualizeEstimatorRes8.0.html
+
 
 # html files from rmd/qmd renders
 *4.1_visualizeEstimatorRes_files/
