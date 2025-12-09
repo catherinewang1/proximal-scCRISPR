@@ -19,7 +19,7 @@ README.html
 
 # saved html (e.g. renders from rmd/qmd)
 *.html
-!papalexi-2021/analysis/4_compareEstimators/4.1_visualizeEstimatorRes8.0.html
+# !papalexi-2021/analysis/4_compareEstimators/4.1_visualizeEstimatorRes8.0.html
 
 
 # html files from rmd/qmd renders
