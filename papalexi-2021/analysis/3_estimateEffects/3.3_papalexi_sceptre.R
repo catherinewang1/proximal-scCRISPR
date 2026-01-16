@@ -191,11 +191,18 @@ discovery_pairs_auto <- construct_trans_pairs(
 
 
 
+print('Merging automatically made discovery_pairs_auto w/ saved AY')
+left_df  = AY |> 
+           filter(type != 'positive')
+right_df = ondisc::get_feature_covariates(grna_odm) |> 
+           tibble::rownames_to_column(var = "A")
+
 
 discovery_pairs_AY = 
-  merge(AY |> filter(type != 'positive'), 
-        ondisc::get_feature_covariates(grna_odm) |> tibble::rownames_to_column(var = "A"), 
-        all.x = TRUE, all.y = FALSE, by = "A") |> 
+  merge(left_df,
+        right_df, 
+        all.x = TRUE, all.y = FALSE, 
+        by = "A") |> 
   dplyr::mutate(grna_target = target,
                 response_id = Y) |> 
   dplyr::select("grna_target", "response_id")
