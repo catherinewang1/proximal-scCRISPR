@@ -8,7 +8,7 @@
 # these linear proximal methods                                                #
 # ---------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
-args = c('laptop', '2000', 'E_PCA')
+args = c('ubergenno', 'notneeded', 'A')
 
 require(assertthat) # for some assert statements
 library(Matrix)
@@ -17,12 +17,12 @@ library(tibble)
 library(ggplot2)    # plotting
 library(cowplot)
 library(sceptre)
-library(sceptredata)
+# library(sceptredata)
 
-
-library(future.apply)
-options(future.globals.maxSize= 850*1024^2) #1st num is MB
-plan(multisession, workers = 8)
+# 
+# library(future.apply)
+# options(future.globals.maxSize= 850*1024^2) #1st num is MB
+# plan(multisession, workers = 8)
 # plan(sequential)
 
 theme_set(theme_cowplot() +
@@ -41,26 +41,29 @@ NUM_IMPORTANTGENES = as.integer(args[2]) # should be max importance from setting
 assertthat::assert_that(length(args) > 2, msg="must give arg for specifying chosen AYZW name 'Rscript <filename>.R ubergenno C'")
 AYZW_setting_name = args[3]
 
-plot_savepath = sprintf('%s/oracle/%s/', save_dir, AYZW_setting_name)
-dir.create(plot_savepath, recursive = TRUE, showWarnings = FALSE)
+SCEPTRE_savepath = sprintf('%s/AY/%s/SCEPTRE/', save_dir, AYZW_setting_name)
+dir.create(SCEPTRE_savepath, recursive = TRUE, showWarnings = FALSE)
 
 
 # =================== Start ====================================================
 print(sprintf("[%s] START: Oracle (SCEPTRE)", Sys.time()))
 
 
-source(sprintf('%s/CBEstAll.R', util_dir)) # for functions to estimate here
+# source(sprintf('%s/CBEstAll.R', util_dir)) # for functions to estimate here
 
 # load chosen AYZW names
-AY   = read.csv(sprintf('%s/cbgenes/%s/AY.csv', save_dir, AYZW_setting_name))
-AYZW = readRDS(sprintf('%s/cbgenes/%s/AYZW.rds', save_dir, AYZW_setting_name))
+AY   = read.csv(sprintf('%s/AY/%s/AY.csv', save_dir, AYZW_setting_name))
+# AYZW = readRDS(sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
 
 # load gene importance info
-imp_gene_names = readRDS(sprintf('%s/important_genes_name.rds', save_dir))
-imp_gene_idx   = readRDS(sprintf('%s/important_genes_idx.rds',  save_dir))
-imp_gene = data.frame(gene     = imp_gene_names,
-                      gene_idx = imp_gene_idx,
-                      gene_imp_rank = 1:length(imp_gene_names))
+# imp_gene_names = readRDS(sprintf('%s/important_genes_name.rds', save_dir))
+# imp_gene_idx   = readRDS(sprintf('%s/important_genes_idx.rds',  save_dir))
+# imp_gene = data.frame(gene     = imp_gene_names,
+#                       gene_idx = imp_gene_idx,
+#                       gene_imp_rank = 1:length(imp_gene_names))
+
+# gene_importance = read.csv(sprintf('%s/gene_deviance_gene_norm.csv', save_dir)) |> 
+#   dplyr::select(gene_name, gene_idx, importance_rank, gene_norm_idx)
 
 
 # create gene and grna ondisc managers
@@ -74,14 +77,14 @@ grna = grna_odm[[,1:ncol(grna_odm)]] # |> as.matrix() # ~110 x 20729 = #grnas x 
 grna_rownames = ondisc::get_feature_ids(grna_odm)
 rownames(grna) = grna_rownames
 
-# load normalized gene exp
-h5file      = paste0(save_dir, "/gene.h5"); print(h5file)
-reading_hd5file  = rhdf5::H5Fopen(name = h5file)
-readin_gene_norm = reading_hd5file&'gene_norm'
-gene_norm = readin_gene_norm[1:NUM_IMPORTANTGENES, ] # dim = 4000 x 20729 = #important x #cells
-rownames(gene_norm) = imp_gene_names[1:1:NUM_IMPORTANTGENES]
-rhdf5::h5closeAll()
-invisible(gc(verbose=FALSE))
+# # load normalized gene exp
+# h5file      = paste0(save_dir, "/gene.h5"); print(h5file)
+# reading_hd5file  = rhdf5::H5Fopen(name = h5file)
+# readin_gene_norm = reading_hd5file&'gene_norm'
+# gene_norm = readin_gene_norm[1:NUM_IMPORTANTGENES, ] # dim = 4000 x 20729 = #important x #cells
+# rownames(gene_norm) = imp_gene_names[1:1:NUM_IMPORTANTGENES]
+# rhdf5::h5closeAll()
+# invisible(gc(verbose=FALSE))
 
 
 # original gene expr counts
@@ -111,7 +114,7 @@ invisible(gc(verbose=FALSE))
 
 # cell confounders
 cell_covariates = gene_odm |> ondisc::get_cell_covariates()
-rownames(gene_norm) = imp_gene_names[1:nrow(gene_norm)]
+# rownames(gene_norm) = imp_gene_names[1:nrow(gene_norm)]
 
 # response matrix
 # response_matrix <- gene_norm
@@ -132,7 +135,6 @@ extra_covariates <- cell_covariates |>
 
 
 # response names
-response_names <- imp_gene_names
 # gRNA target data frame
 grna_odm_feature_covariates = ondisc::get_feature_covariates(grna_odm)
 grna_target_data_frame = data.frame(grna_id = rownames(grna_odm_feature_covariates),
@@ -141,12 +143,11 @@ grna_target_data_frame = data.frame(grna_id = rownames(grna_odm_feature_covariat
 
 
 sceptre_object <- import_data(
-  response_matrix = response_matrix,
-  grna_matrix = grna_matrix,
+  response_matrix        = response_matrix,
+  grna_matrix            = grna_matrix,
   grna_target_data_frame = grna_target_data_frame,
-  moi = 'low',
-  extra_covariates = extra_covariates,
-  response_names = response_names
+  moi                    = 'low',
+  extra_covariates       = extra_covariates
 )
 
 sceptre_object
@@ -166,8 +167,8 @@ head(positive_control_pairs)
 # )
 
 
-# This would be like AY |> filter(type == 'negative') or include || type == 'maybe'?
-discovery_pairs <- construct_trans_pairs(
+# Automatically gather possible tests, then add our selected tests (from AY)
+discovery_pairs_auto <- construct_trans_pairs(
   sceptre_object = sceptre_object,
   positive_control_pairs = positive_control_pairs,
   pairs_to_exclude = "pc_pairs"
@@ -175,7 +176,51 @@ discovery_pairs <- construct_trans_pairs(
 
 
 
-side <- "left" # left for testing decrease in expr
+# Add AY (it should already be automatically added but just in case)
+# format AY to discovery_pairs (grna_target vs actual grna (A). Y = response_id)
+
+# > head(discovery_pairs)
+# grna_target response_id
+# <char>      <char>
+#   1:        CUL3  AL627309.1
+#   2:       CMTM6  AL627309.1
+# AY$Y %in% discovery_pairs$response_id |> mean()
+
+
+
+
+discovery_pairs_AY = 
+  merge(AY |> filter(type != 'positive'), 
+        ondisc::get_feature_covariates(grna_odm) |> tibble::rownames_to_column(var = "A"), 
+        all.x = TRUE, all.y = FALSE, by = "A") |> 
+  dplyr::mutate(grna_target = target,
+                response_id = Y) |> 
+  dplyr::select("grna_target", "response_id")
+
+
+
+
+# discovery_pairs_auto = discovery_pairs_auto[1:1000, ] # Testing: just do some
+
+discovery_pairs = rbind(discovery_pairs_AY, discovery_pairs_auto) |> dplyr::distinct()
+
+
+
+# dim(discovery_pairs_auto)
+# dim(discovery_pairs_AY)
+# dim(discovery_pairs)
+# 
+# dim(discovery_pairs |> distinct())
+# 
+# 
+# ondisc::get_feature_covariates(grna_odm) |> tibble::rownames_to_column(var = "A")  |> head()
+
+
+
+
+# side <- "left" # left for testing decrease in expr
+side = "both" # change to "both" bc other methods test both!
+
 
 sceptre_object <- set_analysis_parameters(
   sceptre_object = sceptre_object,
@@ -358,7 +403,9 @@ plot(sceptre_object)
 # 7. Run discovery analysis
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_run_discovery_analysis
 # ==============================================================================
-sceptre_object <- run_discovery_analysis(sceptre_object, parallel = TRUE)
+t0 = Sys.time()
+sceptre_object <- run_discovery_analysis(sceptre_object, parallel = FALSE)
+t1 = Sys.time()
 print(sceptre_object) # output suppressed for brevity
 
 
@@ -368,18 +415,23 @@ plot(sceptre_object)
 # 8. Write outputs to directory
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_write_outputs_to_directory
 # ==============================================================================
-# list.files('../../saves/sceptre')
 write_outputs_to_directory(
   sceptre_object = sceptre_object, 
-  directory = '../../saves/sceptre'
+  directory = SCEPTRE_savepath
+
 )
 
+SCEPTRE_time_benchmark = 
+  list(time_sec = difftime(t1, t0, units = 'secs'), 
+       num_tests = nrow(sceptre_object@discovery_pairs),
+       avg_time_per_test = difftime(t1, t0, units = 'secs')/nrow(sceptre_object@discovery_pairs),
+       info = 'SCEPTRE on papalexi timing for discovery pair analysis')
 
+saveRDS(SCEPTRE_time_benchmark, file = sprintf('%s/SCEPTRE_time_benchmark.rds', SCEPTRE_savepath))
 
-
-
-
-
+# sceptre_object@discovery_result
+# test_load_results = readRDS(sprintf('%s/results_run_discovery_analysis.rds', SCEPTRE_savepath))
+# test_load_results
 
 
 
