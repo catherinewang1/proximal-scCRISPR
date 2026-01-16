@@ -98,8 +98,10 @@ rownames(grna) = grna_rownames
 # 1.2 Import data from a collection of R objects
 # https://timothy-barry.github.io/sceptre-book/import-data.html#import-data-from-a-collection-of-r-objects
 # ==============================================================================
+print(sprintf('[%s]: SCEPTRE 1. Import data from a collection of R objects', format(Sys.time(), digits = 0)))
 
-# data(highmoi_example_data)
+
+# data(highmoi_example_data)# data(highmoi_example_data)# data(highmoi_example_data)
 # # response matrix
 # response_matrix <- highmoi_example_data$response_matrix
 # # grna matrix
@@ -157,6 +159,7 @@ sceptre_object
 # 2. Set analysis parameters
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-whole_game_set_analysis_parameters
 # ==============================================================================
+print(sprintf('[%s]: SCEPTRE 2. Set analysis parameters', format(Sys.time(), digits = 0)))
 positive_control_pairs <- construct_positive_control_pairs(sceptre_object)
 head(positive_control_pairs)
 # 
@@ -200,8 +203,8 @@ discovery_pairs_AY =
 
 
 
-# discovery_pairs_auto = discovery_pairs_auto[1:1000, ] # Testing: just do some
-
+discovery_pairs_auto = discovery_pairs_auto[1:100, ] # Testing: just do a few
+discovery_pairs_AY   =   discovery_pairs_AY[1:100, ]
 discovery_pairs = rbind(discovery_pairs_AY, discovery_pairs_auto) |> dplyr::distinct()
 
 
@@ -240,7 +243,7 @@ sceptre_object@covariate_data_frame |> head()
 # 3. Assign gRNAs to cells 
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_assign_grnas
 # ==============================================================================
-
+print(sprintf('[%s]: SCEPTRE 3. Assign gRNAs to cells', format(Sys.time(), digits = 0)))
 sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = FALSE,
                                method = 'maximum', 
                                min_grna_n_umis_threshold = 1, 
@@ -376,7 +379,7 @@ plot(sceptre_object)
 # 4. Run quality control 
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_qc
 # ==============================================================================
-
+print(sprintf('[%s]: SCEPTRE 4. Run quality control', format(Sys.time(), digits = 0)))
 sceptre_object <- sceptre::run_qc(sceptre_object, p_mito_threshold = 0.075)
 print(sceptre_object) # output suppressed for brevity
 plot(sceptre_object) 
@@ -385,6 +388,7 @@ plot(sceptre_object)
 # 5. Run calibration check
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_calibration_check
 # ==============================================================================
+print(sprintf('[%s]: SCEPTRE 5. Run calibration check', format(Sys.time(), digits = 0)))
 sceptre_object <- run_calibration_check(sceptre_object, parallel = FALSE)
 print(sceptre_object) # output suppressed for brevity
 
@@ -394,6 +398,7 @@ plot(sceptre_object)
 # 6. Run power check
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_run_power_check
 # ==============================================================================
+print(sprintf('[%s]: SCEPTRE 6. Run power check', format(Sys.time(), digits = 0)))
 sceptre_object <- run_power_check(sceptre_object, parallel = FALSE)
 print(sceptre_object) # output suppressed for brevity
 
@@ -403,6 +408,7 @@ plot(sceptre_object)
 # 7. Run discovery analysis
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_run_discovery_analysis
 # ==============================================================================
+print(sprintf('[%s]: SCEPTRE 7. Run discovery analysis', format(Sys.time(), digits = 0)))
 t0 = Sys.time()
 sceptre_object <- run_discovery_analysis(sceptre_object, parallel = FALSE)
 t1 = Sys.time()
@@ -415,6 +421,7 @@ plot(sceptre_object)
 # 8. Write outputs to directory
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_write_outputs_to_directory
 # ==============================================================================
+print(sprintf('[%s]: SCEPTRE 8. Write outputs to directory', format(Sys.time(), digits = 0)))
 write_outputs_to_directory(
   sceptre_object = sceptre_object, 
   directory = SCEPTRE_savepath
@@ -435,4 +442,8 @@ saveRDS(SCEPTRE_time_benchmark, file = sprintf('%s/SCEPTRE_time_benchmark.rds', 
 
 
 
+
+
+# =================== END ====================================================
+print(sprintf("[%s] END", Sys.time()))
 
