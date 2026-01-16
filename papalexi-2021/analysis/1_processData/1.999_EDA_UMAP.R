@@ -5,8 +5,8 @@
 #         '<save_dir>/pca/'                                                    #
 #         '<save_dir>/pca_umap/'                                               #
 # ---------------------------------------------------------------------------- #
-args = commandArgs(trailingOnly = TRUE)
-# args = c('laptop', '2000')
+# args = commandArgs(trailingOnly = TRUE)
+args = c('laptop', '2000')
 
 require(assertthat) # for some assert statements
 require(rhdf5)      # read/write HDF5 format
@@ -131,6 +131,10 @@ ggsave(plot=p,
                         save_dir, NUM_IMPORTANT_GENES, PCA_RANK),
        height = 5, width = 6)
 
+
+
+
+
 # ==================================================================================================
 # =================== Plots by Variable (e.g. confounders or treatment) ============================
 print(sprintf("[%s]    - Plots by Variable", Sys.time()))
@@ -198,7 +202,7 @@ print(sprintf("[%s]    - Plotting dim red (choose some to customize by hand)", S
 
 dir.create(sprintf('%s/eda/custom/', save_dir))
 dir.create(sprintf('%s/eda/custom/%s_NUMGENES=%s_PCARANK=%s/', 
-                   save_dir, dimred_type, NUM_IMPORTANT_GENES, PCA_RANK))
+                   save_dir, 'pca_umap', NUM_IMPORTANT_GENES, PCA_RANK))
 
 
 
@@ -213,7 +217,7 @@ y_label = 'UMAP 2'
 ggplot(gRNAcells |> filter(gRNA %in% c(gRNA_i, all_grna_NT)), 
        aes(x = dim1, y = dim2, color = gRNA_label)) +
   geom_point(alpha = .6, size = 1.5, shape = 19, stroke=NA) +
-  labs(title = paste0(gRNA_i, ' vs NT'), color = 'gRNA',
+  labs(title = paste0(gRNA_i, ' vs Non-Targeting'), color = 'gRNA',
        x = x_label, y = y_label) +
   scale_color_brewer(palette = 'Dark2') +
   guides(color = guide_legend(override.aes=list(shape = 15, size = 3.5, alpha = 1))) +
