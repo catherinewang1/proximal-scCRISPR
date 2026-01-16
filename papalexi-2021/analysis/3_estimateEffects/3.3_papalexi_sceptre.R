@@ -160,9 +160,34 @@ sceptre_object
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-whole_game_set_analysis_parameters
 # ==============================================================================
 print(sprintf('[%s]: SCEPTRE 2. Set analysis parameters', format(Sys.time(), digits = 0)))
-positive_control_pairs <- construct_positive_control_pairs(sceptre_object)
-head(positive_control_pairs)
-# 
+positive_control_pairs_auto <- construct_positive_control_pairs(sceptre_object)
+head(positive_control_pairs_auto)
+
+
+
+
+
+print('     Merging automatically made positive pairs w/ saved AY')
+
+# add AY positive tests
+positive_control_pairs_AY = 
+  merge(AY |> filter(type == 'positive'),
+        ondisc::get_feature_covariates(grna_odm) |> tibble::rownames_to_column(var = "A"), 
+        all.x = TRUE, all.y = FALSE, 
+        by = "A") |> 
+  dplyr::mutate(grna_target = target,
+                response_id = Y) |> 
+  dplyr::select("grna_target", "response_id")
+
+
+
+positive_control_pairs = rbind(positive_control_pairs_auto, 
+                               positive_control_pairs_AY) |> 
+                         as.data.frame() |>
+                         dplyr::distinct() 
+
+
+ 
 # discovery_pairs <- construct_cis_pairs(
 #   sceptre_object = sceptre_object,
 #   positive_control_pairs = positive_control_pairs,
@@ -191,7 +216,7 @@ discovery_pairs_auto <- construct_trans_pairs(
 
 
 
-print('Merging automatically made discovery_pairs_auto w/ saved AY')
+print('     Merging automatically made discovery_pairs_auto w/ saved AY')
 left_df  = AY |> 
            filter(type != 'positive')
 right_df = ondisc::get_feature_covariates(grna_odm) |> 
@@ -227,7 +252,7 @@ discovery_pairs = rbind(discovery_pairs_AY, discovery_pairs_auto) |> dplyr::dist
 
 
 
-
+print('     Setting analysis parameters w sceptre::set_analysis_parameters')
 # side <- "left" # left for testing decrease in expr
 side = "both" # change to "both" bc other methods test both!
 
