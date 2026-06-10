@@ -89,6 +89,7 @@ dir.create(sprintf('%s/modulesEigengeneCor/png', WGCNA_results_savepath), showWa
 dir.create(sprintf('%s/modulesEigengeneCor/svg', WGCNA_results_savepath), showWarnings = F)
 
 dir.create(sprintf('%s/savedTOMs/', WGCNA_results_savepath), showWarnings = F)
+dir.create(sprintf('%s/NegativeControls/', WGCNA_results_savepath), showWarnings = F)
 
 # get gene modules for each power/beta
 num_modules = c()
@@ -215,6 +216,27 @@ for(pow in POWERS) {
          width = 6, height = 6,
          scale = 1,
          bg = 'white')
+}
+
+
+
+
+
+# Create Negative Controls. save as rds to easily load
+# choose one of the settings. e.g. choose a pow parameter, and save into: WGCNA/NC_wgcna_moduleeigengene.rds
+num_modules # > 11 18 15 10  9
+chosen_power = POWERS[2] # 2
+net = readRDS(sprintf('%s/modules/WGCNAmodules_NUMGENES=%04.0f_POWER=%01.1f.rds', WGCNA_results_savepath, NUM_IMPORTANT_GENES, chosen_power))
+NCs = net$MEs
+row.names(NCs) = NULL
+saveRDS(NCs, sprintf('%s/WGCNA/NC_wgcna_ModuleEigengene.rds', save_dir))
+
+# also save for each of the power parameters
+for(pow in POWERS) {
+  net = readRDS(sprintf('%s/modules/WGCNAmodules_NUMGENES=%04.0f_POWER=%01.1f.rds', WGCNA_results_savepath, NUM_IMPORTANT_GENES, pow))
+  NCs = net$MEs
+  row.names(NCs) = NULL
+  saveRDS(NCs, sprintf('%s/NegativeControls/NC_wgcna_ModuleEigengene_NUMGENES=%04.0f_POWER=%02.f.rds', WGCNA_results_savepath, NUM_IMPORTANT_GENES, pow))
 }
 
 
