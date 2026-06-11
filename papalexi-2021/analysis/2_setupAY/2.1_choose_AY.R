@@ -7,8 +7,8 @@
 #                         "<save_dir>/cbgenes/<AYZW_setting_name>/CBGENE_AYZW.rds" #
 # -------------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('laptop', 'B')
-
+# args = c('laptop', 'A1')
+# args = c('laptop', 'C1')
 
 
 suppressPackageStartupMessages(require(assertthat)) # for some assert statements
@@ -26,19 +26,6 @@ assertthat::assert_that(length(args) > 0, msg="must give arg for specifying devi
 
 DEVICE = args[1]
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
-# DEVICE = args[1]
-# # location of papalexi-2021 folder
-# data_dir = switch(DEVICE,
-#                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/genData/papalexi', 
-#                   'desktop'='C:/Users/Catherine W/Documents/Research/genData/papalexi', 
-#                   'ubergenno'='/raid6/Catherine/papalexi')
-# # location of intermediate save files/plots are written
-# save_dir = switch(DEVICE,
-#                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/DoubleBridge/saves/papalexi_saves', 
-#                   'desktop'='C:/Users/Catherine W/Documents/Research/DoubleBridge/saves/papalexi_saves', 
-#                   'ubergenno'='/raid6/Catherine/papalexi/papalexi_saves')
-# assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
-
 
 assertthat::assert_that(length(args) > 1, msg="must give arg for specifying chosen AYZW name 'Rscript <filename>.R ubergenno C'")
 AYZW_setting_name = (args[2])
@@ -145,7 +132,7 @@ grna_chr = read.csv(sprintf('%s/chromosome/grna_chromosome.csv', save_dir)) |> #
 #                       by.x = c('wikigene_name', 'importance_rank'),
 #                       by.y = c('gene',          'importance_rank'))
 
-# TF already removed prev, don't need to add this info 
+# TF already removed prev, don't need to add this info (loaded in gene_chr and grna_chr start w/ TF removed already)
 gene_metainfo = gene_chr
 # add n_nonzero_counts to gene info (#cells ith non-zero counts) to threshold later
 gene_metainfo$n_nonzero_cell = rowSums(as.matrix(gene_odm[[gene_chr[, 'wikigene_name'], ]] > 0))
@@ -292,98 +279,143 @@ if(!is.na(setting$NUM_AY_POS)) {
 #                  select(type, A = grna, Y = known_protein_effect)) |> distinct()
 
 
-# =================== Combine chosen AY   ======================================
+# =================== Combine chosen AY   ==========================================================
 print(sprintf("[%s]        - Combine", Sys.time()))
 
-AY = rbind(AY, AY_pos)
+# if settings$FORCE_AY_MATRIX, use ALL combinations of the chosen A and Y (this creates more tests, which may add to different AY categories, e.g. 'maybe')
+if('FORCE_AY_MATRIX' %in% names(setting) && setting$FORCE_AY_MATRIX) {
+  AY_temp = rbind(AY, AY_pos) 
+  
+  chosen_A_set = AY$A |> unique()
+  if(!is.na(setting$NUM_A)) {
+    chosen_A_set = chosen_A_set |> sample(size = setting$NUM_A, replace = FALSE)
+  }
+  chosen_Y_set = c(AY_pos |> dplyr::filter(A %in% chosen_A_set) |> dplyr::pull(Y),  # <- there are too many of them, we can just choose some and approximately get the extra NUM_Y_PER_A_NEG and ... specified in settings
+                   AY |> dplyr::filter(type == 'negative') |> pull(Y) |> unique() |> sample(size = setting$NUM_Y_PER_A_NEG  , replace = FALSE),
+                   AY |> dplyr::filter(type ==    'maybe') |> pull(Y) |> unique() |> sample(size = setting$NUM_Y_PER_A_MAYBE, replace = FALSE)) |> unique() 
+  
+  AY = expand.grid(chosen_A_set, chosen_Y_set)                                   # all AY combos
+  colnames(AY) = c('A', 'Y')                                                     # set colnames 
+  AY = merge(merge(AY,                                                           # add chromosome info: A_chr, Y_chr
+                   AY_temp |> dplyr::select(A, A_chr) |> dplyr::distinct(), by = 'A'),
+             AY_temp |> dplyr::select(Y, Y_chr) |> dplyr::distinct(), by = 'Y') 
+  
+  # set type
+  AY = merge(AY, AY_temp, all.x = TRUE)  
+  AY = AY |> dplyr::mutate(A     = as.character(A)  ,     Y = as.character(Y), 
+                           A_chr = as.numeric(A_chr), Y_chr = as.numeric(Y_chr))
+  for(i in 1:nrow(AY)) { # slow but whatever
+    if(is.na(AY[i, 'type'])) { # fill in 'type' if NA (e.g. not in AY or AY_pos)
+      if(AY[i, 'A_chr'] != AY[i, 'Y_chr']) {
+        AY[i, 'type'] = 'negative'
+      } else {
+        AY[i, 'type'] = 'maybe'
+      }
+    }   
+  }
+  
+  AY = AY |> dplyr::select(type, A, Y, A_chr, Y_chr) |> dplyr::arrange(A, Y)
+  rm(i, AY_temp, chosen_A_set, chosen_Y_set)
+} else {
+  AY = rbind(AY, AY_pos)
+}
+
+
 # AY |> group_by(type) |> summarize(count = n())
 
 
 
-# =================== DO NOT NEED TO CHOOSE NCE/NCO WHEN USING SPARSE PCA ===========
-# # =================== choose some ZW (NCE/NCO) ======================================
-# print(sprintf("[%s]    - Choose some ZW (NCE/NCO)", Sys.time()))
+# =================== choose some ZW (NCE/NCO) ======================================
+print(sprintf("[%s]    - Choose some ZW (NCE/NCO)", Sys.time()))
+
+# create list. indexed by
+# $A_name
+#   $Y_name
+#     $ZW_idx
+#       $'AY_idx'  = integer
+#       $'Z_names' = vector of str
+#       $'W_names' = vector of str
+#       $'A_chr'   = str (1:22, A,Y) 
+#       $'Y_chr'   = str (1:22, A,Y)
+#       $'Z_chrs'   = vector of str (1:22, A,Y) 
+#       $'W_chrs'   = vector of str (1:22, A,Y) 
+
+
+
+AYZW = list()
+
+for(i in 1:nrow(AY)) {
+  
+  A_name = AY[i, 'A']
+  Y_name = AY[i, 'Y']
+  A_chr  = AY[i, 'A_chr']
+  Y_chr  = AY[i, 'Y_chr']
+  if(i %% 20 == 0) {
+    print(sprintf("[%s]           i=%d: A=%s Y=%s", Sys.time(), i, A_name, Y_name))
+  }
+  
+  
+  # # add to AYZW list structure if not present, but we shouldn't need to do this?? it should automatically add?
+  # if(!(A_name %in% names(AYZW))) {
+  #   AYZW[[A_name]] = list()
+  # }
+  # if(!(Y_name %in% names(AYZW[[A_name]]))) {
+  #   AYZW[[A_name]][[Y_name]] = list()
+  # }
+  
+  for(j in 1:setting$NUM_NCENCO_per_AY) {
+    ZW_chr = setdiff(chr_factors, c(A_chr, Y_chr)) # chr for ZW (no AY chrs)
+    Z_chrs = ZW_chr[runif(length(ZW_chr)) < .5]    # chr for Z  (1/2 each)
+    W_chrs = setdiff(ZW_chr, Z_chrs)               # chr for W  (take remaining)
+    
+
+    # allow setting$NUM_NCE/O=NA option
+    if(is.na(setting$NUM_NCE)) { # no sampling, take all
+      Z = all_Y |> filter(Y_chr %in% Z_chrs)
+    } else {
+      Z = all_Y |> filter(Y_chr %in% Z_chrs) |> slice_sample(n = setting$NUM_NCE)
+    }
+    
+    if(is.na(setting$NUM_NCO)) {
+      W = all_Y |> filter(Y_chr %in% W_chrs)
+    } else {
+      W = all_Y |> filter(Y_chr %in% W_chrs) |> slice_sample(n = setting$NUM_NCO)
+    }
+    
+    
+
+    # A_name$Y_name$ZW_idx$...
+    AYZW[[A_name]][[Y_name]][[j]] = list()
+    AYZW[[A_name]][[Y_name]][[j]][['AY_idx']] = i
+    
+    AYZW[[A_name]][[Y_name]][[j]][['A_chr']] = A_chr
+    AYZW[[A_name]][[Y_name]][[j]][['Y_chr']] = Y_chr
+    
+    AYZW[[A_name]][[Y_name]][[j]][['Z_names']] = Z$Y
+    AYZW[[A_name]][[Y_name]][[j]][['W_names']] = W$Y
+    
+    AYZW[[A_name]][[Y_name]][[j]][['Z_chrs']]  = Z$Y_chr
+    AYZW[[A_name]][[Y_name]][[j]][['W_chrs']]  = W$Y_chr
+  }
+}
+
+
+# AYZW
+# object.size(AYZW)
+# names(AYZW)
+# names(AYZW$PDL1g1)
+# names(AYZW$ATF2g4)
+# names(AYZW$ATF2g4$SERPINE2)
 # 
-# # create list. indexed by
-# # $A_name
-# #   $Y_name
-# #     $ZW_idx
-# #       $'AY_idx'  = integer
-# #       $'Z_names' = vector of str
-# #       $'W_names' = vector of str
-# #       $'A_chr'   = str (1:22, A,Y) 
-# #       $'Y_chr'   = str (1:22, A,Y)
-# #       $'Z_chrs'   = vector of str (1:22, A,Y) 
-# #       $'W_chrs'   = vector of str (1:22, A,Y) 
-# 
-# 
-# 
-# AYZW = list()
-# 
-# for(i in 1:nrow(AY)) {
-#   
-#   A_name = AY[i, 'A']
-#   Y_name = AY[i, 'Y']
-#   A_chr  = AY[i, 'A_chr']
-#   Y_chr  = AY[i, 'Y_chr']
-#   if(i %% 20 == 0) {
-#     print(sprintf("[%s]           i=%d: A=%s Y=%s", Sys.time(), i, A_name, Y_name))
-#   }
-#   
-#   
-#   for(j in 1:setting$NUM_NCENCO_per_AY) {
-#     ZW_chr = setdiff(chr_factors, c(A_chr, Y_chr)) # chr for ZW (no AY chrs)
-#     Z_chrs = ZW_chr[runif(length(ZW_chr)) < .5]    # chr for Z  (1/2 each)
-#     W_chrs = setdiff(ZW_chr, Z_chrs)               # chr for W  (take remaining)
-#     
-# 
-#     # allow setting$NUM_NCE/O=NA option
-#     if(is.na(setting$NUM_NCE)) { # no sampling, take all
-#       Z = all_Y |> filter(Y_chr %in% Z_chrs)
-#     } else {
-#       Z = all_Y |> filter(Y_chr %in% Z_chrs) |> slice_sample(n = setting$NUM_NCE)
-#     }
-#     
-#     if(is.na(setting$NUM_NCO)) {
-#       W = all_Y |> filter(Y_chr %in% W_chrs)
-#     } else {
-#       W = all_Y |> filter(Y_chr %in% W_chrs) |> slice_sample(n = setting$NUM_NCO)
-#     }
-#     
-#     
-# 
-#     # A_name$Y_name$ZW_idx$...
-#     AYZW[[A_name]][[Y_name]][[j]] = list()
-#     AYZW[[A_name]][[Y_name]][[j]][['AY_idx']] = i
-#     
-#     AYZW[[A_name]][[Y_name]][[j]][['A_chr']] = A_chr
-#     AYZW[[A_name]][[Y_name]][[j]][['Y_chr']] = Y_chr
-#     
-#     AYZW[[A_name]][[Y_name]][[j]][['Z_names']] = Z$Y
-#     AYZW[[A_name]][[Y_name]][[j]][['W_names']] = W$Y
-#     
-#     AYZW[[A_name]][[Y_name]][[j]][['Z_chrs']]  = Z$Y_chr
-#     AYZW[[A_name]][[Y_name]][[j]][['W_chrs']]  = W$Y_chr
-#   }
-# }
-# 
-# 
-# # AYZW
-# # object.size(AYZW)
-# # names(AYZW)
-# # names(AYZW$PDL1g1)
-# # names(AYZW$ATF2g4)
-# # names(AYZW$ATF2g4$SERPINE2)
-# # 
-# # AYZW$ATF2g4$SERPINE2[[1]]
-# # length(AYZW$ATF2g4$SERPINE2)
+# AYZW$ATF2g4$SERPINE2[[1]]
+# length(AYZW$ATF2g4$SERPINE2)
 
 
 # =================== Saving AYZW names ======================================
 print(sprintf("[%s]    - Saving AY names", Sys.time()))
 print(sprintf("[%s]        - nrow(AY) = %s", Sys.time(), nrow(AY)))
 write.csv(AY, sprintf('%s/AY/%s/AY.csv', save_dir, AYZW_setting_name), row.names = FALSE)
-# saveRDS(AYZW, sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
+saveRDS(AYZW, sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
 
 
 # =================== END ======================================================
