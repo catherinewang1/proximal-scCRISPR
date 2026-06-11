@@ -5,9 +5,9 @@
 # proximal (outcome) using pci2s package
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('laptop', 'A1')
-# args = c('laptop', 'A')
-
+# args = c('laptop', 'A1', 'SPCA8.0')
+# args = c('laptop', 'A', 'SPCA8.0')
+# args = c('laptop', 'C1', 'WGCNA')
 
 
 
@@ -23,7 +23,7 @@ suppressPackageStartupMessages(library(cowplot))
 
 library(future.apply)
 # options(future.globals.maxSize= 850*1024^2) #1st num is MB
-options(future.globals.maxSize= 1250*1024^2) #1st num is MB
+options(future.globals.maxSize= 2500*1024^2) #1st num is MB
 plan(multisession, workers = 8)
 # plan(sequential)
 
@@ -33,47 +33,58 @@ theme_set(theme_cowplot() +
                   plot.subtitle = element_text(hjust = .5)))
 
 
-# === Parameter Settings for PCA
-proximal_setting_name = 'PCA'
-
-my_sumabsv = NA
-my_K = NA
-N_subsample = NA # subsample size, or 'all' if using all cells
 
 
+
+
+# !! DO NOT PUT PARAMETERS HERE!!: INSTEAD THEY ARE SAVED IN <save folder>/AY/proximal_continuous_settings.r
+#   e.g. saves/AY/proximal_continuous_settings.r
+# 
+# # === Parameter Settings for WGNCA
+# NC_name = 'WGCNA'
+# 
+# my_sumabsv = NA
+# my_K = NA
+# N_subsample = NA # subsample size, or 'all' if using all cells
+# 
+# # === Parameter Settings for PCA
+# NC_name = 'PCA'
+# 
+# my_sumabsv = NA
+# my_K = NA
+# N_subsample = NA # subsample size, or 'all' if using all cells
+# 
+# 
 # # === Parameter Settings from SPCA
-# proximal_setting_name = sprintf('SPCA%.1f', my_sumabsv)
-
+# NC_name = sprintf('SPCA%.1f', my_sumabsv)
+# 
 # # my_sumabsv = 34.5 # used for getting the name of the spca saved filename
 # my_sumabsv = 8
 # my_K = 60
 # N_subsample = 5000 # subsample size, or 'all' if using all cells
-
-
-
-# === Parameter Settings for Proximal Methods ===
-num_NC_pairs = c(1, 3, 5, 8, 10, 15, 20)
-save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as they are estimated
-
-
-
-
-
-# === Parameter Settings for which estimators to perform
-which_estimators = list(lm_YA        = TRUE,
-	                      lm_YAU       = TRUE,
-	                      # pois_YAU     = TRUE,
-	                      # nb_YAU       = TRUE,
-                        # OCB_2SLS     = FALSE,
-                        OCB_2SLS_pci2s=TRUE #,
-                        # OCB_2SLSReg  = FALSE,
-                        # OCB_GMM      = FALSE,
-                        # OCB_GMMRw    = FALSE,
-                        # OCB_GMMRwReg = FALSE,
-                        # OCB_LinOSPI  = FALSE,
-                        # OCB_LinOS    = FALSE,
-                        # OCB_LinOStrim= FALSE
-                        )
+# 
+# 
+# 
+# # === Parameter Settings for Proximal Methods ===
+# num_NC_pairs = c(1, 3, 5, 8, 10, 15, 20)
+# save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as they are estimated
+# 
+# 
+# # === Parameter Settings for which estimators to perform
+# which_estimators = list(lm_YA        = TRUE,
+# 	                      lm_YAU       = TRUE,
+# 	                      # pois_YAU     = TRUE,
+# 	                      # nb_YAU       = TRUE,
+#                         # OCB_2SLS     = FALSE,
+#                         OCB_2SLS_pci2s=TRUE #,
+#                         # OCB_2SLSReg  = FALSE,
+#                         # OCB_GMM      = FALSE,
+#                         # OCB_GMMRw    = FALSE,
+#                         # OCB_GMMRwReg = FALSE,
+#                         # OCB_LinOSPI  = FALSE,
+#                         # OCB_LinOS    = FALSE,
+#                         # OCB_LinOStrim= FALSE
+#                         )
 # === === === === === === === === === ===
 
 
@@ -87,22 +98,23 @@ assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desk
 assertthat::assert_that(length(args) > 1, msg="must give arg for specifying chosen AYZW name 'Rscript <filename>.R ubergenno C'")
 AYZW_setting_name = args[2]
 
+assertthat::assert_that(length(args) > 2, msg="must give arg for specifying chosen Negative Control 'Rscript <filename>.R ubergenno C SPCA8.0' (see options listed in AY/proximal_continuous_settings.r)")
+NC_name = args[3]
+
+source(sprintf('%s/AY/proximal_continuous_settings.r', save_dir)) # loads in list: proximal_continuous_settings
+
+assertthat::assert_that(NC_name %in% names(proximal_continuous_settings), msg = "bad NC_name input, (see options listed in AY/proximal_continuous_settings.r)")
+PROXIMAL_SETTINGS = proximal_continuous_settings[[NC_name]] # the current proximal settings
+
 
 # save parameter settings
-CB_setting = list() 
-CB_setting$num_NC_pairs = num_NC_pairs
-CB_setting$proximal_setting_name = proximal_setting_name
-CB_setting$my_sumabsv = my_sumabsv
-CB_setting$my_K       = my_K
-CB_setting$N_subsample = my_K
-
-dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, proximal_setting_name), recursive = FALSE, showWarnings = FALSE)
-capture.output(print(CB_setting),
+dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, NC_name), recursive = FALSE, showWarnings = FALSE)
+capture.output(print(PROXIMAL_SETTINGS),
                file = sprintf('%s/AY/%s/%s/proximal_setting.txt',
-                              save_dir, AYZW_setting_name, proximal_setting_name))
-saveRDS(CB_setting,
+                              save_dir, AYZW_setting_name, NC_name))
+saveRDS(PROXIMAL_SETTINGS,
         sprintf('%s/AY/%s/%s/proximal_setting.rds',
-                save_dir, AYZW_setting_name, proximal_setting_name))
+                save_dir, AYZW_setting_name, NC_name))
 
 
 
@@ -182,17 +194,24 @@ invisible(gc(verbose=FALSE))
 
 
 # load Negative Controls
-if(proximal_setting_name == 'PCA') {
+if(NC_name == 'PCA') {
   # use PCA Loadings
   NCs = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir)) 
-} else {
+} else if(PROXIMAL_SETTINGS$NC_type == 'SPCA') {
   # use Sparse PCA Loadings
-  if(N_subsample == 'all') {  N_subsample = ncol(gene_odm) }
-  NCs = readRDS(sprintf('%s/spca/NCloadings_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) 
+  if(PROXIMAL_SETTINGS$N_subsample == 'all') {  N_subsample = ncol(gene_odm) }
+  NCs = readRDS(sprintf('%s/spca/NCloadings_sumabs=%.1f_K=%d_N=%d.rds', save_dir, PROXIMAL_SETTINGS$my_sumabsv, PROXIMAL_SETTINGS$my_K, PROXIMAL_SETTINGS$N_subsample)) 
   # Or the constructed clusters (averages)
   # NCs = readRDS(sprintf('%s/spca/NCavg_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save
   # NCs = data.frame(NCs)
   # colnames(NCs) = paste0('NC', 1:ncol(NCs))
+} else if(NC_name == 'WGCNA') {
+  NCs = readRDS(sprintf('%s/WGCNA/NC_wgcna_ModuleEigengene.rds', save_dir)) # choose 1 wgcna result to be saved here
+
+} else if(NC_name == 'singlegenes') {
+  print(sprintf('not implemented NC_name: %s', NC_name))
+} else {
+  print(sprintf('Bad NC_name: %s', NC_name))
 }
 
 
@@ -220,17 +239,20 @@ NT_idx = which(apply(X = grna_odm[[NT_names, ]], MARGIN = 2, FUN = sum) > 0)
 # source(sprintf('%s/estimate_effects.R', util_dir)) # for functions to estimate here
 
 
+# TODO: restructure so that estimate_ATE_make will run for a wide variety of NCs, instead of methods....
+
 
 estimate_ATE_0 = estimate_ATE_make(AY                      = AY, 
                                    gene_norm               = gene_norm, 
                                    NCs                     = NCs, 
+                                   num_NC_pairs            = PROXIMAL_SETTINGS$num_NC_pairs,
                                    grna_rownames           = grna_rownames, 
                                    grna                    = grna, 
                                    NT_idx                  = NT_idx, 
                                    gene_importance         = gene_importance,
-                                   which_estimators        = which_estimators, 
-                                   save_path = switch(save_intermediateATEs,
-                                                     'yes' = sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, proximal_setting_name),
+                                   which_estimators        = PROXIMAL_SETTINGS$which_estimators, 
+                                   save_path = switch(PROXIMAL_SETTINGS$save_intermediateATEs,
+                                                     'yes' = sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, NC_name),
                                                      'no'  = NULL),
                                    U_confounders           = cell_covariates)
 # test = estimate_ATE_0(AY_idx = 3)
@@ -305,7 +327,7 @@ for(AY_idx in whichROWS) {
   }
 }
 
-write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, proximal_setting_name), row.names = FALSE)
+write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name), row.names = FALSE)
 
 
 

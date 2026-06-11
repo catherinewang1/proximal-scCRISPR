@@ -229,6 +229,8 @@ chosen_power = POWERS[2] # 2
 net = readRDS(sprintf('%s/modules/WGCNAmodules_NUMGENES=%04.0f_POWER=%01.1f.rds', WGCNA_results_savepath, NUM_IMPORTANT_GENES, chosen_power))
 NCs = net$MEs
 row.names(NCs) = NULL
+NCs = NCs |> dplyr::select(-ME0) 
+NCs = NCs |> dplyr::select( paste0('ME', sub(pattern = 'ME', replacement = '', x = colnames(NCs)) |> as.numeric() |> sort()))
 saveRDS(NCs, sprintf('%s/WGCNA/NC_wgcna_ModuleEigengene.rds', save_dir))
 
 # also save for each of the power parameters
@@ -236,6 +238,8 @@ for(pow in POWERS) {
   net = readRDS(sprintf('%s/modules/WGCNAmodules_NUMGENES=%04.0f_POWER=%01.1f.rds', WGCNA_results_savepath, NUM_IMPORTANT_GENES, pow))
   NCs = net$MEs
   row.names(NCs) = NULL
+  NCs = NCs |> dplyr::select(-ME0) 
+  NCs = NCs |> dplyr::select( paste0('ME', sub(pattern = 'ME', replacement = '', x = colnames(NCs)) |> as.numeric() |> sort()))
   saveRDS(NCs, sprintf('%s/NegativeControls/NC_wgcna_ModuleEigengene_NUMGENES=%04.0f_POWER=%02.f.rds', WGCNA_results_savepath, NUM_IMPORTANT_GENES, pow))
 }
 
