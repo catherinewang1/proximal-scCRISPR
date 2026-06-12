@@ -3,12 +3,15 @@
 # linear regression
 # linear regression with 'un'-measured confounders
 # proximal (outcome) using pci2s package
+# 
+# with singlegenes, only implemented for 1 run (e.g. 1 collection of ZW choices)
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop', 'A1', 'SPCA8.0')
 # args = c('laptop', 'A', 'SPCA8.0')
 # args = c('laptop', 'C1', 'WGCNA')
-
+# args = c('laptop', 'C1', 'WGCNA')
+args = c('laptop', 'C1', 'PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene') # do many at the same time
 
 
 suppressPackageStartupMessages(library(assertthat)) # for some assert statements
@@ -67,7 +70,6 @@ theme_set(theme_cowplot() +
 # 
 # # === Parameter Settings for Proximal Methods ===
 # num_NC_pairs = c(1, 3, 5, 8, 10, 15, 20)
-# save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as they are estimated
 # 
 # 
 # # === Parameter Settings for which estimators to perform
@@ -87,6 +89,9 @@ theme_set(theme_cowplot() +
 #                         )
 # === === === === === === === === === ===
 
+save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as they are estimated
+# === === === === === === === === === ===
+
 
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
@@ -99,22 +104,30 @@ assertthat::assert_that(length(args) > 1, msg="must give arg for specifying chos
 AYZW_setting_name = args[2]
 
 assertthat::assert_that(length(args) > 2, msg="must give arg for specifying chosen Negative Control 'Rscript <filename>.R ubergenno C SPCA8.0' (see options listed in AY/proximal_continuous_settings.r)")
-NC_name = args[3]
+NC_name_raw = args[3]
+NC_names = strsplit(x = NC_name_raw, split = '-') |> unlist()
 
 source(sprintf('%s/AY/proximal_continuous_settings.r', save_dir)) # loads in list: proximal_continuous_settings
 
-assertthat::assert_that(NC_name %in% names(proximal_continuous_settings), msg = "bad NC_name input, (see options listed in AY/proximal_continuous_settings.r)")
-PROXIMAL_SETTINGS = proximal_continuous_settings[[NC_name]] # the current proximal settings
+assertthat::assert_that(all(NC_names %in% names(proximal_continuous_settings)), msg = "bad NC_name input, list mult like PCA-SPCA8.0-singlegene (see options listed in AY/proximal_continuous_settings.r)")
 
 
-# save parameter settings
-dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, NC_name), recursive = FALSE, showWarnings = FALSE)
-capture.output(print(PROXIMAL_SETTINGS),
-               file = sprintf('%s/AY/%s/%s/proximal_setting.txt',
-                              save_dir, AYZW_setting_name, NC_name))
-saveRDS(PROXIMAL_SETTINGS,
-        sprintf('%s/AY/%s/%s/proximal_setting.rds',
-                save_dir, AYZW_setting_name, NC_name))
+
+for(NC_name in NC_names) {
+  PROXIMAL_SETTINGS = proximal_continuous_settings[[NC_name]] # the current proximal settings
+  
+  # save parameter settings
+  dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, NC_name), recursive = FALSE, showWarnings = FALSE)
+  capture.output(print(PROXIMAL_SETTINGS),
+                 file = sprintf('%s/AY/%s/%s/proximal_setting.txt',
+                                save_dir, AYZW_setting_name, NC_name))
+  saveRDS(PROXIMAL_SETTINGS,
+          sprintf('%s/AY/%s/%s/proximal_setting.rds',
+                  save_dir, AYZW_setting_name, NC_name))
+  
+  rm(NC_name, PROXIMAL_SETTINGS) # clean environment
+}
+
 
 
 
@@ -124,8 +137,8 @@ print(sprintf("[%s] START: Estimate", Sys.time()))
 
 
 
-source(sprintf('%s/estimate_effects.R', util_dir)) # for functions to estimate here
-
+# source(sprintf('%s/estimate_effects.R', util_dir)) # for functions to estimate here
+source(sprintf('%s/estimate_effects_pci2s.R', util_dir)) # for functions to estimate here
 
 # source(sprintf('%s/CBEstAll.R', util_dir)) # for functions to estimate here
 # source(sprintf('%s/CBEstAllSPCA.R', util_dir)) # add'l specifically for SPCA
@@ -158,9 +171,9 @@ gene_importance = read.csv(sprintf('%s/gene_deviance_gene_norm.csv', save_dir)) 
 #               select(gene, gene_idx, deviance) |>
 #               mutate(gene_imp_rank = row_number())
 
-# Load choosing AY (ZW) settings
-AYZW_setting = readRDS(sprintf('%s/AY/%s/AYZW_setting.rds', save_dir, AYZW_setting_name))
-NUM_IMPORTANTGENES = AYZW_setting$MAX_Y_IMPORTANCE
+# # Load choosing AY (ZW) settings
+# AYZW_setting = readRDS(sprintf('%s/AY/%s/AYZW_setting.rds', save_dir, AYZW_setting_name))
+# NUM_IMPORTANTGENES = AYZW_setting$MAX_Y_IMPORTANCE
 
 # create gene and grna ondisc managers
 gene_odm <- ondisc::read_odm(odm_fp      = paste0(data_dir, "/papalexi-2021/processed/gene/expression_matrix.odm"),
@@ -171,7 +184,7 @@ grna_odm <- ondisc::read_odm(odm_fp      = paste0(data_dir, "/papalexi-2021/proc
 # load grna assignments (load all into memory)
 grna = grna_odm[[,1:ncol(grna_odm)]] # |> as.matrix() # ~110 x 20729 = #grnas x #cells
 grna_rownames = grna_odm |> ondisc::get_feature_covariates() |> rownames()
-
+row.names(grna) = grna_rownames
 
 # load measured covariates (=U, pretend unmeasured for proximal estimation)
 cell_covariates = gene_odm |> ondisc::get_cell_covariates()
@@ -192,31 +205,68 @@ rm(h5file, readin_gene_norm, reading_hd5file)
 invisible(gc(verbose=FALSE))
 
 
-
-# load Negative Controls
-if(NC_name == 'PCA') {
-  # use PCA Loadings
-  NCs = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir)) 
-} else if(PROXIMAL_SETTINGS$NC_type == 'SPCA') {
-  # use Sparse PCA Loadings
-  if(PROXIMAL_SETTINGS$N_subsample == 'all') {  N_subsample = ncol(gene_odm) }
-  NCs = readRDS(sprintf('%s/spca/NCloadings_sumabs=%.1f_K=%d_N=%d.rds', save_dir, PROXIMAL_SETTINGS$my_sumabsv, PROXIMAL_SETTINGS$my_K, PROXIMAL_SETTINGS$N_subsample)) 
-  # Or the constructed clusters (averages)
-  # NCs = readRDS(sprintf('%s/spca/NCavg_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save
-  # NCs = data.frame(NCs)
-  # colnames(NCs) = paste0('NC', 1:ncol(NCs))
-} else if(NC_name == 'WGCNA') {
-  NCs = readRDS(sprintf('%s/WGCNA/NC_wgcna_ModuleEigengene.rds', save_dir)) # choose 1 wgcna result to be saved here
-
-} else if(NC_name == 'singlegenes') {
-  print(sprintf('not implemented NC_name: %s', NC_name))
-} else {
-  print(sprintf('Bad NC_name: %s', NC_name))
+NCs_list = list()
+for(NC_name in NC_names) {
+  PROXIMAL_SETTINGS = proximal_continuous_settings[[NC_name]]
+  # load Negative Controls
+  if(NC_name == 'PCA') {
+    # use PCA Loadings
+    NCs = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir)) |> as.matrix()
+  } else if(PROXIMAL_SETTINGS$NC_type == 'SPCA') {
+    # use Sparse PCA Loadings
+    if(PROXIMAL_SETTINGS$N_subsample == 'all') {  N_subsample = ncol(gene_odm) }
+    NCs = readRDS(sprintf('%s/spca/NCloadings_sumabs=%.1f_K=%d_N=%d.rds', save_dir, PROXIMAL_SETTINGS$my_sumabsv, PROXIMAL_SETTINGS$my_K, PROXIMAL_SETTINGS$N_subsample)) |> as.matrix()
+    # Or the constructed clusters (averages)
+    # NCs = readRDS(sprintf('%s/spca/NCavg_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save
+    # NCs = data.frame(NCs)
+    # colnames(NCs) = paste0('NC', 1:ncol(NCs))
+  } else if(NC_name == 'WGCNA') {
+    NCs = readRDS(sprintf('%s/WGCNA/NC_wgcna_ModuleEigengene.rds', save_dir)) |> as.matrix() # choose 1 wgcna result to be saved here
+    
+  } else if(NC_name == 'singlegene') {
+    # print(sprintf('not implemented NC_name: %s', NC_name))
+    NCs = readRDS(sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
+    
+  } else {
+    print(sprintf('Bad NC_name: %s', NC_name)) # should've already been caught at the beginning
+  }
+  
+  NCs_list[[NC_name]] = NCs
+  
+  rm(NC_name, PROXIMAL_SETTINGS) # clean environment
 }
 
 
+# re-do s.t. the environment is smaller? then it is potentially faster? 
+# e.g. only include gene_norm that are needed: (single genes will add a lot of Ys...)
+# all_As = AY$A |> unique() # grna size is small enough
+all_Ys = AY$Y |> unique() 
+if('singlegene' %in% NC_names) {
+  AYZW = readRDS(sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
+  max_num_NC_pairs = proximal_continuous_settings[['singlegene']]$num_NC_pairs |> max() # max number of ZW used 
+  for(A_name in names(AYZW)) {
+    for(Y_name in names(AYZW[[A_name]])) {
+      all_Ys = c(all_Ys, 
+                 AYZW[[A_name]][[Y_name]][[1]]$Z_names[1:max_num_NC_pairs] ,
+                 AYZW[[A_name]][[Y_name]][[1]]$W_names[1:max_num_NC_pairs] ) |> unique()
+      
+    }
+  }
+  rm(A_name, Y_name, AYZW, max_num_NC_pairs)
+}
 
+dim(gene_norm)        # 4017 20729
+row.names(gene_norm)  # NULL
+head(gene_importance) # <-- look here! cols: gene_name gene_idx importance_rank gene_norm_idx
 
+gene_importance_subset      = gene_importance |>                                # idx of used genes in gene_norm      
+                                dplyr::filter(gene_name %in% all_Ys) |> 
+                                dplyr::arrange(gene_norm_idx)
+gene_norm_subset            = gene_norm[gene_importance_subset$gene_norm_idx, ] # subset from gene_norm
+row.names(gene_norm_subset) =           gene_importance_subset$gene_name        # name the rows to gene names
+
+# could also speed up by subselecting cells, but bc we will likely use all treatments --> all cells, so not worth it for now
+# it would be helpful if we do the matrix form though
 
 
 # All the NT grna idx
@@ -230,31 +280,33 @@ NT_idx = which(apply(X = grna_odm[[NT_names, ]], MARGIN = 2, FUN = sum) > 0)
 
 
 
-
+# clear environment
+rm(gene_norm, gene_importance, gene_importance_subset, gene_odm, grna_odm, all_Ys)
+gc()
 
 
 # =============================================================================
 
-
-# source(sprintf('%s/estimate_effects.R', util_dir)) # for functions to estimate here
-
+# source(sprintf('%s/estimate_effects_pci2s.R', util_dir)) # for functions to estimate here
+intermediateATEs_folder = sprintf('%s/AY/%s/%s/', save_dir, AYZW_setting_name, NC_name_raw)
+if(save_intermediateATEs == 'yes') {
+  dir.create(intermediateATEs_folder, showWarnings = FALSE)
+}
 
 # TODO: restructure so that estimate_ATE_make will run for a wide variety of NCs, instead of methods....
+estimate_ATE_0 = estimate_ATE_pci2sbyNC_make(AY                      = AY, 
+                                             gene_norm               = gene_norm_subset, 
+                                             grna                    = grna, 
+                                             NT_idx                  = NT_idx, 
+                                             NCs_list                = NCs_list, 
+                                             NCs_settings            = proximal_continuous_settings[NC_names],
+                                             save_path               = switch(save_intermediateATEs,
+                                                                              'yes' = intermediateATEs_folder,
+                                                                              'no'  = NULL), 
+                                             U_confounders           = cell_covariates)
 
 
-estimate_ATE_0 = estimate_ATE_make(AY                      = AY, 
-                                   gene_norm               = gene_norm, 
-                                   NCs                     = NCs, 
-                                   num_NC_pairs            = PROXIMAL_SETTINGS$num_NC_pairs,
-                                   grna_rownames           = grna_rownames, 
-                                   grna                    = grna, 
-                                   NT_idx                  = NT_idx, 
-                                   gene_importance         = gene_importance,
-                                   which_estimators        = PROXIMAL_SETTINGS$which_estimators, 
-                                   save_path = switch(PROXIMAL_SETTINGS$save_intermediateATEs,
-                                                     'yes' = sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, NC_name),
-                                                     'no'  = NULL),
-                                   U_confounders           = cell_covariates)
+
 # test = estimate_ATE_0(AY_idx = 3)
 
 
@@ -289,7 +341,7 @@ ATEargs = data.frame(AY_idx = 1:nrow(AY))
 # NUMROWS = 10
 NUMROWS = nrow(ATEargs)
 # whichROWS = 300:nrow(ATEargs)
-# whichROWS = 1:1164
+# whichROWS = 1:8
 whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
@@ -308,7 +360,7 @@ ATE_par = future.apply::future_mapply(estimate_ATE,
 #                    'format_AYZW', 'get_CB_colnames', 'get_CB_est', 
 #                    'CB', 'get_lmYA_est', 'get_ATE_est'))
 t1 = Sys.time()
-print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
+print(sprintf("[%s]        - %2.2f mins", Sys.time(), difftime(t1, t0, units = "mins")))
 
 # ATE_par[, 1]
 # ATE_par[[1, ]]
@@ -327,10 +379,17 @@ for(AY_idx in whichROWS) {
   }
 }
 
-write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name), row.names = FALSE)
+write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name_raw), row.names = FALSE)
 
 
 
+
+# also separately save
+for(NC_name in NC_names) {
+  ATE_df_NC_name = ATE_df |> dplyr::filter(NC_type == NC_name | is.na(NC_type)) # this NC_name or lmAY or lmAYU
+  write.csv(x = ATE_df_NC_name, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name), row.names = FALSE)
+  rm(ATE_df_NC_name)
+}
 
 
 
