@@ -368,20 +368,26 @@ for(i in 1:nrow(AY)) {
     Z_chrs = ZW_chr[runif(length(ZW_chr)) < .5]    # chr for Z  (1/2 each)
     W_chrs = setdiff(ZW_chr, Z_chrs)               # chr for W  (take remaining)
     
-
+   
     # allow setting$NUM_NCE/O=NA option
-    if(is.na(setting$NUM_NCE)) { # no sampling, take all
-      Z = all_Y |> filter(Y_chr %in% Z_chrs)
-    } else {
-      Z = all_Y |> filter(Y_chr %in% Z_chrs) |> slice_sample(n = setting$NUM_NCE)
+    if(!is.na(setting$NUM_NCENCO_pairs)) {  # take equal number of ZW
+      Z = all_Y |> filter(Y_chr %in% Z_chrs) |> slice_sample(n = setting$NUM_NCENCO_pairs)
+      W = all_Y |> filter(Y_chr %in% W_chrs) |> slice_sample(n = setting$NUM_NCENCO_pairs)
+    } else { #NUM_NCENCO_pairs not specified, try NUM_NCE and NUM_NCO
+      if(is.na(setting$NUM_NCE)) { # no sampling, take all
+        Z = all_Y |> filter(Y_chr %in% Z_chrs)
+      } else {
+        Z = all_Y |> filter(Y_chr %in% Z_chrs) |> slice_sample(n = setting$NUM_NCE)
+      }
+      
+      if(is.na(setting$NUM_NCO)) {
+        W = all_Y |> filter(Y_chr %in% W_chrs)
+      } else {
+        W = all_Y |> filter(Y_chr %in% W_chrs) |> slice_sample(n = setting$NUM_NCO)
+      }
+      
     }
-    
-    if(is.na(setting$NUM_NCO)) {
-      W = all_Y |> filter(Y_chr %in% W_chrs)
-    } else {
-      W = all_Y |> filter(Y_chr %in% W_chrs) |> slice_sample(n = setting$NUM_NCO)
-    }
-    
+
     
 
     # A_name$Y_name$ZW_idx$...
