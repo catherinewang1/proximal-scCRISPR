@@ -27,7 +27,7 @@ suppressPackageStartupMessages(library(cowplot))
 library(future.apply)
 # options(future.globals.maxSize= 850*1024^2) #1st num is MB
 options(future.globals.maxSize= 2500*1024^2) #1st num is MB
-plan(multisession, workers = 8)
+plan(multisession, workers = 24)
 # plan(sequential)
 
 
