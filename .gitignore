@@ -29,3 +29,6 @@ README.html
 
 # html files from rmd/qmd renders
 *4.1_visualizeEstimatorRes_files/
+
+# mac file 
+*.DS_Store

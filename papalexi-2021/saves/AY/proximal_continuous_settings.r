@@ -3,8 +3,8 @@
 
 
 # set all num_NC_pairs if wanted (or set to NULL)
-default_num_NC_pairs = c(1, 5, 10) # set small values for testing functions
-# default_num_NC_pairs = NULL
+# default_num_NC_pairs = c(1, 5, 10) # set small values for testing functions
+default_num_NC_pairs = NULL
 
 proximal_continuous_settings = list(
     'PCA'     = list(
