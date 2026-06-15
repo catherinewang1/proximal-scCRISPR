@@ -11,7 +11,7 @@ args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop', 'A', 'SPCA8.0')
 # args = c('laptop', 'C1', 'WGCNA')
 # args = c('laptop', 'C1', 'WGCNA')
-args = c('laptop', 'C1', 'PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene') # do many at the same time
+# args = c('laptop', 'A1', 'PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene') # do many at the same time
 
 
 suppressPackageStartupMessages(library(assertthat)) # for some assert statements
@@ -115,7 +115,7 @@ assertthat::assert_that(all(NC_names %in% names(proximal_continuous_settings)), 
 
 for(NC_name in NC_names) {
   PROXIMAL_SETTINGS = proximal_continuous_settings[[NC_name]] # the current proximal settings
-  
+  PROXIMAL_SETTINGS$DEVICE = DEVICE
   # save parameter settings
   dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, NC_name), recursive = FALSE, showWarnings = FALSE)
   capture.output(print(PROXIMAL_SETTINGS),
@@ -129,13 +129,19 @@ for(NC_name in NC_names) {
 }
 
 
+intermediateATEs_folder = sprintf('%s/AY/%s/%s/', save_dir, AYZW_setting_name, NC_name_raw)
+if(save_intermediateATEs == 'yes') {
+  dir.create(intermediateATEs_folder, showWarnings = FALSE)
+}
+
+
+# =================== Start ========================================================================
+print(sprintf("[%s] START: Papalexi continuous", Sys.time()))
+print(sprintf("[%s]        w/ script: %s", Sys.time(), paste0(args, collapse = ', ')))
 
 
 
-# =================== Start ====================================================
-print(sprintf("[%s] START: Estimate", Sys.time()))
-
-
+print(sprintf("[%s]    - Load files and functions", Sys.time()))
 
 # source(sprintf('%s/estimate_effects.R', util_dir)) # for functions to estimate here
 source(sprintf('%s/estimate_effects_pci2s.R', util_dir)) # for functions to estimate here
@@ -196,7 +202,7 @@ cell_covariates = cell_covariates |>
                       dplyr::select(-n_nonzero, -n_umis)
 
 # load normalized gene exp
-h5file      = paste0(save_dir, "/gene.h5"); print(h5file)
+h5file      = paste0(save_dir, "/gene.h5"); # print(h5file)
 reading_hd5file  = rhdf5::H5Fopen(name = h5file)
 readin_gene_norm = reading_hd5file&'gene_norm'
 gene_norm = readin_gene_norm[, 1:ncol(gene_odm)] # eg dim = 4000 x 20729 = #important x #cells
@@ -255,9 +261,9 @@ if('singlegene' %in% NC_names) {
   rm(A_name, Y_name, AYZW, max_num_NC_pairs)
 }
 
-dim(gene_norm)        # 4017 20729
-row.names(gene_norm)  # NULL
-head(gene_importance) # <-- look here! cols: gene_name gene_idx importance_rank gene_norm_idx
+# dim(gene_norm)        # 4017 20729
+# row.names(gene_norm)  # NULL
+# head(gene_importance) # <-- look here! cols: gene_name gene_idx importance_rank gene_norm_idx
 
 gene_importance_subset      = gene_importance |>                                # idx of used genes in gene_norm      
                                 dplyr::filter(gene_name %in% all_Ys) |> 
@@ -282,16 +288,13 @@ NT_idx = which(apply(X = grna_odm[[NT_names, ]], MARGIN = 2, FUN = sum) > 0)
 
 # clear environment
 rm(gene_norm, gene_importance, gene_importance_subset, gene_odm, grna_odm, all_Ys)
-gc()
+invisible(gc(verbose=FALSE))
 
 
-# =============================================================================
-
+# =================== Define fns for ATEs (parallel) ===============================================
+print(sprintf("[%s]    - Define fns for ATEs (parallel)", Sys.time()))
 # source(sprintf('%s/estimate_effects_pci2s.R', util_dir)) # for functions to estimate here
-intermediateATEs_folder = sprintf('%s/AY/%s/%s/', save_dir, AYZW_setting_name, NC_name_raw)
-if(save_intermediateATEs == 'yes') {
-  dir.create(intermediateATEs_folder, showWarnings = FALSE)
-}
+
 
 # TODO: restructure so that estimate_ATE_make will run for a wide variety of NCs, instead of methods....
 estimate_ATE_0 = estimate_ATE_pci2sbyNC_make(AY                      = AY, 
@@ -305,17 +308,14 @@ estimate_ATE_0 = estimate_ATE_pci2sbyNC_make(AY                      = AY,
                                                                               'no'  = NULL), 
                                              U_confounders           = cell_covariates)
 
-
-
 # test = estimate_ATE_0(AY_idx = 3)
-
 
 
 estimate_ATE <- function(AY_idx) {
   res_df = tryCatch({estimate_ATE_0(AY_idx=AY_idx)},
                     error = function(cond) {
-                      # message(sprintf('Error est CondMomentOCBOS with %s', 
-                      #                 gammaSetting)) 
+                      # message(sprintf('Error est ATE w pci2s with %s', 
+                      #                 AY_idx)) 
                       return(NULL)
                     })
   # if errored, return NULL
@@ -343,10 +343,11 @@ NUMROWS = nrow(ATEargs)
 # whichROWS = 300:nrow(ATEargs)
 # whichROWS = 1:8
 whichROWS = 1:NUMROWS
+# whichROWS = c(1, 4, 5, 8, 9)
 # whichROWS = 1165:NUMROWS
 
 
-# =================== Get ATEs (parallel) ====================================
+# =================== Get ATEs (parallel) ==========================================================
 print(sprintf("[%s]    - Get ATEs (parallel)", Sys.time()))
 t0 = Sys.time()
 ATE_par = future.apply::future_mapply(estimate_ATE,
@@ -362,29 +363,65 @@ ATE_par = future.apply::future_mapply(estimate_ATE,
 t1 = Sys.time()
 print(sprintf("[%s]        - %2.2f mins", Sys.time(), difftime(t1, t0, units = "mins")))
 
-# ATE_par[, 1]
-# ATE_par[[1, ]]
-# length(ATE_par)
-# unlist(ATE_par)
-# ATE_par[1] |> as.data.frame()
+
+saveRDS(ATE_par, file = sprintf('%s/AY/%s/%s/effects_continuous_ATE_par.rds', save_dir, AYZW_setting_name, NC_name_raw)) # save this parallel res as rds
 
 
-ATE_df = NULL
-for(AY_idx in whichROWS) {
-  if(!is.null(ATE_par[[AY_idx]])) {
-    ATE_df = rbind(ATE_df,
-                   cbind(data.frame(AY_idx=AY_idx),
-                         AY[AY_idx, ] |> `rownames<-`( NULL ),
-                         ATE_par[[AY_idx]]))
+# =================== Combine ATEs (into one df) ===================================================
+print(sprintf("[%s]    - Combine ATEs", Sys.time()))
+
+# try to combine by reading in saved intermedateATEs, else use ATE_par (sometimes errors...)
+if(save_intermediateATEs == 'yes') {
+  # combine dataframe by loading in intermediateATE saves
+  ATE_df = NULL
+  for(fn in list.files(sprintf('%s/intermediateATEs/', intermediateATEs_folder))) {
+    
+    if(grepl('ATE_', fn)) { # intermediateATE should have filename like 'ATE_123.csv'
+      ATE_df_i = read.csv(sprintf('%s/intermediateATEs/%s', intermediateATEs_folder, fn))
+      AY_idx = as.numeric(gsub(pattern = '[^0-9]', replacement = '', x = fn)) # this should extract the AY_idx
+      ATE_df = rbind(ATE_df,
+                     cbind(data.frame(AY_idx=AY_idx),
+                           AY[AY_idx, ] |> `rownames<-`( NULL ),
+                           ATE_df_i))
+      
+      # sum(ATE_df_i$time_sec)/ 60 # mins/1 test... the numNC=50 makes it take really long
+      # (sum(ATE_df_i$time_sec) - 2300 - 412)/ 60 # exclude singlegene 25 and 50
+      # ggplot(ATE_df_i, aes(x = numNC, y = time_sec, color = NC_type)) + geom_line()
+      # head(ATE_df_i)
+    }
   }
+  write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name_raw), row.names = FALSE)
+  
+  
+} else { 
+  # ATE_par[, 1]
+  # ATE_par[[1, ]]
+  # length(ATE_par)
+  # unlist(ATE_par)
+  # ATE_par[1] |> as.data.frame()
+  # 
+  ATE_df = NULL
+  for(whichROWS_idx in 1:length(whichROWS)) { # whichROWS_idx is always 1, 2, ...
+    cur_ATE_par = ATE_par[[whichROWS_idx]]
+    
+    if(!is.null(cur_ATE_par)) {
+      # AY test is whichROWS[whichROWS_idx]  = AY_idx!!! 
+      AY_idx = whichROWS[whichROWS_idx]
+      
+      ATE_df = rbind(ATE_df,
+                     cbind(data.frame(AY_idx=AY_idx),
+                           AY[AY_idx, ] |> `rownames<-`( NULL ),
+                           cur_ATE_par))
+      rm(AY_idx)
+    }
+  }
+  write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name_raw), row.names = FALSE)
+  
+  
 }
 
-write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name_raw), row.names = FALSE)
 
-
-
-
-# also separately save
+# also separately save in each NC folder (eg. AY/A/PCA/effects_continuous.csv)
 for(NC_name in NC_names) {
   ATE_df_NC_name = ATE_df |> dplyr::filter(NC_type == NC_name | is.na(NC_type)) # this NC_name or lmAY or lmAYU
   write.csv(x = ATE_df_NC_name, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name), row.names = FALSE)
@@ -392,4 +429,4 @@ for(NC_name in NC_names) {
 }
 
 
-
+print(sprintf("[%s] END: %s", Sys.time(), AYZW_setting_name))
