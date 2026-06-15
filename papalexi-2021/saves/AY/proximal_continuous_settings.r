@@ -2,9 +2,9 @@
 
 
 
-# set all num_NC_pairs if wanted (or set to NULL)
+# set all num_NC_pairs if wanted (or set to NULL to use specified values inside)
 # default_num_NC_pairs = c(1, 5, 10) # set small values for testing functions
-default_num_NC_pairs = NULL
+default_num_NC_pairs = NULL # set NULL=use specified numNCs for each method 
 
 proximal_continuous_settings = list(
     'PCA'     = list(
@@ -151,11 +151,40 @@ proximal_continuous_settings = list(
                           # OCB_LinOStrim= FALSE
                         )
 
+                 ),
+    'simpleCount'     = list(
+                 # === NC Parameters
+                 NC_type      = 'NA',
+                 NC_name      = 'NA',
+                 num_NC_pairs = NA,
+                 # extra params for sparsePCA 
+                 my_sumabsv   = NA, 
+                 my_K         = NA,
+                 N_subsample  = NA, 
+                 # === procedure parameters
+                 save_intermediateATEs = 'yes',        # 'yes'/'no' whether to save intermedate ATEs as they are estimated (should be removed, specify in overall script. keep for later if it is helpful to do one by one, but probably not.)
+                 # === Parameter Settings for which estimators to perform
+                 which_estimators = list(
+                          # lm_YA        = TRUE,
+                          # lm_YAU       = TRUE,
+                          pois_YA      = TRUE,
+                          nb_YA        = TRUE,
+                          pois_YAU     = TRUE,
+                          nb_YAU       = TRUE #,
+                          # OCB_2SLS     = FALSE,
+                          # OCB_2SLS_pci2s=TRUE #,
+                          # OCB_2SLSReg  = FALSE,
+                          # OCB_GMM      = FALSE,
+                          # OCB_GMMRw    = FALSE,
+                          # OCB_GMMRwReg = FALSE,
+                          # OCB_LinOSPI  = FALSE,
+                          # OCB_LinOS    = FALSE,
+                          # OCB_LinOStrim= FALSE
+                        )
+
                  )
 
     )
-
-
 
 
 rm(default_num_NC_pairs)

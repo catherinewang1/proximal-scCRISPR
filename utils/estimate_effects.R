@@ -483,7 +483,7 @@ estimate_effect_count_make <- function(AY,
       res = bind_rows(res, 
                       data.frame(
                         method = 'nbYA',
-                        method_type = 'measuredconfounders',
+                        method_type = 'naive',
                         numNC = NA,
                         basis = NA,
                         ATE =    coef(nb_YA )[['A']],

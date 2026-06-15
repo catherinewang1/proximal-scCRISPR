@@ -1,8 +1,10 @@
 # ------------------------------------------------------------------------------------------------ #
 #     Estimate Effect (ATE) with count (original raw counts) outcome Y 
-# linear regression
-# linear regression with 'un'-measured confounders
-# proximal (outcome) using pci2s package
+# Poisson GLM
+# Poisson GLM           regression with 'un'-measured confounders
+# Negative Binomial GLM
+# Negative Binoimial GLM regression with 'un'-measured confounders
+# e.g. nice -10 Rscript 3.2_papalexi_countGLM.R ubergenno A
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop', 'A1')
@@ -19,9 +21,9 @@ suppressPackageStartupMessages(library(cowplot))
 
 
 
-library(future.apply)
+suppressPackageStartupMessages(library(future.apply))
 # options(future.globals.maxSize= 850*1024^2) #1st num is MB
-options(future.globals.maxSize= 1250*1024^2) #1st num is MB
+options(future.globals.maxSize= 2500*1024^2) #1st num is MB
 plan(multisession, workers = 8)
 # plan(sequential)
 
@@ -31,71 +33,42 @@ theme_set(theme_cowplot() +
                   plot.subtitle = element_text(hjust = .5)))
 
 
-# === Parameter Settings for Proximal Methods ===
-num_NC_pairs = c(1, 3, 5, 10, 15, 20)
-save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermedate ATEs as they are estimated
-
-proximal_setting_name = 'simpleCount'
-
-# === Parameter Settings from SPCA
-my_sumabsv = 34.5 # used for getting the name of the spca saved filename
-my_K = 60
-N_subsample = 5000 # subsample size, or 'all' if using all cells
-
-# === Parameter Settings for which estimators to perform
-which_estimators = list(lm_YA        = TRUE,
-	                      lm_YAU       = TRUE,
-                        pois_YA      = TRUE,
-	                      pois_YAU     = TRUE,
-                        nb_YA        = TRUE,
-	                      nb_YAU       = TRUE,
-                        # OCB_2SLS     = FALSE,
-                        OCB_2SLS_pci2s=TRUE #,
-                        # OCB_2SLSReg  = FALSE,
-                        # OCB_GMM      = FALSE,
-                        # OCB_GMMRw    = FALSE,
-                        # OCB_GMMRwReg = FALSE,
-                        # OCB_LinOSPI  = FALSE,
-                        # OCB_LinOS    = FALSE,
-                        # OCB_LinOStrim= FALSE
-                        )
 # === === === === === === === === === ===
-
-
+save_intermediateATEs = 'yes' # 'yes'/'no' whether to save intermediate ATEs as they are estimated
+proximal_setting_name = 'simpleCount' # <-- Always this for this GLM counts script (variable: proximal_setting_name~=NC_name in other script)
+# === === === === === === === === === ===
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
 DEVICE = args[1]
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
 assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
 
-
 assertthat::assert_that(length(args) > 1, msg="must give arg for specifying chosen AYZW name 'Rscript <filename>.R ubergenno C'")
 AYZW_setting_name = args[2]
 
+# TODO: prob should change to just proximal_settings... (bc includes glm counts settings)
+source(sprintf('%s/AY/proximal_continuous_settings.r', save_dir)) # loads in list: proximal_continuous_settings
+
+PROXIMAL_SETTINGS = proximal_continuous_settings[[proximal_setting_name]] # the current proximal settings
+PROXIMAL_SETTINGS$DEVICE = DEVICE
 
 # save parameter settings
-CB_setting = list() 
-CB_setting$num_NC_pairs = num_NC_pairs
-CB_setting$proximal_setting_name = proximal_setting_name
-CB_setting$my_sumabsv = my_sumabsv
-CB_setting$my_K       = my_K
-CB_setting$N_subsample = my_K
-
 dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, proximal_setting_name), recursive = FALSE, showWarnings = FALSE)
-capture.output(print(CB_setting),
+capture.output(print(PROXIMAL_SETTINGS),
                file = sprintf('%s/AY/%s/%s/proximal_setting.txt',
                               save_dir, AYZW_setting_name, proximal_setting_name))
-saveRDS(CB_setting,
+saveRDS(PROXIMAL_SETTINGS,
         sprintf('%s/AY/%s/%s/proximal_setting.rds',
                 save_dir, AYZW_setting_name, proximal_setting_name))
 
+# =================== Start ========================================================================
+print(sprintf("[%s] START: Estimate Papalexi-2021 as counts", Sys.time()))
+print(sprintf("[%s]        w/ script: %s", Sys.time(), paste0(args, collapse = ', ')))
 
 
 
-# =================== Start ====================================================
-print(sprintf("[%s] START: Estimate", Sys.time()))
 
-
+print(sprintf("[%s]    - Load files and functions", Sys.time()))
 
 source(sprintf('%s/estimate_effects.R', util_dir)) # for functions to estimate here
 
@@ -144,7 +117,7 @@ grna_odm <- ondisc::read_odm(odm_fp      = paste0(data_dir, "/papalexi-2021/proc
 # load grna assignments (load all into memory)
 grna = grna_odm[[,1:ncol(grna_odm)]] # |> as.matrix() # ~110 x 20729 = #grnas x #cells
 grna_rownames = grna_odm |> ondisc::get_feature_covariates() |> rownames()
-
+row.names(grna) = grna_rownames
 
 # load measured covariates (=U, pretend unmeasured for proximal estimation)
 cell_covariates = gene_odm |> ondisc::get_cell_covariates()
@@ -156,9 +129,10 @@ cell_covariates = cell_covariates |>
                       dplyr::select(-lane, -bio_rep) |>
                       dplyr::select(-n_nonzero, -n_umis)
 # Does not include offset! library size for cell i = \sum_gene count_{i, gene}
-# phase     p_mito lane_bio_rep
-# l1_AAACCTGAGCCAGAAC    G1 0.02295577  Lane1_rep_1
-# l1_AAACCTGAGTGGACGT    G1 0.04512939  Lane1_rep_1
+# > head(cell_covariates, 1+1)
+#                         phase     p_mito lane_bio_rep
+#     l1_AAACCTGAGCCAGAAC    G1 0.02295577  Lane1_rep_1
+#     l1_AAACCTGAGTGGACGT    G1 0.04512939  Lane1_rep_1
 
 
 
@@ -175,8 +149,8 @@ cell_covariates = cell_covariates |>
 
 
 # use Sparse PCA Loadings
-if(N_subsample == 'all') {  N_subsample = ncol(gene_odm) }
-NCs = readRDS(sprintf('%s/spca/NCloadings_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save 
+# if(N_subsample == 'all') {  N_subsample = ncol(gene_odm) }
+# NCs = readRDS(sprintf('%s/spca/NCloadings_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save 
 # Or the constructed clusters (averages)
 # NCs = readRDS(sprintf('%s/spca/NCavg_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)) # save
 # NCs = data.frame(NCs)
@@ -196,8 +170,8 @@ NT_idx = which(apply(X = grna_odm[[NT_names, ]], MARGIN = 2, FUN = sum) > 0)
 
 
 
-# =============================================================================
-
+# =================== Define fns for Effects (parallel) ============================================
+print(sprintf("[%s]    - Define fns for Effects (parallel)", Sys.time()))
 
 # source(sprintf('%s/estimate_effects.R', util_dir)) # for functions to estimate here
 
@@ -205,7 +179,7 @@ NT_idx = which(apply(X = grna_odm[[NT_names, ]], MARGIN = 2, FUN = sum) > 0)
 
 estimate_effect_0 = estimate_effect_count_make(
 	                              AY               = AY, 
-                                which_estimators = which_estimators,
+                                which_estimators = PROXIMAL_SETTINGS$which_estimators,
                                 gene_odm         = gene_odm, # <- maybe change to loaded in memory (for speed)
                                 grna_odm         = grna_odm,
                                 NT_idx           = NT_idx,
@@ -255,7 +229,7 @@ NUMROWS = nrow(ATEargs)
 whichROWS = 1:NUMROWS
 # whichROWS = 1165:NUMROWS
 
-# =================== Get Effects (parallel) ====================================
+# =================== Get Effects (parallel) =======================================================
 print(sprintf("[%s]    - Get Effects (parallel)", Sys.time()))
 t0 = Sys.time()
 ATE_par = future.apply::future_mapply(estimate_effect,
@@ -269,22 +243,32 @@ ATE_par = future.apply::future_mapply(estimate_effect,
 #                    'format_AYZW', 'get_CB_colnames', 'get_CB_est', 
 #                    'CB', 'get_lmYA_est', 'get_ATE_est'))
 t1 = Sys.time()
-print(sprintf("[%s]        - %2.2f", Sys.time(), (t1 - t0)))
+print(sprintf("[%s]        - %.2f mins", Sys.time(), difftime(t1, t0, units = "mins")))
 
+saveRDS(ATE_par, file = sprintf('%s/AY/%s/%s/effects_countGLM_ATE_par.rds', save_dir, AYZW_setting_name, proximal_setting_name)) # save this parallel res as rds
+
+
+# =================== Combine ATEs (into one df) ===================================================
+print(sprintf("[%s]    - Combine ATEs", Sys.time()))
 # ATE_par[, 1]
 # ATE_par[[1, ]]
 # length(ATE_par)
 # unlist(ATE_par)
 # ATE_par[1] |> as.data.frame()
 
-
 ATE_df = NULL
-for(AY_idx in whichROWS) {
-  if(!is.null(ATE_par[[AY_idx]])) {
+for(whichROWS_idx in 1:length(whichROWS)) { # whichROWS_idx is always 1, 2, ...
+  cur_ATE_par = ATE_par[[whichROWS_idx]]
+  
+  if(!is.null(cur_ATE_par)) {
+    # AY test is whichROWS[whichROWS_idx]  = AY_idx!!! 
+    AY_idx = whichROWS[whichROWS_idx]
+    
     ATE_df = rbind(ATE_df,
                    cbind(data.frame(AY_idx=AY_idx),
                          AY[AY_idx, ] |> `rownames<-`( NULL ),
-                         ATE_par[[AY_idx]]))
+                         cur_ATE_par))
+    rm(AY_idx)
   }
 }
 
@@ -293,8 +277,8 @@ write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_countGLM.csv', save_di
 
 
 
-# =================== END ====================================================
-print(sprintf("[%s] END", Sys.time()))
+# =================== END ==========================================================================
+print(sprintf("[%s] END: %s", Sys.time(), AYZW_setting_name))
 
 
 
