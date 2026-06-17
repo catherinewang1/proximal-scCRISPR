@@ -127,7 +127,7 @@ proximal_continuous_settings = list(
                  # === NC Parameters
                  NC_type      = 'singlegene',
                  NC_name      = 'singlegene',
-                 num_NC_pairs = if(!is.null(default_num_NC_pairs)) default_num_NC_pairs else c(1, 2, 3, 4, 5, 8, 10, 15, 20, 30, 50),
+                 num_NC_pairs = if(!is.null(default_num_NC_pairs)) default_num_NC_pairs else c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 30, 50),
                  # extra params for sparsePCA 
                  my_sumabsv   = NA, 
                  my_K         = NA,
