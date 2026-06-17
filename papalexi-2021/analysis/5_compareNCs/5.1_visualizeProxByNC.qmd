@@ -1,0 +1,1427 @@
+---
+title: "5.1_visualizeProxByNC"
+format: 
+  html:
+    theme: flatly
+    toc: true
+    toc-depth: 4
+    fig-format: svg 
+    embed-resources: true
+    self-contained-math: true
+editor: source
+execute: 
+  echo: false
+  warning: false
+  error: false
+---
+
+
+
+
+
+
+
+# Load
+
+
+```{r output=FALSE}
+# Libraries and Parameters
+# ========================================================================================================================================================================
+suppressPackageStartupMessages(library(assertthat)) # for some assert statements
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(cowplot))
+suppressPackageStartupMessages(library(ggh4x))
+
+
+theme_set(theme_cowplot() +
+            theme(plot.title = element_text(hjust = .5),
+                  plot.subtitle = element_text(hjust = .5),
+                  strip.background = element_rect(fill = "white", color = 'black'),
+                  panel.grid.minor = element_blank(),
+                  panel.grid.major = element_blank()))
+
+
+# === === === === === === === === === === === === === === === === === === === === === === === === === 
+# parameters
+DEVICE                = 'laptop'
+AYZW_setting_name     = 'A'
+NC_names_raw = 'PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene'
+NC_names = strsplit(x = NC_names_raw, split = '-') |> unlist()
+NC_names_chosen = NC_names[c(1, 2, 3, 4, 5)] #all for now, but only include SPC8.0 later i think, can set the order of the NCs here
+
+source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
+# === === === === === === === === === === === === === === === === === === === === === === === === === 
+
+
+
+# Continuous
+# ========================================================================================================================================================================
+
+# --- Folder ---
+plot_dir_continuous = sprintf('%s/AY/%s/plots/continuous/', save_dir, AYZW_setting_name) # create plot_dir (based on save_dir + settings)
+dir.create(plot_dir_continuous, showWarnings = FALSE, recursive=TRUE)
+
+# --- Resulting Data ---
+chosen_NCtype_numNC = data.frame(NC_type=c('poisYA', 'poisYAU', 'nbYA', 'nbYAU', 'lmYA', 'lmYAU', 'PCA', 'SPCA8.0', 'SPCA34.5', 'WGCNA', 'singlegene'),
+                                 numNC  =c(     NA ,        NA,    NA ,      NA,    NA ,      NA,   10,         15,         10,       9,      25))
+
+
+effects_continuous = read.csv(sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_names_raw))
+effects_continuous = effects_continuous |> filter(type != 'maybe')
+effects_continuous$type = factor(effects_continuous$type,
+       levels = c('negative', 'positive'),
+       labels = c(    'Null', 'Alternative'))
+
+# --- Colors and Ordering and Format Text Labels ---
+
+
+# # config colors for plot
+# method_long_colors = c( colorRampPalette(c('white', '#00a300'))(8)[c(4, 8)], 
+#                         viridis::plasma(11)[c(3, 4, 5, 6, 7, 8, 9, 10)])
+# barplot(height = 1:length(method_long_colors), col = method_long_colors)
+# for each NC_type, choose just 1 numNC to represent 
+
+
+color_pallette = paletteer::paletteer_d("colorblindr::OkabeIto_black") 
+NC_base_colors = c('lm' = '#C11800FF', 'PCA'=color_pallette[3], 'SPCA8.0'=color_pallette[6], 'SPCA34.5'=color_pallette[1], 'WGCNA'=color_pallette[5], 'singlegene'=color_pallette[7])
+# NC_base_colors = c('PCA'='blue', 'SPCA8.0'='red', 'SPCA34.5'='orange', 'WGCNA'='green', 'singlegene'='purple')
+barplot(names.arg = NC_base_colors, height = 1:length(NC_base_colors), col = NC_base_colors)
+
+format_methodlong <- function(method, NC_type, numNC) {
+  if(method == 'lmYA' ) {return("Lin Reg")}
+  if(method == 'lmYAU') {return("Lin Reg (w/ confounders)")}
+  
+  if(method == '2SLSpci2s') {
+    return(sprintf('Proximal: %s (#NC=%d)', NC_type, numNC))
+  }
+}
+
+
+# source(sprintf('%s/AY/proximal_continuous_settings.r', save_dir)) # loads in list: proximal_continuous_settings
+
+# construct the ordering
+method_long_paste  =  c('lmYANANA', 'lmYAUNANA')
+method_long_order  =  c('Lin Reg', 'Lin Reg (w/ confounders)')
+method_long_colors =  colorRampPalette(c('white', NC_base_colors[['lm']]))(8)[c(4, 8)]
+for(NC_name in NC_names_chosen) {
+  # proximal_setting = readRDS(sprintf('%s/AY/%s/%s/proximal_setting.rds', save_dir, AYZW_setting_name, NC_name))
+  # proximal_setting = proximal_continuous_settings[[NC_name]]
+  # cur_numNCs = proximal_setting$num_NC_pairs
+  # if only select a few numNCs, select that here
+  cur_numNCs =   effects_continuous |> filter(NC_type == NC_name) |> pull(numNC) |> unique() |> sort()
+  
+  colors_to_add = colorRampPalette(c('white', NC_base_colors[NC_name]))(length(cur_numNCs) + 1)[-(1)]
+  method_long_names_to_add = c()
+  for(numNC_1 in cur_numNCs) {
+    method_long_names_to_add = c(method_long_names_to_add, format_methodlong('2SLSpci2s', NC_name, numNC_1))
+  }
+  
+  method_long_paste  = c(method_long_paste, paste0('2SLSpci2s', NC_name,cur_numNCs))
+  method_long_order  = c(method_long_order, method_long_names_to_add)
+  method_long_colors = c(method_long_colors, colors_to_add)
+  rm( method_long_names_to_add, colors_to_add)
+}
+names(method_long_colors) = method_long_order
+
+effects_continuous = effects_continuous |> 
+                     mutate(method_long = factor(paste0(method, NC_type, numNC), 
+                                                 levels = method_long_paste,
+                                                 labels = method_long_order))
+
+effects_continuous = effects_continuous |> mutate(method = factor(method, levels = c('lmYA', 'lmYAU', '2SLSpci2s')))
+
+
+#' convert NC_type to the current method_i, if NC_type is NA and method_i is lmYA or lmYAU
+fn_turn_NC_type_lm <- function(NC_type_i, method_i) {
+  if(is.na(NC_type_i) && method_i %in% c('lmYA', 'lmYAU')) {return(method_i)}
+  else {return(NC_type_i)}
+}
+effects_continuous$NC_type = mapply(FUN = fn_turn_NC_type_lm,
+                                    NC_type_i = effects_continuous$NC_type, 
+                                    method_i = as.character(effects_continuous$method)) |> unname()
+effects_continuous = effects_continuous |> mutate(NC_type = factor(NC_type, levels = c('lmYA', 'lmYAU', NC_names_chosen)))
+
+
+dim(effects_continuous); head(effects_continuous)
+
+
+# Count GLM
+# ========================================================================================================================================================================
+proximal_setting_name_count = 'simpleCount'
+
+
+plot_dir_count = sprintf('%s/AY/%s/plots/count/', save_dir, AYZW_setting_name) # create plot_dir (based on save_dir + settings)
+dir.create(plot_dir_count, showWarnings = FALSE)
+
+
+
+# config colors for plot
+method_long_colors_count = c(colorRampPalette(c('white', 'darkblue'))(8)[c(4, 8)], #light blue, darker blue
+                             colorRampPalette(c('white', 'darkorchid4'))(8)[c(4, 8)]  #light teal, darker teal
+                             )
+barplot(1:length(method_long_colors_count), col = method_long_colors_count)
+names(method_long_colors_count) =  c("Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)")
+
+effects_count = read.csv(sprintf('%s/AY/%s/%s/effects_countGLM.csv', save_dir, AYZW_setting_name, proximal_setting_name_count)) # laptop avg time .08 vs ubergenno avg time .93
+effects_count = effects_count |> mutate(method_long = paste0(method, numNC))
+
+effects_count$method_long = factor(effects_count$method_long, 
+       levels = c( "poisYANA",  "poisYAUNA", "nbYANA", "nbYAUNA"),
+       labels = c("Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)"))
+
+
+
+effects_count$type = factor(effects_count$type,
+       levels = c('negative', 'positive'),
+       labels = c(    'Null', 'Alternative'))
+
+
+dim(effects_count); head(effects_count)
+
+
+# All
+# ========================================================================================================================================================================
+
+# save results of 'all' together in continuous folder
+plot_dir_all = sprintf('%s/AY/%s/plots/all/', save_dir, AYZW_setting_name)  # create plot_dir (based on save_dir + settings)
+dir.create(plot_dir_all, showWarnings = FALSE)
+
+
+# config colors for plot
+method_long_colors_all = c(method_long_colors_count, method_long_colors)
+barplot(1:length(method_long_colors_all), col = method_long_colors_all)
+
+# bind df and order cols
+NC_type_all_ordering = c('lmYA'    = 'Linear', 
+                         'lmYAU'   = 'Linear\n(w/ confounders)', 
+                         'poisYA'  = 'Poisson', 
+                         'poisYAU' = 'Poisson\n(w/ confounders)', 
+                         'nbYA'    = 'Negative Binomial', 
+                         'nbYAU'   = 'Negative Binomial\n(w/ confounders)', 
+                         NC_names_chosen |> `names<-`( NC_names_chosen ))
+
+
+# effects = rbind(effects_continuous, effects_count)
+effects = dplyr::bind_rows(effects_continuous, effects_count |> mutate(NC_type = method)) # and fill NA if col not present
+effects$NC_type     = factor(effects$NC_type,     levels = names(NC_type_all_ordering))
+effects$method_long = factor(effects$method_long, levels = names(method_long_colors_all))
+
+# effects = effects |> mutate(method_long = paste0(method, numNC))
+# 
+# effects$method_long = factor(effects$method_long, 
+#        levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,       
+#                          "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",       "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
+#        labels = c( "Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)", "Lin Reg", "Lin Reg (w/ confounders)", 
+#                    "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=8)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
+
+# effects$type = factor(effects$type,
+#        levels = c('negative', 'positive'),
+#        labels = c(    'Null', 'Alternative'))
+
+dim(effects); head(effects)
+
+```
+
+
+```{r}
+print(sprintf('The NC_names_raw is: %s', NC_names_raw))
+print(sprintf('The chosen NCs are: %s', paste0(NC_names, collapse = ', ')))
+```
+
+
+
+# Continuous Method Results
+
+## Histogram of estimates and p-values
+
+Histogram of estimates
+```{r, fig.width=13, fig.height = 25}
+ggplot(effects_continuous,
+       aes(x = ATE, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .05) + # bins = 50) +
+  geom_vline(aes(xintercept = 0), color = 'gray15', linewidth = .4) +
+  coord_cartesian(xlim = c(-2, 1), ylim = c(0, 3)) +
+  scale_y_continuous(breaks = 0:2, expand = expansion(mult = c(0, .05))) +
+  scale_fill_manual(values = method_long_colors, 
+                    guide = guide_legend(ncol = 1)) +
+  facet_grid(cols = vars(type), 
+             rows = vars(NC_type, numNC), # vars(method_long), # vars(method, NC_type, numNC), 
+             scales = 'free') + 
+  labs(title = 'Histogram of Estimates',
+       fill = 'Method') +
+  theme(strip.text.y = element_text(size = 8), 
+        axis.text.y = element_text(size = 8), 
+        panel.spacing.x = unit(1, "lines"),
+        panel.spacing.y = unit(0, "lines"))
+
+ggsave(sprintf('%s/estimates_hist.pdf', plot_dir_continuous), height = 25, width= 13)
+```
+
+
+Histogram of p-values
+```{r fig.width=13, fig.height = 25}
+
+p = ggplot(effects_continuous,
+       aes(x = pval, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .020) + # bins = 50) +
+  scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1'), 
+                     expand = expansion(mult = c(.01, .01))) +
+  # coord_cartesian(ylim = c(0, 3)) +
+  scale_y_continuous( expand = expansion(mult = c(0, .05))) +
+  scale_fill_manual(values = method_long_colors, guide = guide_legend(ncol = 1)) +
+  facet_grid2(cols = vars(type), 
+             rows = vars(NC_type, numNC), # vars(method_long), # vars(method, NC_type, numNC), 
+             axes = 'x', remove_labels = 'x', independent = 'y', shrink = TRUE,
+             scales = 'free') + 
+  labs(title = 'Histogram of p-values',
+       x = 'p-value',
+       fill = 'Method') +
+  theme(strip.text.y = element_text(size = 8), 
+        axis.text.y = element_text(size = 8), 
+        panel.spacing.x = unit(1, "lines"),
+        panel.spacing.y = unit(0, "lines"))
+p
+
+ggsave(sprintf('%s/pval_hist.pdf', plot_dir_continuous), height = 25, width= 13)
+
+
+# # # force same axes- does not look good, but gives perspective
+# p + facet_grid2(cols = vars(type),
+#              rows = vars(NC_type, numNC), # vars(method_long), # vars(method, NC_type, numNC),
+#              axes = 'x', remove_labels = 'x', independent = 'y', shrink = TRUE,
+#              scales = 'fixed')
+```
+
+
+
+## QQ-plots/Rejection Rates of p-values
+
+
+### all methods with all NCs
+
+
+QQ-plot (basically)
+```{r fig.width=12, fig.height = 6}
+# config df for plotting
+# the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
+plot_df = effects_continuous |> group_by(type, method_long, NC_type, numNC) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) 
+
+#----- p-values: qqplot vs uniform = rejection rate by pval threshold (all numNC)  ---------- 'pval_qqplot.pdf'
+ggplot(plot_df,
+       aes(x = pval, y = rejection_rate, color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_point() +
+  geom_line(linewidth = .4, alpha = .9, key_glyph = "rect") +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_color_manual(values = method_long_colors, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = 'Rejection Rate by P-value Threshold', 
+       x = 'p-value threshold', y = 'rejection rate',
+       color = 'Method') +
+  facet_grid(rows = vars(type)) +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+ggsave(sprintf('%s/pval_qqplot.pdf', plot_dir_continuous), height = 7, width= 8)
+
+
+
+
+#----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf'
+p = ggplot(plot_df,
+       aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_line(linewidth = .9, alpha = .8, key_glyph = 'rect') +
+  geom_point(size = 2, alpha = .7, key_glyph = 'rect', stroke=NA) +
+  # scale_x_continuous(limits = c(2, 3.5)) +
+  # scale_y_continuous(limits = c(0, 200)) +
+  scale_color_manual(values = method_long_colors, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
+       color = 'Method') +
+  # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
+  facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right") +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+p
+
+ggsave(sprintf('%s/pval_qqplot_log.pdf', plot_dir_continuous), height = 7, width= 8)
+
+
+
+# use gg4x to set limits separately 
+# https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975
+#----- p-values: log10 qqplot (Focus on same tail) ------------------------ 'pval_qqplot_log_tail1.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.4, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 2))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 40)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 40))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail1.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+#----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail2.pdf'
+p + ggh4x::facetted_pos_scales(x = list(
+  type == 'Null'        ~ scale_x_continuous(limits = c(1, 3.25)),
+  type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 2))
+))
+ggsave(sprintf('%s/pval_qqplot_log_tail2.pdf', plot_dir_continuous), height = 6, width= 6)
+
+#----- p-values: log10 qqplot (Focus even more on different tails) ------------------------ 'pval_qqplot_log_tail3.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(1, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 1.25))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 35)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 60))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail3.pdf', plot_dir_continuous), height = 6, width= 6)
+```
+
+
+
+
+
+
+
+
+
+### all methods with one choice of NC
+
+```{r fig.width=6, fig.height = 6}
+
+
+
+# config df for plotting
+# the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
+plot_df = effects_continuous |> group_by(type, method_long, NC_type, numNC) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) 
+plot_df = merge(chosen_NCtype_numNC, plot_df, by = c('NC_type', 'numNC'))
+
+# make these colors the NC_base_colors (e.g. the color that would've bene for the max num NC)
+method_long_colors_1numNC =  c(method_long_colors['Lin Reg'], method_long_colors['Lin Reg (w/ confounders)'],
+                               sapply(X = names(method_long_colors)[-(1:2)], FUN = function(v){NC_base_colors[strsplit(v, split = ' ')[[1]][2]] |> unname()}))
+
+
+
+
+#----- p-values: qqplot vs uniform = rejection rate by pval threshold (subset chosen 1 numNC per NC_type) ---------- 'pval_qqplot.pdf'
+ggplot(plot_df,
+       aes(x = pval, y = rejection_rate, color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_point() +
+  geom_line(linewidth = .8, alpha = .9, key_glyph = "rect") +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_color_manual(values = method_long_colors_1numNC, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = 'Rejection Rate by P-value Threshold', 
+       x = 'p-value threshold', y = 'rejection rate',
+       color = 'Method') +
+  facet_grid(rows = vars(type)) +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+ggsave(sprintf('%s/pval_qqplot_1numNC.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+
+#----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf'
+p = ggplot(plot_df,
+       aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_line(linewidth = .5, alpha = .5, key_glyph = 'rect') +
+  geom_point(size = 2, alpha = .7, key_glyph = 'rect', stroke=NA) +
+  # scale_x_continuous(limits = c(2, 3.5)) +
+  # scale_y_continuous(limits = c(0, 200)) +
+  scale_color_manual(values = method_long_colors_1numNC, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
+       color = 'Method') +
+  # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
+  facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right") +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+p
+
+ggsave(sprintf('%s/pval_qqplot_log_1numNC.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+
+# use gg4x to set limits separately 
+# https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975
+#----- p-values: log10 qqplot (Focus on same tail) ------------------------ 'pval_qqplot_log_tail1.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.4, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 2))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 40)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 40))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail1_1numNC.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+#----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail2.pdf'
+p + ggh4x::facetted_pos_scales(x = list(
+  type == 'Null'        ~ scale_x_continuous(limits = c(1, 3.25)),
+  type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 2))
+))
+ggsave(sprintf('%s/pval_qqplot_log_tail2_1numNC.pdf', plot_dir_continuous), height = 6, width= 6)
+
+#----- p-values: log10 qqplot (Focus even more on different tails) ------------------------ 'pval_qqplot_log_tail3.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(1, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 1.25))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 35)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 60))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail3_1numNC.pdf', plot_dir_continuous), height = 6, width= 6)
+
+```
+
+
+### each method with all choices of NC
+
+
+#### qqplot (regular)
+
+
+```{r fig.width=6, fig.height = 6}
+
+make_qqplot <- function(plot_df) {
+  #----- p-values: qqplot vs uniform = rejection rate by pval threshold ---------- 'pval_qqplot.pdf'
+  ggplot(plot_df,
+         aes(x = pval, y = rejection_rate, color = method_long)) +
+    geom_abline(slope = 1, intercept = 0) +
+    # geom_point() +
+    geom_line(linewidth = 1, alpha = .95, key_glyph = "rect") +
+    scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+    scale_y_continuous(limits = c(0, 1)) +
+    scale_color_manual(values = method_long_colors) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+    labs(title = 'Rejection Rate by P-value Threshold', 
+         x = 'p-value threshold', y = 'rejection rate',
+         color = 'Method') +
+    facet_grid(rows = vars(type)) + 
+    theme(legend.text = element_text(size = 9), legend.key.size = unit(.4, units = 'cm'))
+}
+
+
+# focus only on PCA
+make_qqplot(effects_continuous |> filter(NC_type == 'PCA' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+ggsave(sprintf('%s/PCA_pval_qqplot.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+# focus only on SPCA8.0 
+make_qqplot(effects_continuous |> filter(NC_type == 'SPCA8.0' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+ggsave(sprintf('%s/SPCA8.0_pval_qqplot.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+# focus only on SPCA34.5 
+make_qqplot(effects_continuous |> filter(NC_type == 'SPCA34.5' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+ggsave(sprintf('%s/SPCA34.5_pval_qqplot.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+# focus only on WGCNA 
+make_qqplot(effects_continuous |> filter(NC_type == 'WGCNA' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+ggsave(sprintf('%s/WGCNA_pval_qqplot.pdf', plot_dir_continuous), height = 6, width= 6)
+
+# focus only on singlegene 
+make_qqplot(effects_continuous |> filter(NC_type == 'singlegene' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+ggsave(sprintf('%s/singlegene_pval_qqplot.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+
+
+```
+
+
+#### qqplot (log)
+
+```{r fig.width=12, fig.height = 6}
+
+
+make_qqplot_log <- function(plot_df) {
+    p = ggplot(plot_df,
+               aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method_long)) +
+          geom_abline(slope = 1, intercept = 0) +
+          geom_line(linewidth = .5, alpha = .5, key_glyph = 'rect') +
+          geom_point(size = 2, alpha = .7, key_glyph = 'rect', stroke=NA) +
+          # scale_x_continuous(limits = c(2, 3.5)) +
+          # scale_y_continuous(limits = c(0, 200)) +
+          scale_color_manual(values = method_long_colors) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+          labs(title = '-log(p-value) by -log(Unif(0,1))', 
+               x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
+               color = 'Method') +
+          # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
+          facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right") +
+          theme(legend.text = element_text(size = 9), legend.key.size = unit(.4, units = 'cm'))
+  
+    return(list(p=p, 
+              ptail=p + ggh4x::facetted_pos_scales(
+                            x = list(
+                              type == 'Null'        ~ scale_x_continuous(limits = c(.05, 2)),
+                              type == 'Alternative' ~ scale_x_continuous(limits = c(.05, 2))  ),
+                            y = list(
+                              type == 'Null'        ~ scale_y_continuous(limits = c(0, 40)),
+                              type == 'Alternative' ~ scale_y_continuous(limits = c(0, 40))  )
+                            )))
+}
+
+
+# focus only on PCA
+res = make_qqplot_log(effects_continuous |> filter(NC_type == 'PCA' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+gridExtra::grid.arrange(res$p, res$ptail, nrow = 1, top = "PCA")
+
+
+ggsave(plot = res$p,     filename = sprintf('%s/PCA_pval_qqplot_log.pdf',       plot_dir_continuous), height = 6, width= 6)
+ggsave(plot = res$ptail, filename = sprintf('%s/PCA_pval_qqplot_log_tail1.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+
+# focus only on SPCA8.0 
+res = make_qqplot_log(effects_continuous |> filter(NC_type == 'SPCA8.0' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+gridExtra::grid.arrange(res$p, res$ptail, nrow = 1, top = "SPCA8.0")
+ggsave(plot = res$p,     filename = sprintf('%s/SPCA8.0_pval_qqplot_log.pdf',       plot_dir_continuous), height = 6, width= 6)
+ggsave(plot = res$ptail, filename = sprintf('%s/SPCA8.0_pval_qqplot_log_tail1.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+# focus only on SPCA34.5 
+res = make_qqplot_log(effects_continuous |> filter(NC_type == 'SPCA34.5' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+gridExtra::grid.arrange(res$p, res$ptail, nrow = 1, top = "SPCA34.5")
+ggsave(plot = res$p,     filename = sprintf('%s/SPCA34.5_pval_qqplot_log.pdf',       plot_dir_continuous), height = 6, width= 6)
+ggsave(plot = res$ptail, filename = sprintf('%s/SPCA34.5_pval_qqplot_log_tail1.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+# focus only on WGCNA 
+res = make_qqplot_log(effects_continuous |> filter(NC_type == 'WGCNA' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+gridExtra::grid.arrange(res$p, res$ptail, nrow = 1, top = "WGCNA")
+ggsave(plot = res$p,     filename = sprintf('%s/WGCNA_pval_qqplot_log.pdf',       plot_dir_continuous), height = 6, width= 6)
+ggsave(plot = res$ptail, filename = sprintf('%s/WGCNA_pval_qqplot_log_tail1.pdf', plot_dir_continuous), height = 6, width= 6)
+
+# focus only on singlegene 
+res = make_qqplot_log(effects_continuous |> filter(NC_type == 'singlegene' | NC_type == 'lmYA' | NC_type == 'lmYAU') |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) )
+gridExtra::grid.arrange(res$p, res$ptail, nrow = 1, top = "singlegene")
+ggsave(plot = res$p,     filename = sprintf('%s/singlegene_pval_qqplot_log.pdf',       plot_dir_continuous), height = 6, width= 6)
+ggsave(plot = res$ptail, filename = sprintf('%s/singlegene_pval_qqplot_log_tail1.pdf', plot_dir_continuous), height = 6, width= 6)
+
+
+
+
+```
+
+
+
+
+
+
+
+# Count GLM Method Results
+
+
+
+
+
+
+## Histogram of Estimates and p-values
+
+
+
+Histogram of estimates
+```{r, fig.width=15, fig.height = 5}
+# horizantal version (looks better)
+ggplot(effects_count,
+       aes(x = ATE, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)),  bins = 40) + # binwidth = .25) +
+  geom_vline(aes(xintercept = 0), color = 'gray10', linewidth = .2) +
+  scale_fill_manual(values = method_long_colors_count) +
+  facet_grid(rows = vars(type), cols = vars(method_long), scales = 'fixed') + 
+  labs(title = 'Histogram of Estimates',
+       fill = 'Method') +
+  theme(strip.text.x = element_text(vjust = 1), 
+        panel.spacing.x = unit(.15, "lines"))
+
+ggsave(sprintf('%s/estimates_hist_hori.pdf', plot_dir_count), height = 5, width= 15)
+
+
+# vertical version- to be aligned ith continuous version (hich has to be vert bc of ho many methods there are)
+p = ggplot(effects_count |> 
+             mutate(method_long = factor(method, 
+                                         levels = c( "poisYA",  "poisYAU", "nbYA", "nbYAU"),
+                                         labels = c("Poisson", "Poisson\n(w/ confounders)", "Negative Binomial", "Negative Binomial\n(w/ confounders)"))),
+       aes(x = ATE, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)),  bins = 40) + # binwidth = .25) +
+  geom_vline(aes(xintercept = 0), color = 'gray10', linewidth = .2) +
+  scale_fill_manual(values = method_long_colors_count) +
+  facet_grid(rows = vars(type), cols = vars(method_long), scales = 'fixed') + 
+  labs(title = 'Histogram of Estimates',
+       fill = 'Method') +
+  theme(strip.text.x = element_text(vjust = 1))
+
+
+ggsave(plot = p + facet_grid(cols = vars(type), rows = vars(method_long), scales = 'fixed') +
+                  theme(strip.text.x = element_text(vjust = .5), 
+                        strip.text.y = element_text(vjust = 1)), 
+       filename = sprintf('%s/estimates_hist_vert.pdf', plot_dir_count), height = 8, width= 8)
+```
+
+
+
+Histogram of p-values
+```{r fig.width=15, fig.height = 5}
+ggplot(effects_count,
+       aes(x = pval, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .02) +
+  scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_fill_manual(values = method_long_colors_count) +
+  facet_grid(rows = vars(type), cols = vars(method_long), scales = 'fixed') +
+  labs(title = 'Histogram of p-values',
+       x = 'p-value',
+       fill = 'Method') +
+  theme(strip.text.x = element_text(vjust = 1))
+
+ggsave(sprintf('%s/pval_hist_hori.pdf', plot_dir_count), height = 5, width= 15)
+
+# vertical version- copy paste prev plot except change method_long col- add changes hen saving
+p = ggplot(effects_count  |> 
+             mutate(method_long = factor(method, 
+                                         levels = c( "poisYA",  "poisYAU", "nbYA", "nbYAU"),
+                                         labels = c("Poisson", "Poisson\n(w/ confounders)", "Negative Binomial", "Negative Binomial\n(w/ confounders)"))),
+       aes(x = pval, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .02) +
+  scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_fill_manual(values = method_long_colors_count) +
+  facet_grid(rows = vars(type), cols = vars(method_long), scales = 'fixed') +
+  labs(title = 'Histogram of p-values',
+       x = 'p-value',
+       fill = 'Method') +
+  theme(strip.text.x = element_text(vjust = 1))
+
+ggsave(plot = p + facet_grid(cols = vars(type), rows = vars(method_long), scales = 'fixed') +
+                  theme(strip.text.x = element_text(vjust = .5), 
+                        strip.text.y = element_text(vjust = 1)),
+       filename = sprintf('%s/pval_hist_vert.pdf', plot_dir_count), height = 8, width= 8)
+
+
+
+```
+
+
+## QQ-Plots of p-values
+
+QQ-plot (basically)
+```{r}
+# config df for plotting
+# the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
+plot_df = effects_count |> mutate(method_long = paste0(method, numNC)) |> group_by(type, method_long) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n())
+plot_df$method_long = factor(plot_df$method_long, 
+       levels = c( "poisYANA",  "poisYAUNA", "nbYANA", "nbYAUNA"),
+       labels = c("Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)"))
+
+# plot_df$type = factor(plot_df$type,
+#        levels = c('negative', 'positive'),
+#        labels = c(    'Null', 'Alternative'))
+
+
+#----- p-values: qqplot vs uniform = rejection rate by pval threshold ---------- 'pval_qqplot.pdf'
+ggplot(plot_df,
+       aes(x = pval, y = rejection_rate, color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_point() +
+  geom_line(linewidth = 1, alpha = .9) +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_color_manual(values = method_long_colors_count) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = 'Rejection Rate by P-value Threshold', 
+       x = 'p-value threshold', y = 'rejection rate',
+       color = 'Method') +
+  facet_grid(rows = vars(type)) 
+
+ggsave(sprintf('%s/pval_qqplot.pdf', plot_dir_count), height = 6, width= 8)
+
+
+#----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf'
+p = ggplot(plot_df,
+       aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_line(linewidth = .9, alpha = .8, key_glyph = 'rect') +
+  geom_point(size = 2, alpha = .7, key_glyph = 'rect', stroke=NA) +
+  # scale_x_continuous(limits = c(2, 3.5)) +
+  # scale_y_continuous(limits = c(0, 200)) +
+  scale_color_manual(values = method_long_colors_count) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
+       color = 'Method') +
+  # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
+  facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right")
+p
+
+ggsave(sprintf('%s/pval_qqplot_log.pdf', plot_dir_count), height = 6, width= 8)
+
+
+
+# use gg4x to set limits separately 
+# https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975
+#----- p-values: log10 qqplot (Focus on same tail) ------------------------ 'pval_qqplot_log_tail1.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.4, 2.5)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 2.5))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 300)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 300))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail1.pdf', plot_dir_count), height = 6, width= 8)
+
+
+#----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail2.pdf'
+p + ggh4x::facetted_pos_scales(x = list(
+  type == 'Null'        ~ scale_x_continuous(limits = c(1, 3.25)),
+  type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 2))
+))
+ggsave(sprintf('%s/pval_qqplot_log_tail2.pdf', plot_dir_count), height = 6, width= 8)
+
+#----- p-values: log10 qqplot (Focus even more on different tails) ------------------------ 'pval_qqplot_log_tail3.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(1, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 1.25))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 35)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 60))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail3.pdf', plot_dir_count), height = 6, width= 8)
+```
+
+
+
+
+
+
+# Continuous + Count Results together 
+
+
+
+
+
+
+## Computation Time
+
+Histogram of computation time
+```{r, fig.height=4, fig.width=6}
+
+
+
+p = ggplot(effects, 
+       aes(x = time_sec, y = method_long, fill = method_long)) +
+  geom_boxplot(outliers = FALSE, box.linewidth = .2, median.linewidth = .4, whisker.linewidth = .4) +
+  scale_fill_manual(values = method_long_colors_all) +
+  scale_y_discrete(limits = rev) +
+  # facet_grid(cols = vars(type)) +
+  labs(title = 'Computation Time by Method',
+       fill = 'Method', x = 'time (sec)', y = 'Method') +
+  theme(legend.position = 'none', axis.text.y = element_text(hjust = 1, size = 5.5))
+
+p
+
+ggsave(sprintf('%s/time_boxplot.pdf', plot_dir_all), height = 4, width = 6)
+
+p + scale_x_log10(labels = scales::label_number(accuracy = 1, big.mark = ''))
+ggsave(sprintf('%s/time_boxplot_log.pdf', plot_dir_all), height = 4, width = 6)
+
+
+
+```
+
+## Histogram of estimates and p-values
+
+Histogram of estimates
+```{r, fig.width=13, fig.height = 23}
+ggplot(effects |> mutate(NC_type = factor(NC_type, labels = NC_type_all_ordering)),
+       aes(x = ATE, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .05) + # bins = 50) +
+  geom_vline(aes(xintercept = 0), color = 'gray15', linewidth = .4) +
+  coord_cartesian(xlim = c(-2, 1), ylim = c(0, 3)) +
+  scale_y_continuous(breaks = 0:2, expand = expansion(mult = c(0, .05))) +
+  scale_fill_manual(values = method_long_colors_all, 
+                    guide = guide_legend(ncol = 1)) +
+  facet_grid(cols = vars(type), 
+             rows = vars(NC_type, numNC), # vars(method_long), # vars(method, NC_type, numNC), 
+             scales = 'free') + 
+  labs(title = 'Histogram of Estimates',
+       fill = 'Method') +
+  theme(strip.text.y = element_text(size = 7), 
+        axis.text.y = element_text(size = 8), 
+        panel.spacing.x = unit(1, "lines"),
+        panel.spacing.y = unit(0, "lines"))
+
+
+ggsave(sprintf('%s/estimates_hist.pdf', plot_dir_all),  height = 32, width= 13)
+```
+
+
+
+
+
+Histogram of p-values
+```{r fig.width=13, fig.height = 23}
+# ggplot(effects,
+#        aes(x = pval, fill = method_long)) +
+#   geom_histogram(aes(y = after_stat(..density..)), binwidth = .02) +
+#   scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+#   scale_fill_manual(values = method_long_colors_all) +
+#   facet_grid(rows = vars(type), cols =  vars(method, numNC), scales = 'free') +
+#   labs(title = 'Histogram of p-values',
+#        x = 'p-value',
+#        fill = 'Method')
+# 
+# ggsave(sprintf('%s/pval_hist.pdf', plot_dir_all), height = 5, width= 20)
+
+
+p = ggplot(effects  |> mutate(NC_type = factor(NC_type, labels = NC_type_all_ordering)),
+       aes(x = pval, fill = method_long)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .020) + # bins = 50) +
+  scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1'), 
+                     expand = expansion(mult = c(.01, .01))) +
+  # coord_cartesian(ylim = c(0, 3)) +
+  scale_y_continuous( expand = expansion(mult = c(0, .05))) +
+  scale_fill_manual(values = method_long_colors_all, guide = guide_legend(ncol = 1)) +
+  facet_grid2(cols = vars(type), 
+             rows = vars(NC_type, numNC), # vars(method_long), # vars(method, NC_type, numNC), 
+             axes = 'x', remove_labels = 'x', independent = 'y', shrink = TRUE,
+             scales = 'free') + 
+  labs(title = 'Histogram of p-values',
+       x = 'p-value',
+       fill = 'Method') +
+  theme(strip.text.y = element_text(size = 7), 
+        axis.text.y = element_text(size = 8), 
+        panel.spacing.x = unit(1, "lines"),
+        panel.spacing.y = unit(0, "lines"))
+p
+
+ggsave(sprintf('%s/pval_hist.pdf', plot_dir_all), height = 32, width= 13)
+
+```
+
+## QQ-plots/Rejection Rates of p-values
+
+### all methods with all NCs
+
+
+QQ-plot (basically)
+```{r fig.width=6, fig.height = 6}
+# config df for plotting
+# the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
+plot_df = effects |> group_by(type, method_long, NC_type, numNC) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) 
+
+#----- p-values: qqplot vs uniform = rejection rate by pval threshold (all numNC)  ---------- 'pval_qqplot.pdf'
+ggplot(plot_df,
+       aes(x = pval, y = rejection_rate, color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_point() +
+  geom_line(linewidth = .4, alpha = .9, key_glyph = "rect") +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_color_manual(values = method_long_colors_all, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = 'Rejection Rate by P-value Threshold', 
+       x = 'p-value threshold', y = 'rejection rate',
+       color = 'Method') +
+  facet_grid(rows = vars(type)) +
+  theme(legend.text = element_text(size = 7), legend.key.size = unit(.3, units = 'cm'))
+ggsave(sprintf('%s/pval_qqplot.pdf', plot_dir_all), height = 6, width= 6)
+
+
+
+
+#----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf'
+p = ggplot(plot_df,
+       aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_line(linewidth = .9, alpha = .8, key_glyph = 'rect') +
+  geom_point(size = 2, alpha = .7, key_glyph = 'rect', stroke=NA) +
+  # scale_x_continuous(limits = c(2, 3.5)) +
+  # scale_y_continuous(limits = c(0, 200)) +
+  scale_color_manual(values = method_long_colors_all, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
+       color = 'Method') +
+  # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
+  facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right") +
+  theme(legend.text = element_text(size = 7), legend.key.size = unit(.3, units = 'cm'))
+p
+
+ggsave(sprintf('%s/pval_qqplot_log.pdf', plot_dir_all), height = 6, width= 6)
+
+
+
+# use gg4x to set limits separately 
+# https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975
+#----- p-values: log10 qqplot (Focus on same tail) ------------------------ 'pval_qqplot_log_tail1.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.4, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 2))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 40)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 40))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail1.pdf', plot_dir_all), height = 6, width= 6)
+
+
+#----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail2.pdf'
+p + ggh4x::facetted_pos_scales(x = list(
+  type == 'Null'        ~ scale_x_continuous(limits = c(1, 3.25)),
+  type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 2))
+))
+ggsave(sprintf('%s/pval_qqplot_log_tail2.pdf', plot_dir_all), height = 6, width= 6)
+
+#----- p-values: log10 qqplot (Focus even more on different tails) ------------------------ 'pval_qqplot_log_tail3.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(1, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 1.25))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 35)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 60))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail3.pdf', plot_dir_all), height = 6, width= 6)
+```
+
+
+
+
+
+
+
+
+
+### all methods with one choice of NC
+
+```{r fig.width=6, fig.height = 6}
+
+
+
+# config df for plotting
+# the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
+plot_df = effects |> group_by(type, method_long, NC_type, numNC) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n()) 
+plot_df = merge(chosen_NCtype_numNC, plot_df, by = c('NC_type', 'numNC'))
+
+# make these colors the NC_base_colors (e.g. the color that would've bene for the max num NC)
+method_long_colors_1numNC =  c(method_long_colors_all['Poisson'], method_long_colors_all['Poisson (w/ confounders)'],
+                               method_long_colors_all['Negative Binomial'], method_long_colors_all['Negative Binomial (w/ confounders)'],
+                               method_long_colors_all['Lin Reg'], method_long_colors_all['Lin Reg (w/ confounders)'],
+                               sapply(X = names(method_long_colors)[-(1:2)], FUN = function(v){NC_base_colors[strsplit(v, split = ' ')[[1]][2]] |> unname()}))
+
+
+
+
+#----- p-values: qqplot vs uniform = rejection rate by pval threshold (subset chosen 1 numNC per NC_type) ---------- 'pval_qqplot.pdf'
+ggplot(plot_df,
+       aes(x = pval, y = rejection_rate, color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  # geom_point() +
+  geom_line(linewidth = .8, alpha = .8, key_glyph = "rect") +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_color_manual(values = method_long_colors_1numNC, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = 'Rejection Rate by P-value Threshold', 
+       x = 'p-value threshold', y = 'rejection rate',
+       color = 'Method') +
+  facet_grid(rows = vars(type)) +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+ggsave(sprintf('%s/pval_qqplot_1numNC.pdf', plot_dir_all), height = 6, width= 6)
+
+
+
+#----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf'
+p = ggplot(plot_df,
+       aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method_long)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_line(linewidth = .5, alpha = .5, key_glyph = 'rect') +
+  geom_point(size = 2, alpha = .7, key_glyph = 'rect', stroke=NA) +
+  # scale_x_continuous(limits = c(2, 3.5)) +
+  # scale_y_continuous(limits = c(0, 200)) +
+  scale_color_manual(values = method_long_colors_1numNC, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
+       color = 'Method') +
+  # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid
+  facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right") +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+p
+
+ggsave(sprintf('%s/pval_qqplot_log_1numNC.pdf', plot_dir_all), height = 6, width= 6)
+
+
+
+# use gg4x to set limits separately 
+# https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975
+#----- p-values: log10 qqplot (Focus on same tail) --------------------------------------- 'pval_qqplot_log_tail1.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.05, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.05, 2))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 40)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 40))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail1_1numNC.pdf', plot_dir_all), height = 6, width= 6)
+
+
+#----- p-values: log10 qqplot (more zoomed in) ------------------------------------------- 'pval_qqplot_log_tail2.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.05, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.05, 2))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 10)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 10))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail2_1numNC.pdf', plot_dir_all), height = 6, width= 6)
+
+#----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail3.pdf'
+p + ggh4x::facetted_pos_scales(x = list(
+  type == 'Null'        ~ scale_x_continuous(limits = c(1, 3.25)),
+  type == 'Alternative' ~ scale_x_continuous(limits = c(.4, 2))
+))
+ggsave(sprintf('%s/pval_qqplot_log_tail3_1numNC.pdf', plot_dir_all), height = 6, width= 6)
+
+#----- p-values: log10 qqplot (Focus even more on different tails) ------------------------ 'pval_qqplot_log_tail4.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.5, 2.5)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.2, 1.7))  ),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 60)),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 60))  )
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail4_1numNC.pdf', plot_dir_all), height = 6, width= 6)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ## Best Plots (Focusing on SPCA 8.0) -->
+
+
+<!-- Edit the plots to showcase the results. This will be specific for each setting. For example, we can crop to highlight the tails and subset for different methods (e.g. not all NCs because that can be too many and hard to see). -->
+
+
+<!-- ```{r} -->
+<!-- if(proximal_setting_name_continuous == 'SPCA8.0') { -->
+<!--   # redo the colors bc we subset for numNC so we can choose better -->
+<!--   method_long_colors_best = c(method_long_colors_count, # keep count GLM and lin reg colors -->
+<!--                               method_long_colors[c(1, 2)],  -->
+<!--                               viridis::plasma(8)[c(3, 4, 5, 6)]) -->
+
+<!--   barplot(1:length(method_long_colors_best), col = method_long_colors_best) -->
+<!-- } -->
+
+<!-- ``` -->
+
+
+
+<!-- Histogram of Estimates -->
+<!-- ```{r fig.width=15, fig.height = 5} -->
+<!-- if(proximal_setting_name_continuous == 'SPCA8.0') { -->
+<!--   p = ggplot(effects_continuous |> filter(is.na(numNC) | numNC %in% c(5, 10, 15, 20)), -->
+<!--          aes(x = ATE, fill = method_long)) + -->
+<!--     geom_histogram(aes(y = after_stat(..density..)), binwidth = .15) + -->
+<!--     geom_vline(aes(xintercept = 0), color = 'gray20', linewidth = .4) + -->
+<!--     scale_x_continuous(limits = c(-2.25, 2.25)) + -->
+<!--     scale_fill_manual(values = method_long_colors_best[-(1:4)]) + -->
+<!--     facet_grid(rows = vars(type), cols = vars(method_long), scales = 'free') +  -->
+<!--     labs(title = 'Histogram of Estimates', -->
+<!--          fill = 'Method') -->
+<!--   print(p) -->
+<!--   ggsave(plot = p, filename = sprintf('%s/estimates_hist_2.pdf', plot_dir_all), height = 5, width= 16) -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- Histogram of p-values -->
+<!-- ```{r fig.width=15, fig.height = 5} -->
+<!-- if(proximal_setting_name_continuous == 'SPCA8.0') { -->
+<!--   p = ggplot(effects |> filter(is.na(numNC) | numNC %in% c(5, 10, 15, 20)) |> -->
+<!--            mutate(method_long_facet = factor(paste0(method, numNC),  -->
+<!--          levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,        -->
+<!--                            "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",      "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"), -->
+<!--          labels = c( "Poisson\n", "Poisson\n(w/ confounders)", "Negative Binomial\n", "Negative Binomial\n(w/ confounders)", "Linear Reg\n", "Linear Reg\n(w/ confounders)",  -->
+<!--                      "Proximal\n(#NC=1)", "Proximal\n(#NC=3)", "Proximal\n(#NC=5)", "Proximal\n(#NC=8)", "Proximal\n(#NC=10)", "Proximal\n(#NC=15)", "Proximal\n(#NC=20)"))), -->
+<!--          aes(x = pval, fill = method_long)) + -->
+<!--     geom_histogram(aes(y = after_stat(..density..)), binwidth = .05) + -->
+<!--     scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) + -->
+<!--     scale_fill_manual(values = method_long_colors_best) + -->
+<!--     facet_grid(rows = vars(type), cols = vars(method_long_facet), scales = 'free') + -->
+<!--     labs(title = 'Histogram of p-values', -->
+<!--          x = 'p-value', -->
+<!--          fill = 'Method') -->
+<!--   print(p) -->
+<!--   ggsave(plot = p, filename = sprintf('%s/pval_hist_2.pdf', plot_dir_all), height = 5, width= 25) -->
+<!-- } -->
+<!-- ``` -->
+
+
+
+
+
+
+
+<!-- QQ-plot (basically) -->
+<!-- ```{r fig.height = 6, fig.width= 8} -->
+<!-- if(proximal_setting_name_continuous == 'SPCA8.0') { -->
+<!--   # config df for plotting -->
+<!--   # the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n) -->
+<!--   plot_df = effects |> mutate(method_long = paste0(method, numNC)) |> group_by(type, method_long, numNC) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n())  -->
+<!--   plot_df$method_long = factor(plot_df$method_long,  -->
+<!--          levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,        -->
+<!--                            "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",      "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"), -->
+<!--          labels = c( "Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)", "Lin Reg", "Lin Reg (w/ confounders)",  -->
+<!--                      "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=8)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)")) -->
+
+<!--   plot_df = plot_df |> filter(is.na(numNC) | numNC %in% c(5, 10, 15, 20)) -->
+<!--   # plot_df$type = factor(plot_df$type, -->
+<!--   #        levels = c('negative', 'positive'), -->
+<!--   #        labels = c(    'Null', 'Alternative')) -->
+
+
+<!--   #----- p-values: qqplot vs uniform = rejection rate by pval threshold ---------- 'pval_qqplot.pdf' -->
+<!--   p = ggplot(plot_df, -->
+<!--          aes(x = pval, y = rejection_rate, color = method_long)) + -->
+<!--     geom_abline(slope = 1, intercept = 0) + -->
+<!--     # geom_point() + -->
+<!--     geom_line(linewidth = 1, alpha = .8, key_glyph = 'rect') + -->
+<!--     scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) + -->
+<!--     scale_y_continuous(limits = c(0, 1)) + -->
+<!--     scale_color_manual(values = method_long_colors_best) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) + -->
+<!--     labs(title = 'Rejection Rate by P-value Threshold',  -->
+<!--          x = 'p-value threshold', y = 'rejection rate', -->
+<!--          color = 'Method') + -->
+<!--     facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right")  -->
+<!--   print(p) -->
+<!--   ggsave(plot = p, filename = sprintf('%s/pval_qqplot_2.pdf', plot_dir_all), height = 7.5, width = 7.5) -->
+
+
+<!--   #----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf' -->
+<!--   p = ggplot(plot_df, -->
+<!--          aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method_long)) + -->
+<!--     geom_abline(slope = 1, intercept = 0) + -->
+<!--     # geom_line(linewidth = .3, alpha = .8) + -->
+<!--     geom_point(size = 1.5, alpha = .8, key_glyph = 'rect') + -->
+<!--     # scale_x_continuous(limits = c(2, 3.5)) + -->
+<!--     # scale_y_continuous(limits = c(0, 200)) + -->
+<!--     scale_color_manual(values = method_long_colors_best) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) + -->
+<!--     labs(title = '-log(p-value) by -log(Unif(0,1))',  -->
+<!--          x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'), -->
+<!--          color = 'Method') + -->
+<!--     # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid -->
+<!--     facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right") -->
+
+
+<!--   print(p) -->
+<!--   ggsave(plot = p, filename = sprintf('%s/pval_qqplot_log_best.pdf', plot_dir_all), height = 7.5, width = 7.5) -->
+
+<!--   # use gg4x to set limits separately  -->
+<!--   # https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975 -->
+<!--   #----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail_best.pdf' -->
+<!--   p2 = p + ggh4x::facetted_pos_scales( -->
+<!--     x = list( -->
+<!--       type == 'Null'        ~ scale_x_continuous(limits = c(.35, 1.5)), -->
+<!--       type == 'Alternative' ~ scale_x_continuous(limits = c(.35, 1.5))  ), -->
+<!--     y = list( -->
+<!--       type == 'Null'        ~ scale_y_continuous(limits = c(0, 25)), -->
+<!--       type == 'Alternative' ~ scale_y_continuous(limits = c(0, 25))   )   -->
+<!--     ) -->
+<!--   print(p2) -->
+<!--   ggsave(plot = p2, filename =sprintf('%s/pval_qqplot_log_tail_best.pdf', plot_dir_all), height = 7.5, width = 7.5) -->
+
+<!-- } -->
+
+<!-- ``` -->
+
+
+
+
+<!-- ## Best Plots (Focusing on PCA) -->
+
+
+<!-- Edit the plots to showcase the results. This will be specific for each setting. For example, we can crop to highlight the tails and subset for different methods (e.g. not all NCs because that can be too many and hard to see). -->
+
+
+<!-- ```{r} -->
+<!-- if(proximal_setting_name_continuous == 'PCA') { -->
+<!--   # redo the colors bc we subset for numNC so we can choose better -->
+<!--   method_long_colors_best = c(method_long_colors_count, # keep count GLM and lin reg colors -->
+<!--                               method_long_colors[c(1, 2)],  -->
+<!--                               viridis::plasma(8)[c(3, 4, 5, 6)]) -->
+
+<!--   barplot(1:length(method_long_colors_best), col = method_long_colors_best) -->
+<!-- } -->
+
+<!-- ``` -->
+
+
+
+<!-- Histogram of Estimates -->
+<!-- ```{r fig.width=15, fig.height = 5} -->
+<!-- if(proximal_setting_name_continuous == 'PCA') { -->
+<!--   p = ggplot(effects_continuous |> filter(is.na(numNC) | numNC %in% c(3, 5, 10, 20)), -->
+<!--          aes(x = ATE, fill = method_long)) + -->
+<!--     geom_histogram(aes(y = after_stat(..density..)), binwidth = .15) + -->
+<!--     geom_vline(aes(xintercept = 0), color = 'gray20', linewidth = .4) + -->
+<!--     scale_x_continuous(limits = c(-2.25, 2.25)) + -->
+<!--     scale_fill_manual(values = method_long_colors_best[-(1:4)]) + -->
+<!--     facet_grid(rows = vars(type), cols = vars(method_long), scales = 'free') +  -->
+<!--     labs(title = 'Histogram of Estimates', -->
+<!--          fill = 'Method') -->
+<!--   print(p) -->
+<!--   ggsave(plot = p, filename = sprintf('%s/estimates_hist_2.pdf', plot_dir_all), height = 5, width= 16) -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- Histogram of p-values -->
+<!-- ```{r fig.width=15, fig.height = 5} -->
+<!-- if(proximal_setting_name_continuous == 'PCA') { -->
+<!--   p = ggplot(effects |> filter(is.na(numNC) | numNC %in% c(3, 5, 10, 20)) |> -->
+<!--            mutate(method_long_facet = factor(paste0(method, numNC),  -->
+<!--          levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,        -->
+<!--                            "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",      "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"), -->
+<!--          labels = c( "Poisson\n", "Poisson\n(w/ confounders)", "Negative Binomial\n", "Negative Binomial\n(w/ confounders)", "Linear Reg\n", "Linear Reg\n(w/ confounders)",  -->
+<!--                      "Proximal\n(#NC=1)", "Proximal\n(#NC=3)", "Proximal\n(#NC=5)", "Proximal\n(#NC=8)", "Proximal\n(#NC=10)", "Proximal\n(#NC=15)", "Proximal\n(#NC=20)"))), -->
+<!--          aes(x = pval, fill = method_long)) + -->
+<!--     geom_histogram(aes(y = after_stat(..density..)), binwidth = .05) + -->
+<!--     scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) + -->
+<!--     scale_fill_manual(values = method_long_colors_best) + -->
+<!--     facet_grid(rows = vars(type), cols = vars(method_long_facet), scales = 'free') + -->
+<!--     labs(title = 'Histogram of p-values', -->
+<!--          x = 'p-value', -->
+<!--          fill = 'Method') -->
+<!--   print(p) -->
+<!--   ggsave(plot = p, filename = sprintf('%s/pval_hist_2.pdf', plot_dir_all), height = 5, width= 25) -->
+<!-- } -->
+<!-- ``` -->
+
+
+
+
+
+
+
+<!-- QQ-plot (basically) -->
+<!-- ```{r fig.height = 6, fig.width= 8} -->
+<!-- if(proximal_setting_name_continuous == 'PCA') { -->
+<!--   # config df for plotting -->
+<!--   # the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n) -->
+<!--   plot_df = effects |> mutate(method_long = paste0(method, numNC)) |> group_by(type, method_long, numNC) |> reframe(pval=sort(pval), rejection_rate = (1:n())/n())  -->
+<!--   plot_df$method_long = factor(plot_df$method_long,  -->
+<!--          levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,        -->
+<!--                            "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",      "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"), -->
+<!--          labels = c( "Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)", "Lin Reg", "Lin Reg (w/ confounders)",  -->
+<!--                      "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=8)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)")) -->
+
+<!--   plot_df = plot_df |> filter(is.na(numNC) | numNC %in% c(3, 5, 10, 20)) -->
+<!--   # plot_df$type = factor(plot_df$type, -->
+<!--   #        levels = c('negative', 'positive'), -->
+<!--   #        labels = c(    'Null', 'Alternative')) -->
+
+
+<!--   #----- p-values: qqplot vs uniform = rejection rate by pval threshold ---------- 'pval_qqplot.pdf' -->
+<!--   p = ggplot(plot_df, -->
+<!--          aes(x = pval, y = rejection_rate, color = method_long)) + -->
+<!--     geom_abline(slope = 1, intercept = 0) + -->
+<!--     # geom_point() + -->
+<!--     geom_line(linewidth = 1, alpha = .8, key_glyph = 'rect') + -->
+<!--     scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) + -->
+<!--     scale_y_continuous(limits = c(0, 1)) + -->
+<!--     scale_color_manual(values = method_long_colors_best) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) + -->
+<!--     labs(title = 'Rejection Rate by P-value Threshold',  -->
+<!--          x = 'p-value threshold', y = 'rejection rate', -->
+<!--          color = 'Method') + -->
+<!--     facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right")  -->
+<!--   print(p) -->
+<!--   ggsave(plot = p, filename =sprintf('%s/pval_qqplot_2.pdf', plot_dir_all), height = 7.5, width = 7.5) -->
+
+
+<!--   #----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf' -->
+<!--   p = ggplot(plot_df, -->
+<!--          aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method_long)) + -->
+<!--     geom_abline(slope = 1, intercept = 0) + -->
+<!--     # geom_line(linewidth = .3, alpha = .8) + -->
+<!--     geom_point(size = 1.5, alpha = .8, key_glyph = 'rect') + -->
+<!--     # scale_x_continuous(limits = c(2, 3.5)) + -->
+<!--     # scale_y_continuous(limits = c(0, 200)) + -->
+<!--     scale_color_manual(values = method_long_colors_best) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) + -->
+<!--     labs(title = '-log(p-value) by -log(Unif(0,1))',  -->
+<!--          x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'), -->
+<!--          color = 'Method') + -->
+<!--     # facet_grid(rows = vars(type), scales = 'free') # facetted_pos_scales doesn't seem to work with facet_grid -->
+<!--     facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right") -->
+
+
+<!--   print(p) -->
+<!--   ggsave(plot = p, filename = sprintf('%s/pval_qqplot_log_best.pdf', plot_dir_all), height = 7.5, width = 7.5) -->
+
+<!--   # use gg4x to set limits separately  -->
+<!--   # https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975 -->
+<!--   #----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail_best.pdf' -->
+<!--   p2 = p + ggh4x::facetted_pos_scales( -->
+<!--     x = list( -->
+<!--       type == 'Null'        ~ scale_x_continuous(limits = c(.35, 1.5)), -->
+<!--       type == 'Alternative' ~ scale_x_continuous(limits = c(.35, 1.5))  ), -->
+<!--     y = list( -->
+<!--       type == 'Null'        ~ scale_y_continuous(limits = c(0, 25)), -->
+<!--       type == 'Alternative' ~ scale_y_continuous(limits = c(0, 25))   )   -->
+<!--     ) -->
+<!--   print(p2) -->
+<!--   ggsave(plot = p2, filename = sprintf('%s/pval_qqplot_log_tail_best.pdf', plot_dir_all), height = 7.5, width = 7.5) -->
+
+<!-- } -->
+
+<!-- ``` -->
+
+
+
+
+
+
+
+
+
