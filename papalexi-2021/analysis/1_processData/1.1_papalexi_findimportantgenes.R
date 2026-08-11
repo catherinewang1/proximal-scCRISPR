@@ -10,15 +10,22 @@
 #       <save_dir>/gene_deviance_topnoTFonly.csv # redundant, but saves space bc smaller NUM_IMPORTANT_GENES vs all genes
 #       <save_dir>/important_genes_idx.rds  (CHANGE: remove, only need gene_deviance.csv, redundant)
 #       <save_dir>/important_genes_name.rds (CHANGE: remove, only need gene_deviance.csv, redundant) 
+# 
+# Setting up environment again:
+# install.packages('BiocManager')
+# BiocManager::install("rhdf5")
+# BiocManager::install("HDF5Array")
+# BiocManager::install("scry")
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop', '4000')
+# args = c('macbook', '4000')
     
 suppressPackageStartupMessages(require(assertthat)) # for some assert statements
 suppressPackageStartupMessages(require(ondisc))     # loading in data !!! USE 1.1.0 RELEASE: https://github.com/timothy-barry/ondisc/releases, install from .tar.gz file install.packages('C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/genData/package_ondisc_old/ondisc-1.1.tar.gz', repos = NULL, type ='source')
 suppressPackageStartupMessages(require(rhdf5))      # read/save in HDF5 format # BiocManager::install("rhdf5")
 suppressPackageStartupMessages(require(HDF5Array))  # (^same)                  # BiocManager::install("HDF5Array")
-suppressPackageStartupMessages(require(scry))       # normalizing data (model=binomial, residual type=deviance)
+suppressPackageStartupMessages(require(scry))       # normalizing data (model=binomial, residual type=deviance)   # BiocManager::install("scry")
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(require(readxl)) # load in excel xlsx format for TF list
 
@@ -40,7 +47,6 @@ gene_odm <- ondisc::read_odm(odm_fp      = paste0(data_dir, "/papalexi-2021/proc
                              metadata_fp = paste0(data_dir, "/papalexi-2021/processed/gene/metadata.rds"))
 grna_odm <- ondisc::read_odm(odm_fp      = paste0(data_dir, "/papalexi-2021/processed/grna_assignment/assignment_matrix.odm"),
                              metadata_fp = paste0(data_dir, "/papalexi-2021/processed/grna_assignment/metadata.rds"))
-
 
 
 # load all into memory

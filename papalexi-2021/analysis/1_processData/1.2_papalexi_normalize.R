@@ -94,7 +94,7 @@ if (name_exists) {  rhdf5::h5delete(file = h5file, name = 'gene_norm'); rhdf5::h
 rm(h5f, name_exists)
 
 # save normalized gene expression of top genes in 'gene.h5' under 'gene_norm'
-if(DEVICE == 'ubergenno') { #if on ubergenno, need to realize to memory first?????
+if(DEVICE == 'ubergenno' | DEVICE == 'macbook') { #if on ubergenno, need to realize to memory first????? (also macbook)
     HDF5Array::writeHDF5Array(DelayedArray::realize(gene_norm), filepath=h5file, name='gene_norm')
 } else {
     HDF5Array::writeHDF5Array(gene_norm, filepath=h5file, name='gene_norm')

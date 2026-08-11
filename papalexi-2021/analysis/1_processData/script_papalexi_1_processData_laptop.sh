@@ -1,9 +1,9 @@
 #!/bin/sh
-Rscript 1.1_papalexi_findimportantgenes.R laptop 4000
-Rscript 1.2_papalexi_normalize.R laptop 4000
-Rscript 1.3_papalexi_getchromosome.R laptop
-Rscript 1.4_papalexi_sparsePCA.R laptop 4000
-Rscript 1.4_papalexi_wgcna.R laptop 4000
+Rscript 1.1_papalexi_findimportantgenes.R macbook 4000
+Rscript 1.2_papalexi_normalize.R macbook 4000
+Rscript 1.3_papalexi_getchromosome.R macbook
+Rscript 1.4_papalexi_sparsePCA.R macbook 4000
+Rscript 1.5_papalexi_wgcna.R macbook 4000
 
 # plots
 # Rscript 1.5_dimred_plots_papalexi.R laptop 4000

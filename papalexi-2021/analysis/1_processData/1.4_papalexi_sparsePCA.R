@@ -8,7 +8,7 @@
 #     sprintf('%s/spca/NCavg_sumabs=%.1f_K=%d_N=%d.rds', save_dir, my_sumabsv, my_K, N_subsample)
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
-args = c('laptop', '4000')
+# args = c('laptop', '4000')
 
 
 
