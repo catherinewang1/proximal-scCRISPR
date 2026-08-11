@@ -21,6 +21,7 @@ README.html
 
 # saved pdfs (e.g. plots)
 *.pdf
+*.Rhistory
 
 # saved html (e.g. renders from rmd/qmd)
 *.html
