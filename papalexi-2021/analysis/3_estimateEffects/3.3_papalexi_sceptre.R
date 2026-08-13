@@ -8,7 +8,12 @@
 # these linear proximal methods                                                #
 # ---------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
-args = c('ubergenno', 'notneeded', 'A')
+# args = c('ubergenno', 'notneeded', 'A')
+# args = c('macbook', 'notneeded', 'A')
+
+
+
+RUN_PARALLEL = TRUE
 
 require(assertthat) # for some assert statements
 library(Matrix)
@@ -46,7 +51,7 @@ dir.create(SCEPTRE_savepath, recursive = TRUE, showWarnings = FALSE)
 
 
 # =================== Start ====================================================
-print(sprintf("[%s] START: Oracle (SCEPTRE)", Sys.time()))
+print(sprintf("[%s] START: SCEPTRE", Sys.time()))
 
 
 # source(sprintf('%s/CBEstAll.R', util_dir)) # for functions to estimate here
@@ -224,8 +229,8 @@ right_df = ondisc::get_feature_covariates(grna_odm) |>
 
 
 discovery_pairs_AY = 
-  merge(left_df,
-        right_df, 
+  merge(left_df  |> dplyr::select("A", "Y"),      # subset for the AY tests in the loaded in AY.csv
+        right_df |> dplyr::select("A", "target"), # get the original As' targets
         all.x = TRUE, all.y = FALSE, 
         by = "A") |> 
   dplyr::mutate(grna_target = target,
@@ -234,9 +239,8 @@ discovery_pairs_AY =
 
 
 
-
-discovery_pairs_auto = discovery_pairs_auto[1:100, ] # Testing: just do a few
-discovery_pairs_AY   =   discovery_pairs_AY[1:100, ]
+discovery_pairs_auto = discovery_pairs_auto[1:min(100, nrow(discovery_pairs_auto)), ] # Testing: just do a few
+discovery_pairs_AY   =   discovery_pairs_AY[1:nrow(discovery_pairs_AY)            , ] # include all of AY 
 discovery_pairs = rbind(discovery_pairs_AY, discovery_pairs_auto) |> dplyr::distinct()
 
 
@@ -259,7 +263,7 @@ side = "both" # change to "both" bc other methods test both!
 
 sceptre_object <- set_analysis_parameters(
   sceptre_object = sceptre_object,
-  discovery_pairs = discovery_pairs,
+  discovery_pairs = discovery_pairs, # remove? just don't have any discovery pairs? no include
   positive_control_pairs = positive_control_pairs,
   side = side, 
   grna_integration_strategy = 'singleton',
@@ -276,7 +280,7 @@ sceptre_object@covariate_data_frame |> head()
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_assign_grnas
 # ==============================================================================
 print(sprintf('[%s]: SCEPTRE 3. Assign gRNAs to cells', format(Sys.time(), digits = 0)))
-sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = FALSE,
+sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = RUN_PARALLEL,
                                method = 'maximum', 
                                min_grna_n_umis_threshold = 1, 
                                umi_fraction_threshold = .8)
@@ -295,13 +299,13 @@ plot(sceptre_object)
 # # ?? every time assign_grnas changes the thres to 5
 # sceptre_object@grna_assignment_hyperparameters$min_grna_n_umis_threshold = .9
 # 
-# sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = FALSE,
+# sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = RUN_PARALLEL,
 #                                method = 'maximum', 
 #                                min_grna_n_umis_threshold = 1, 
 #                                umi_fraction_threshold = .8)
-# # sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = FALSE,
+# # sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = RUN_PARALLEL,
 #                                # method = 'default')
-# # sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = FALSE,
+# # sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = RUN_PARALLEL,
 # #                                method = 'thresholding')
 # print(sceptre_object) # output suppressed for brevity
 # plot(sceptre_object) # errs
@@ -421,7 +425,7 @@ plot(sceptre_object)
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_calibration_check
 # ==============================================================================
 print(sprintf('[%s]: SCEPTRE 5. Run calibration check', format(Sys.time(), digits = 0)))
-sceptre_object <- run_calibration_check(sceptre_object, parallel = FALSE)
+sceptre_object <- run_calibration_check(sceptre_object, parallel = RUN_PARALLEL)
 print(sceptre_object) # output suppressed for brevity
 
 plot(sceptre_object)
@@ -431,7 +435,7 @@ plot(sceptre_object)
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_run_power_check
 # ==============================================================================
 print(sprintf('[%s]: SCEPTRE 6. Run power check', format(Sys.time(), digits = 0)))
-sceptre_object <- run_power_check(sceptre_object, parallel = FALSE)
+sceptre_object <- run_power_check(sceptre_object, parallel = RUN_PARALLEL)
 print(sceptre_object) # output suppressed for brevity
 
 plot(sceptre_object)
@@ -442,7 +446,7 @@ plot(sceptre_object)
 # ==============================================================================
 print(sprintf('[%s]: SCEPTRE 7. Run discovery analysis', format(Sys.time(), digits = 0)))
 t0 = Sys.time()
-sceptre_object <- run_discovery_analysis(sceptre_object, parallel = FALSE)
+sceptre_object <- run_discovery_analysis(sceptre_object, parallel = RUN_PARALLEL)
 t1 = Sys.time()
 print(sceptre_object) # output suppressed for brevity
 

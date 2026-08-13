@@ -40,7 +40,7 @@ theme_set(theme_cowplot() +
 
 
 # parameters
-DEVICE                = 'laptop'
+DEVICE                = 'macbook'
 AYZW_setting_name     = 'A'
 
 
