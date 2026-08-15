@@ -1,80 +1,89 @@
 
-# Settings for selecting perturbation (A) - gene (Y) tesets
+# Settings for selecting perturbation (A) - gene (Y) tests
+# 
+# Creates a named list `settings` where each of the settings names are like A, A1, B, C, ... etc...
+#   Indexed by the setting like settings$A or settings[['A']] which provides another list with
+#   parameters for the analysis setting like specifying the number of AY tests, some data filtering thresholds, etc...
+# 
 
 settings = list(
-    # Settings for 'A'
-    "A" = list(seed = 1345678,
-               NUM_A             = NA, # NA if all As (probably SHOULD)
-               NUM_Y_PER_A_NEG   = 20,  # NA if all (probably should NOT)
-               NUM_Y_PER_A_MAYBE = 0, # NA if all on same chromosome (probably SHOULD)
-               MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
-               NUM_NCENCO_pairs  = 100,  # number of NCE/NCO pairs (dimU, length of ZWs)
-               NUM_NCE           = NA,  # number of NCE per AY test (prev #NCE/NCO equal) (NA=all avail)
-               NUM_NCO           = NA,  # number of NCO per AY test 
-               NUM_NCENCO_per_AY = 1,   # number of NCE/NCO sets per AY test 
-               NUM_AY_POS        = NA,    # number of known causal/positive AY tests, NA if all As (probably SHOULD)
-               PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min (allo pos tests)
-               GENE_N_NONZERO_CELLS_MIN = 2000  # gene_metainfo$n_nonzero_cell min
-    ),
-    # Settings for 'A1'- small set to test code
-    "A1" = list(seed = 1345678,
-               NUM_A             = 5, # NA if all As (probably SHOULD)
-               NUM_Y_PER_A_NEG   = 5,  # NA if all (probably should NOT)
-               NUM_Y_PER_A_MAYBE = 0, # NA if all on same chromosome (probably SHOULD)
-               MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
-               NUM_NCENCO_pairs  = 10,  # number of NCE/NCO pairs (dimU, length of ZWs)
-               NUM_NCE           = NA,  # number of NCE per AY test (prev #NCE/NCO equal) (NA=all avail)
-               NUM_NCO           = NA,  # number of NCO per AY test 
-               NUM_NCENCO_per_AY = 1,   # number of NCE/NCO sets per AY test
-               NUM_AY_POS        = 5,    # number of known causal/positive AY tests, NA if all As (probably SHOULD)
-               PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min
-               GENE_N_NONZERO_CELLS_MIN = 2000 # gene_metainfo$n_nonzero_cell min
-    ),
-    # Settings for 'B'- more AY tests, require grnas have larger sample size
-    "B" = list(seed = 54321,
-               NUM_A             = NA, # NA if all As (probably SHOULD)
-               NUM_Y_PER_A_NEG   = 50,  # NA if all (probably should NOT)
-               NUM_Y_PER_A_MAYBE = 0, # NA if all on same chromosome (probably SHOULD)
-               MAX_Y_IMPORTANCE  = 2000, # limit how 'unimportant' a response gene can be
-               NUM_NCENCO_pairs  = 100,  # number of NCE/NCO pairs (dimU, length of ZWs)
-               NUM_NCE           = NA,  # number of NCE per AY test (prev #NCE/NCO equal) (NA=all avail)
-               NUM_NCO           = NA,  # number of NCO per AY test 
-               NUM_NCENCO_per_AY = 1,   # number of NCE/NCO sets per AY test
-               NUM_AY_POS        = NA,    # number of known causal/positive AY tests, NA if all As (probably SHOULD)
-               PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min (allow pos tests)
-               GENE_N_NONZERO_CELLS_MIN = 2000  # gene_metainfo$n_nonzero_cell min
-    ),
-    # Settings for 'C'- force a matrix: choose NUM_A grnas and  perturbations
-    "C" = list(seed = 54321,
-               NUM_A             = NA,   # NA if all As (probably SHOULD)
-               FORCE_AY_MATRIX   = TRUE, # force chosen A and Y to be all cross comb of set of A and Y
-               NUM_Y_PER_A_NEG   = 40,  # NA if all (probably should NOT)
-               NUM_Y_PER_A_MAYBE = 0,   # NA if all on same chromosome (probably SHOULD)
-               MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
-               NUM_NCENCO_pairs  = 100,  # number of NCE/NCO pairs (dimU, length of ZWs)
-               NUM_NCE           = NA,  # number of NCE per AY test (prev #NCE/NCO equal) (NA=all avail)
-               NUM_NCO           = NA,  # number of NCO per AY test 
-               NUM_NCENCO_per_AY = 1,   # number of NCE/NCO sets per AY test
-               NUM_AY_POS        = NA,    # number of known causal/positive AY tests, NA if all As (probably SHOULD)
-               PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min (allow pos tests)
-               GENE_N_NONZERO_CELLS_MIN = 2000  # gene_metainfo$n_nonzero_cell min
-    ),
-    # Settings for 'C'- force a matrix: choose NUM_A grnas and  perturbations, smaller for testing
-    "C1" = list(seed = 54321,
-               NUM_A             = 5,   # NA if all As (probably SHOULD)
-               FORCE_AY_MATRIX   = TRUE, # force chosen A and Y to be all cross comb of set of A and Y
-               NUM_Y_PER_A_NEG   = 5,  # NA if all (probably should NOT)
-               NUM_Y_PER_A_MAYBE = 0,   # NA if all on same chromosome (probably SHOULD)
-               MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
-               NUM_NCENCO_pairs  = 100,  # number of NCE/NCO pairs (dimU, length of ZWs)
-               NUM_NCE           = NA,  # number of NCE per AY test (prev #NCE/NCO equal) (NA=all avail)
-               NUM_NCO           = NA,  # number of NCO per AY test 
-               NUM_NCENCO_per_AY = 1,   # number of NCE/NCO sets per AY test
-               NUM_AY_POS        = NA,    # number of known causal/positive AY tests, NA if all As (probably SHOULD)
-               PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min (allow pos tests)
-               GENE_N_NONZERO_CELLS_MIN = 2000  # gene_metainfo$n_nonzero_cell min
-    ),
-    # Settings for 'TEST'
-    "TEST" = list(TESTINGFORMAT=NA)
-
+  # Settings for 'A'
+  "A" = list(seed = 1345678,
+             # AY test settings
+             NUM_ALT           = NA,   # num of Alt tests: NA if all As (probably SHOULD)
+             NUM_NULL          = 1000, # num of Null tests (Non-Targeting to Y)
+             NUM_MAYBE         = 200,  # num of Unknown tests: targeting perturbation A to randomly chosen gene Y (mostly null though)
+             MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
+             NUM_NCE           = 50,   # number of individual gene NCE (Z) per AY test 
+             NUM_NCO           = 50,   # number of individual gene NCO (W) per AY test 
+             NUM_NCENCO_per_AY = 1,    # number of NCE/NCO sets per AY test 
+             # quality control settings- 
+             PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min (but allow alt tests)
+             GENE_N_NONZERO_CELLS_MIN = 2000         # gene_metainfo$n_nonzero_cell min
+  ),
+  # Settings for 'A1'- small set to test code
+  "A1" = list(seed = 1345678,
+              # AY test settings
+              NUM_ALT           = 10,   # num of Alt tests: NA if all As (probably SHOULD)
+              NUM_NULL          = 20,  # num of Null tests (Non-Targeting to Y)
+              NUM_MAYBE         = 10,    # num of Unknown tests: targeting perturbation A to randomly chosen gene Y (mostly null though)
+              MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
+              NUM_NCE           = 50,   # number of individual gene NCE (Z) per AY test 
+              NUM_NCO           = 50,   # number of individual gene NCO (W) per AY test 
+              NUM_NCENCO_per_AY = 1,    # number of NCE/NCO sets per AY test 
+              # quality control settings- 
+              PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min (but allow alt tests)
+              GENE_N_NONZERO_CELLS_MIN = 2000         # gene_metainfo$n_nonzero_cell min
+  ),
+  # Settings for 'B': Equal num of NULL and Maybe (this can compare NT-A and Targ-A tests)
+  "B" = list(seed = 1345678,
+             # AY test settings
+             NUM_ALT           = NA,   # num of Alt tests: NA if all As (probably SHOULD)
+             NUM_NULL          = 500, # num of Null tests (Non-Targeting to Y)
+             NUM_MAYBE         = 500,  # num of Unknown tests: targeting perturbation A to randomly chosen gene Y (mostly null though)
+             MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
+             NUM_NCE           = 50,   # number of individual gene NCE (Z) per AY test 
+             NUM_NCO           = 50,   # number of individual gene NCO (W) per AY test 
+             NUM_NCENCO_per_AY = 1,    # number of NCE/NCO sets per AY test 
+             # quality control settings- 
+             PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min (but allow alt tests)
+             GENE_N_NONZERO_CELLS_MIN = 2000         # gene_metainfo$n_nonzero_cell min
+  ),
+  "TEST" = list(TESTINGFORMAT=NA)
 )
+
+
+
+
+
+# settings = list(
+#     # Settings for 'A'
+#     "A" = list(seed = 1345678,
+#                # AY test settings
+#                NUM_ALT           = NA,   # num of Alt tests: NA if all As (probably SHOULD)
+#                NUM_NULL          = 1000, # num of Null tests (Non-Targeting to Y)
+#                NUM_MAYBE         = 100,    # num of Unknown tests: targeting perturbation A to randomly chosen gene Y (mostly null though)
+#                MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
+#                NUM_NCE           = 50,   # number of individual gene NCE (Z) per AY test 
+#                NUM_NCO           = 50,   # number of individual gene NCO (W) per AY test 
+#                NUM_NCENCO_per_AY = 1,    # number of NCE/NCO sets per AY test 
+#                # quality control settings- 
+#                PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min (but allow alt tests)
+#                GENE_N_NONZERO_CELLS_MIN = 2000         # gene_metainfo$n_nonzero_cell min
+#     ),
+#     # Settings for 'A1'- small set to test code
+#     "A1" = list(seed = 1345678,
+#                # AY test settings
+#                NUM_ALT           = 10,   # num of Alt tests: NA if all As (probably SHOULD)
+#                NUM_NULL          = 50,  # num of Null tests (Non-Targeting to Y)
+#                NUM_MAYBE         = 10,    # num of Unknown tests: targeting perturbation A to randomly chosen gene Y (mostly null though)
+#                MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
+#                NUM_NCE           = 50,   # number of individual gene NCE (Z) per AY test 
+#                NUM_NCO           = 50,   # number of individual gene NCO (W) per AY test 
+#                NUM_NCENCO_per_AY = 1,    # number of NCE/NCO sets per AY test 
+#                # quality control settings- 
+#                PERTURBATION_N_NONZERO_CELLS_MIN = 100, # grna_chr$n_nonzero min (but allow alt tests)
+#                GENE_N_NONZERO_CELLS_MIN = 2000         # gene_metainfo$n_nonzero_cell min
+#     ),
+#     "TEST" = list(TESTINGFORMAT=NA)
+# )

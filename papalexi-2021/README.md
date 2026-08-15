@@ -1,4 +1,6 @@
 
+(TODO: need to update this for changed analysis procedure. there is a new readme inside analysis/. either put the analysis in this new file or copy new file contents here and delete the new file.)
+
 
 # Analysis of `papalexi-2021` using proximal causal inference
 
@@ -17,6 +19,8 @@ papalexi-2021/
     AY/
   README.md
 ```
+
+# Analysis Folder
 
 
 

@@ -8,12 +8,15 @@
 # these linear proximal methods                                                #
 # ---------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('ubergenno', 'notneeded', 'A')
-# args = c('macbook', 'notneeded', 'A')
+# args = c('ubergenno')
+# args = c('macbook')
 
 
 
 RUN_PARALLEL = TRUE
+MAX_NUM_DISCOVERY_PAIRS = 5000 # by default, just searching for trans pairs results in 484848. we don't need this many
+                               # additionally, these are grna *targets* not just grnas. so this is multiplied
+
 
 require(assertthat) # for some assert statements
 library(Matrix)
@@ -40,35 +43,27 @@ source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on 
 
 assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
 
-assertthat::assert_that(length(args) > 1, msg="must give arg for specifying num imp genes 'Rscript <filename>.R ubergenno 4000'")
-NUM_IMPORTANTGENES = as.integer(args[2]) # should be max importance from setting... TODO: change to remove this input. extract this value from saved setting
-
-assertthat::assert_that(length(args) > 2, msg="must give arg for specifying chosen AYZW name 'Rscript <filename>.R ubergenno C'")
-AYZW_setting_name = args[3]
-
-SCEPTRE_savepath = sprintf('%s/AY/%s/SCEPTRE/', save_dir, AYZW_setting_name)
-dir.create(SCEPTRE_savepath, recursive = TRUE, showWarnings = FALSE)
 
 
-# =================== Start ====================================================
+
+# =================================================================================================#
+# =================== START =======================================================================
+# =================================================================================================#
 print(sprintf("[%s] START: SCEPTRE", Sys.time()))
 
 
-# source(sprintf('%s/CBEstAll.R', util_dir)) # for functions to estimate here
 
-# load chosen AYZW names
-AY   = read.csv(sprintf('%s/AY/%s/AY.csv', save_dir, AYZW_setting_name))
-# AYZW = readRDS(sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
 
-# load gene importance info
-# imp_gene_names = readRDS(sprintf('%s/important_genes_name.rds', save_dir))
-# imp_gene_idx   = readRDS(sprintf('%s/important_genes_idx.rds',  save_dir))
-# imp_gene = data.frame(gene     = imp_gene_names,
-#                       gene_idx = imp_gene_idx,
-#                       gene_imp_rank = 1:length(imp_gene_names))
+# =================== Set up saving dir + save setting ======================================#
+SCEPTRE_savepath = sprintf('%s/sceptre/', save_dir)
+dir.create(SCEPTRE_savepath, recursive = TRUE, showWarnings = FALSE)
 
-# gene_importance = read.csv(sprintf('%s/gene_deviance_gene_norm.csv', save_dir)) |> 
-#   dplyr::select(gene_name, gene_idx, importance_rank, gene_norm_idx)
+
+
+# gene_deviance_topnoTFonly = read.csv(sprintf('%s/gene_deviance_topnoTFonly.csv', save_dir))
+# # don't allow null tests to have TF gene responses (but always keep the alternative tests usually)
+# possible_null_Ys = gene_deviance_topnoTFonly |> # dplyr::filter(importance_rank <= setting$MAX_Y_IMPORTANCE) |>
+#   dplyr::filter(!is_transcription_factor) |> dplyr::pull(gene_name)
 
 
 # create gene and grna ondisc managers
@@ -82,27 +77,18 @@ grna = grna_odm[[,1:ncol(grna_odm)]] # |> as.matrix() # ~110 x 20729 = #grnas x 
 grna_rownames = ondisc::get_feature_ids(grna_odm)
 rownames(grna) = grna_rownames
 
-# # load normalized gene exp
-# h5file      = paste0(save_dir, "/gene.h5"); print(h5file)
-# reading_hd5file  = rhdf5::H5Fopen(name = h5file)
-# readin_gene_norm = reading_hd5file&'gene_norm'
-# gene_norm = readin_gene_norm[1:NUM_IMPORTANTGENES, ] # dim = 4000 x 20729 = #important x #cells
-# rownames(gene_norm) = imp_gene_names[1:1:NUM_IMPORTANTGENES]
-# rhdf5::h5closeAll()
-# invisible(gc(verbose=FALSE))
-
-
-# original gene expr counts
-# gene = gene_odm[[,1:ncol(gene_odm)]]
-
-# =========== Create sceptre object ============================================
 
 
 
-# ==============================================================================
-# 1.2 Import data from a collection of R objects
+# =================================================================================================#
+# =================== SCEPTRE =====================================================================
+# =================================================================================================#
+
+
+
+# =================================================================================================#
+# =================== * 1.2 Import data from a collection of R objects ============================
 # https://timothy-barry.github.io/sceptre-book/import-data.html#import-data-from-a-collection-of-r-objects
-# ==============================================================================
 print(sprintf('[%s]: SCEPTRE 1. Import data from a collection of R objects', format(Sys.time(), digits = 0)))
 
 
@@ -135,10 +121,10 @@ extra_covariates <- cell_covariates
 # change batch info, bc lane determines rep_1, so redundant info
 # table(extra_covariates |> dplyr::select(lane, bio_rep))
 extra_covariates <- cell_covariates |> 
-                      dplyr::mutate(lane_bio_rep = paste0(lane, '_', bio_rep)) |>
-                      dplyr::select(-lane, -bio_rep) |>
-                      dplyr::select(-n_nonzero, -n_umis)
-         
+  dplyr::mutate(lane_bio_rep = paste0(lane, '_', bio_rep)) |>
+  dplyr::select(-lane, -bio_rep) |>
+  dplyr::select(-n_nonzero, -n_umis)
+
 
 
 # response names
@@ -160,39 +146,37 @@ sceptre_object <- import_data(
 sceptre_object
 
 
-# ==============================================================================
-# 2. Set analysis parameters
+# =================================================================================================#
+# =================== * 2. Set analysis parameters ================================================
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-whole_game_set_analysis_parameters
-# ==============================================================================
 print(sprintf('[%s]: SCEPTRE 2. Set analysis parameters', format(Sys.time(), digits = 0)))
 positive_control_pairs_auto <- construct_positive_control_pairs(sceptre_object)
-head(positive_control_pairs_auto)
+dim(positive_control_pairs_auto); head(positive_control_pairs_auto)
 
 
+# no longer merge... 
+# print('     Merging automatically made positive pairs w/ saved AY')
+# 
+# # add AY positive tests
+# positive_control_pairs_AY = 
+#   merge(AY |> filter(type == 'positive'),
+#         ondisc::get_feature_covariates(grna_odm) |> tibble::rownames_to_column(var = "A"), 
+#         all.x = TRUE, all.y = FALSE, 
+#         by = "A") |> 
+#   dplyr::mutate(grna_target = target,
+#                 response_id = Y) |> 
+#   dplyr::select("grna_target", "response_id")
+# 
+# 
+# 
+# positive_control_pairs = rbind(positive_control_pairs_auto, 
+#                                positive_control_pairs_AY) |> 
+#   as.data.frame() |>
+#   dplyr::distinct() 
+
+positive_control_pairs = positive_control_pairs_auto
 
 
-
-print('     Merging automatically made positive pairs w/ saved AY')
-
-# add AY positive tests
-positive_control_pairs_AY = 
-  merge(AY |> filter(type == 'positive'),
-        ondisc::get_feature_covariates(grna_odm) |> tibble::rownames_to_column(var = "A"), 
-        all.x = TRUE, all.y = FALSE, 
-        by = "A") |> 
-  dplyr::mutate(grna_target = target,
-                response_id = Y) |> 
-  dplyr::select("grna_target", "response_id")
-
-
-
-positive_control_pairs = rbind(positive_control_pairs_auto, 
-                               positive_control_pairs_AY) |> 
-                         as.data.frame() |>
-                         dplyr::distinct() 
-
-
- 
 # discovery_pairs <- construct_cis_pairs(
 #   sceptre_object = sceptre_object,
 #   positive_control_pairs = positive_control_pairs,
@@ -221,28 +205,33 @@ discovery_pairs_auto <- construct_trans_pairs(
 
 
 
-print('     Merging automatically made discovery_pairs_auto w/ saved AY')
-left_df  = AY |> 
-           filter(type != 'positive')
-right_df = ondisc::get_feature_covariates(grna_odm) |> 
-           tibble::rownames_to_column(var = "A")
+# print('     Merging automatically made discovery_pairs_auto w/ saved AY')
+# left_df  = AY |> 
+#   filter(type == 'maybe')
+# right_df = ondisc::get_feature_covariates(grna_odm) |> 
+#   tibble::rownames_to_column(var = "A")
+# 
+# 
+# discovery_pairs_AY = 
+#   merge(left_df  |> dplyr::select("A", "Y"),      # subset for the AY tests in the loaded in AY.csv
+#         right_df |> dplyr::select("A", "target"), # get the original As' targets
+#         all.x = TRUE, all.y = FALSE, 
+#         by = "A") |> 
+#   dplyr::mutate(grna_target = target,
+#                 response_id = Y) |> 
+#   dplyr::select("grna_target", "response_id")
+# 
+# discovery_pairs_auto = discovery_pairs_auto[1:min(100, nrow(discovery_pairs_auto)), ] # Testing: just do a few
+# discovery_pairs_AY   =   discovery_pairs_AY[1:nrow(discovery_pairs_AY)            , ] # include all of AY 
+# discovery_pairs = rbind(discovery_pairs_AY, discovery_pairs_auto) |> dplyr::distinct()
 
+# discovery_pairs = discovery_pairs_auto[sample(nrow(discovery_pairs_auto), size=setting$NUM_MAYBE, replace=FALSE), ]
 
-discovery_pairs_AY = 
-  merge(left_df  |> dplyr::select("A", "Y"),      # subset for the AY tests in the loaded in AY.csv
-        right_df |> dplyr::select("A", "target"), # get the original As' targets
-        all.x = TRUE, all.y = FALSE, 
-        by = "A") |> 
-  dplyr::mutate(grna_target = target,
-                response_id = Y) |> 
-  dplyr::select("grna_target", "response_id")
-
-
-
-discovery_pairs_auto = discovery_pairs_auto[1:min(100, nrow(discovery_pairs_auto)), ] # Testing: just do a few
-discovery_pairs_AY   =   discovery_pairs_AY[1:nrow(discovery_pairs_AY)            , ] # include all of AY 
-discovery_pairs = rbind(discovery_pairs_AY, discovery_pairs_auto) |> dplyr::distinct()
-
+if(!is.na(MAX_NUM_DISCOVERY_PAIRS) && MAX_NUM_DISCOVERY_PAIRS < nrow(discovery_pairs_auto)) {
+  discovery_pairs = discovery_pairs_auto[sample(1:nrow(discovery_pairs_auto), size=MAX_NUM_DISCOVERY_PAIRS, replace=FALSE), ]
+} else {
+  discovery_pairs = discovery_pairs_auto
+}
 
 
 # dim(discovery_pairs_auto)
@@ -275,10 +264,9 @@ print(sceptre_object) # output suppressed for brevity
 sceptre_object@covariate_data_frame |> anyNA()
 sceptre_object@covariate_data_frame |> head()
 
-# ==============================================================================
-# 3. Assign gRNAs to cells 
+# =================================================================================================#
+# =================== * 3. Assign gRNAs to cells 
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_assign_grnas
-# ==============================================================================
 print(sprintf('[%s]: SCEPTRE 3. Assign gRNAs to cells', format(Sys.time(), digits = 0)))
 sceptre_object <- assign_grnas(sceptre_object = sceptre_object, parallel = RUN_PARALLEL,
                                method = 'maximum', 
@@ -411,39 +399,37 @@ plot(sceptre_object)
 # # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 # === === === === === === === === === === === === === === === === === === === ===
 
-# ==============================================================================
-# 4. Run quality control 
+# =================================================================================================#
+# =================== * 4. Run quality control ====================================================
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_qc
-# ==============================================================================
 print(sprintf('[%s]: SCEPTRE 4. Run quality control', format(Sys.time(), digits = 0)))
 sceptre_object <- sceptre::run_qc(sceptre_object, p_mito_threshold = 0.075)
 print(sceptre_object) # output suppressed for brevity
 plot(sceptre_object) 
 
-# ==============================================================================
-# 5. Run calibration check
+
+# =================================================================================================#
+# =================== * 5. Run calibration check ==================================================
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_calibration_check
-# ==============================================================================
 print(sprintf('[%s]: SCEPTRE 5. Run calibration check', format(Sys.time(), digits = 0)))
-sceptre_object <- run_calibration_check(sceptre_object, parallel = RUN_PARALLEL)
+sceptre_object <- sceptre::run_calibration_check(sceptre_object, parallel = RUN_PARALLEL)
 print(sceptre_object) # output suppressed for brevity
 
 plot(sceptre_object)
+sceptre_object@calibration_result
 
-# ==============================================================================
-# 6. Run power check
+# =================================================================================================#
+# =================== * 6. Run power check ========================================================
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_run_power_check
-# ==============================================================================
 print(sprintf('[%s]: SCEPTRE 6. Run power check', format(Sys.time(), digits = 0)))
 sceptre_object <- run_power_check(sceptre_object, parallel = RUN_PARALLEL)
 print(sceptre_object) # output suppressed for brevity
 
 plot(sceptre_object)
 
-# ==============================================================================
-# 7. Run discovery analysis
+# =================================================================================================#
+# =================== * 7. Run discovery analysis =================================================
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_run_discovery_analysis
-# ==============================================================================
 print(sprintf('[%s]: SCEPTRE 7. Run discovery analysis', format(Sys.time(), digits = 0)))
 t0 = Sys.time()
 sceptre_object <- run_discovery_analysis(sceptre_object, parallel = RUN_PARALLEL)
@@ -453,15 +439,13 @@ print(sceptre_object) # output suppressed for brevity
 
 plot(sceptre_object)
 
-# ==============================================================================
-# 8. Write outputs to directory
+# =================================================================================================#
+# =================== * 8. Write outputs to directory =============================================
 # https://timothy-barry.github.io/sceptre-book/sceptre.html#sec-sceptre_write_outputs_to_directory
-# ==============================================================================
 print(sprintf('[%s]: SCEPTRE 8. Write outputs to directory', format(Sys.time(), digits = 0)))
-write_outputs_to_directory(
+sceptre::write_outputs_to_directory(
   sceptre_object = sceptre_object, 
   directory = SCEPTRE_savepath
-
 )
 
 SCEPTRE_time_benchmark = 
@@ -475,9 +459,6 @@ saveRDS(SCEPTRE_time_benchmark, file = sprintf('%s/SCEPTRE_time_benchmark.rds', 
 # sceptre_object@discovery_result
 # test_load_results = readRDS(sprintf('%s/results_run_discovery_analysis.rds', SCEPTRE_savepath))
 # test_load_results
-
-
-
 
 
 # =================== END ====================================================

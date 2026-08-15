@@ -1,11 +1,8 @@
 
-
-
-
 Analyze scCRISPR screen experiments using Proximal Causal Inference
 
 
-
+(TODO: update structure of analysis. This description is old now.)
 
 # Datasets
 + papalexi-2025: more controlled experimental setting
@@ -17,17 +14,17 @@ Analyze scCRISPR screen experiments using Proximal Causal Inference
 Steps
 
 + Pre-process data
-    - filter genes and perturbations (high variance/signal, non TF (TODO: where did the list of TF come from? slack attachment from Kathryn...))
+    - filter genes and perturbations (high variance/signal, non TF)
     - convert from counts to continuous! 
     - choose some perturbation-gene pairs for testing 
 + Other Estimation Methods
-    - estimate ATE/effects using other methods (some may be p-values and not ATE, e.g. nb est using ra counts)
+    - estimate ATE/effects using other methods (some may be p-values and not ATE, e.g. nb est using raw counts)
     - linear regression, Negative Binomial, SCEPTRE [^barry2021], 
 + Proximal Setup and Estimation
     - construct NCE/NCOs (sparse PCA [^witten2007])
     - estimate ATE using pci2s
 + Evaluation of Estimators  
-    - plots shoing performance
+    - plots showing performance
 
 
 

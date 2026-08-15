@@ -1,0 +1,209 @@
+
+
+
+# Slightly Restructured analysis of `papalexi-2021`
+
+changes:
+ - create Null AY tests using NT perturbations --> genes (instead of random selection of perturbation --> genes)
+    + this requires changing the analysis of untreated (A=0) cells (samples) to be the NT receiving cells excluding this specific NT perturbation
+    + this can be slightly sped up by using the NT --> gene pairs chosen by SCEPTRE (i.e. perform SCEPTRE early, and then take those NT --> gene pairs)
+
+ - perhaps change the way proximal is estimated?
+ - Analyses/Comparison for comparison
+    + GLM
+    + SCEPTRE
+    + Proximal (continuous Y with NCs as singlegenes, PCA, Sparse PCA, WGCNA)
+    + Proximal (count Y [Negative Binomial] with NCs as count singlegenes, continuous singlegenes, and continuous PCA)
+    + 
+
+
+
+# Folders
+
+```
+papalexi-2021/
+  analysis/
+    1_processData/
+    2_sceptreAndSetupAY/
+    3_estimateEffects/
+    4_compareEstimators/
+    5_compareNCs/
+  saves/
+    AY/
+  README.md
+```
+
+Folder purposes:
+ - `1_processData/` - find important genes genes, normalize count data to continuous, gather chromosome info, construct potential Negative Control variables (NCE (Z) and NCO (W))) using PCA, sparse PCA, and WGCNA.
+ - `2_sceptreAndSetupAY/` - perform SCEPTRE analysis, **extract SCEPTRE's** AY, set up individual genes for each AY pair 
+ - `3_estimateEffects/` - 
+ - `4_compareEstimators/`
+ - `5_compareNCs/`
+
+
+# Analysis Folder
+
+
+
+## `1_processData`
+
+
+Script to run: `script_papalexi_1_processData_laptop.sh`
+
+
+**Part 1**: find important genes genes, normalize count data to continuous, gather chromosome info 
+
+Files in the folder `1_processData/`
+
+ + `1.1_papalexi_findimportantgenes.R`
+ + `1.2_papalexi_normalize.R`
+ + `1.3_papalexi_getchromosome.R`
+
+
+
+
+saved files include:
+
+ + `<save_dir>/gene_deviance.csv`
+ + `<save_dir>/gene_deviance_topnoTFonly.csv`
+ + `<save_dir>/gene.h5` (names `gene` and `gene_norm`) normalized gene expression 
+ + `<save_dir>/chromosome/gene_chromosome.csv`
+ + `<save_dir>/chromosome/grna_chromosome.csv`
+
+
+**Part 2**: Construct potential Negative Control variables (NCE (Z) and NCO (W))) using PCA, sparse PCA, and WGCNA.
+
+
+Files in the folder `1_processData/`
+
+ + `1.4_papalexi_sparsePCA.R` - gathers both PCA and sparse PCA
+ + `1.5_papalexi_wgcna.R` 
+
+saved files include:
+
+ + `<save_dir>/pca/NCloadings.rds`
+ + `<save_dir>/spca/NCloadings_sumabs=34.5_K=60_N=5000.rds`
+ + `<save_dir>/spca/NCloadings_sumabs=8.0_K=60_N=5000.rds`
+ + `<save_dir>/WGCNA/NC_wgcna_ModuleEigengene.rds`
+ + `<save_dir>/WGCNA/autoWGCNA/`- other WGCNA results (e.g. visualizations and different parameters)
+
+
+Also includes `1.999_EDA_UMAP.R`  
+
+## `2_setupAY`
+
+Script to run: `2_setupAY_script.sh`
+
+Setup a selection of perturbations (A) and genes (Y) to test the causal effects for.
+And setup a selection of NCE (Z) and NCO (W) individual genes to use as negative controls.
+Specify the settings for choosing tests in `<save_dir>/AY/AY_setting.R`.
+
+Files in the folder `2_setupAY/`
+
+ + `2.1_choose_AY.R`
+
+saved files include:
+
+ + `<save_dir>/AY/<setting_name>/`
+ + `<save_dir>/AY/<setting_name>/AY.csv`
+ + `<save_dir>/AY/<setting_name>/AYZW_setting.rds`
+ + `<save_dir>/AY/<setting_name>/AYZW_setting.txt`   
+
+
+
+## `3_estimateEffects`
+
+Script to run: `2_setupAY_script.sh`
+
+
+Estimate effects from a variety of methods.  
+
+
+Files in the folder `3_estimateEffects/`
+
+ + `3.1_papalexi_countinuous.R`
+ + `3.2_papalexi_countGLM.R`
+ + `3.3_papalexi_sceptre.R`
+
+saved files include:
+
+For continuous results:
+
+ + `<save_dir>/AY/<setting_name>/PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene/` - run many NC choices at once
+ + `<save_dir>/AY/<setting_name>/PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene/effects_continuous.csv` 
+ + `<save_dir>/AY/<setting_name>/PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene/intermediateATEs/` 
+ + `<save_dir>/AY/<setting_name>/<proximal_setting_name>/`- also save individually per NC choice
+ + `<save_dir>/AY/<setting_name>/<proximal_setting_name>/effects_continuous.csv`
+ + `<save_dir>/AY/<setting_name>/<proximal_setting_name>/proximal_setting.rds`
+ + `<save_dir>/AY/<setting_name>/<proximal_setting_name>/proximal_setting.txt`
+ + `<save_dir>/AY/<setting_name>/<proximal_setting_name>/intermediateATEs/`
+
+For count results:
+
+ + `<save_dir>/AY/<setting_name>/simpleCount/`
+ + `<save_dir>/AY/<setting_name>/simpleCount/effects_countGLM.csv`
+ + `<save_dir>/AY/<setting_name>/simpleCount/intermediateATEsCountGLM/`
+
+
+
+
+
+## `4_compareEstimators`
+
+
+
+
+
+## `5_compareNCs`
+
+Files in the folder `5_compareNCs/`
+
+ + `5.1_visualizeProxByNC.qmd`
+
+
+
+
+# Main Figures
+
+
+
+Within Proximal Continuous Methods 
+
+| NC Types                                | ranks                 |
+|-----------------------------------------|-----------------------|
+| SVD                                     | [1, 3, 5, 10, 20, 30] |
+| Sparse SVD                              | [1, 3, 5, 10, 20, 30] |
+| softImpute                              | [1, 3, 5, 10, 20, 30] |
+| Spectral Biclustering                   | [1, 3, 5, 10, 20, 30] |
+| Spectral Biclustering with Thresholding | [1, 3, 5, 10, 20, 30] |
+| Average                                 |                       |
+| Zeros                                   |                       |
+|                                         |                       |
+
+
+Overall Methods
+
+| Method                                          | Requires measured confounders<br>(U or C or X) | Nulls vs Unif(0,1)<br>(some KS-type stat) | Alternative Power<br>(AUC?) | FPR at <br>specific alpha=.05 | Rej Rate at<br>specific alpha=.05 |
+|-------------------------------------------------|:----------------------------------------------:|:-----------------------------------------:|:---------------------------:|:-----------------------------:|:---------------------------------:|
+| GLM Neg Binomial<br>(no confounders)            |                       No                       |                                           |                             |                               |                                   |
+| GLM Neg Binomial<br>(with measured confounders) |                       Yes                      |                                           |                             |                               |                                   |
+| SCEPTRE<br>(with measured confounders)          |                       Yes                      |                                           |                             |                               |                                   |
+| causarray                                       |                       No                       |                                           |                             |                               |                                   |
+| Proximal (single genes)                         |                       No                       |                                           |                             |                               |                                   |
+| Proximal (PCA)                                  |                       No                       |                                           |                             |                               |                                   |
+| Proximal Count (PCA)<br>[or choose 1 'best']    |                       No                       |                                           |                             |                               |                                   |
+
+
+
+# Extra:
+
+
+Some notes and details for running code:
+
+
+ + `ondisc` package updated, and the code doesn't work with the new package version (no longer has the function `ondisc::read_odm`). Download the tar.gz file of v1.1.0 from https://github.com/timothy-barry/ondisc/releases and install. 
+   (I did not modify the code to fit the new package because the `papalexi-2021` data is pulled from https://github.com/Katsevich-Lab/import-papalexi-2021, which uses the older `ondisc` version).
+   I saved the tar.gz locally at genData/package_ondisc_old/
+
+
+
