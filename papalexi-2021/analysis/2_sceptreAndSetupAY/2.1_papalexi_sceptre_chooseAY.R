@@ -14,7 +14,7 @@ args = commandArgs(trailingOnly = TRUE)
 
 
 RUN_PARALLEL = TRUE
-MAX_NUM_DISCOVERY_PAIRS = 5000 # by default, just searching for trans pairs results in 484848. we don't need this many
+MAX_NUM_DISCOVERY_PAIRS = 10000 # by default, just searching for trans pairs results in 484848. we don't need this many
                                # additionally, these are grna *targets* not just grnas. so this is multiplied
 
 
@@ -78,6 +78,13 @@ grna_rownames = ondisc::get_feature_ids(grna_odm)
 rownames(grna) = grna_rownames
 
 
+
+# gene info- here used to subset Y responses to only 'important' (e.g. top XXX genes) because only these have continuous transformations
+gene_chr = read.csv(sprintf('%s/chromosome/gene_chromosome.csv', save_dir)) # 4000-ish x 7
+#   wikigene_name importance_rank gene_idx wikigene_id chromosome_name ensembl_gene_id external_gene_name
+# 1          A1BG            2666    17217           1              19 ENSG00000121410               A1BG
+# which(!(gene_chr$wikigene_name %in% row.names(gene_odm@feature_covariates))) # wikigene names match names of gene_odm
+top_geneY = gene_chr$wikigene_name  # only allow tests with top XX genes for outcome Y because only these have continuous transformations
 
 
 # =================================================================================================#
@@ -190,7 +197,7 @@ discovery_pairs_auto <- construct_trans_pairs(
   positive_control_pairs = positive_control_pairs,
   pairs_to_exclude = "pc_pairs"
 )
-
+discovery_pairs_auto = discovery_pairs_auto |> dplyr::filter(response_id %in% top_geneY)  # only allow top XX genes as responses
 
 
 # Add AY (it should already be automatically added but just in case)
@@ -226,6 +233,10 @@ discovery_pairs_auto <- construct_trans_pairs(
 # discovery_pairs = rbind(discovery_pairs_AY, discovery_pairs_auto) |> dplyr::distinct()
 
 # discovery_pairs = discovery_pairs_auto[sample(nrow(discovery_pairs_auto), size=setting$NUM_MAYBE, replace=FALSE), ]
+
+
+
+
 
 if(!is.na(MAX_NUM_DISCOVERY_PAIRS) && MAX_NUM_DISCOVERY_PAIRS < nrow(discovery_pairs_auto)) {
   discovery_pairs = discovery_pairs_auto[sample(1:nrow(discovery_pairs_auto), size=MAX_NUM_DISCOVERY_PAIRS, replace=FALSE), ]

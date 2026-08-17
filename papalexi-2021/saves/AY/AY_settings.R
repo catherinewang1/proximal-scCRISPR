@@ -12,7 +12,7 @@ settings = list(
              # AY test settings
              NUM_ALT           = NA,   # num of Alt tests: NA if all As (probably SHOULD)
              NUM_NULL          = 1000, # num of Null tests (Non-Targeting to Y)
-             NUM_MAYBE         = 200,  # num of Unknown tests: targeting perturbation A to randomly chosen gene Y (mostly null though)
+             NUM_MAYBE         = 400,  # num of Unknown tests: targeting perturbation A to randomly chosen gene Y (mostly null though)
              MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
              NUM_NCE           = 50,   # number of individual gene NCE (Z) per AY test 
              NUM_NCO           = 50,   # number of individual gene NCO (W) per AY test 
@@ -39,8 +39,8 @@ settings = list(
   "B" = list(seed = 1345678,
              # AY test settings
              NUM_ALT           = NA,   # num of Alt tests: NA if all As (probably SHOULD)
-             NUM_NULL          = 500, # num of Null tests (Non-Targeting to Y)
-             NUM_MAYBE         = 500,  # num of Unknown tests: targeting perturbation A to randomly chosen gene Y (mostly null though)
+             NUM_NULL          = 2000, # num of Null tests (Non-Targeting to Y)
+             NUM_MAYBE         = 2000,  # num of Unknown tests: targeting perturbation A to randomly chosen gene Y (mostly null though)
              MAX_Y_IMPORTANCE  = 1500, # limit how 'unimportant' a response gene can be
              NUM_NCE           = 50,   # number of individual gene NCE (Z) per AY test 
              NUM_NCO           = 50,   # number of individual gene NCO (W) per AY test 
