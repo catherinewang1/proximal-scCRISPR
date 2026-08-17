@@ -16,10 +16,9 @@ args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop',  'A1')
 # args = c('laptop',  'A')
 # args = c('macbook', 'A')
+# args = c('macbook', 'A1', 'simpleCount-proximalNegBinCountCount-proximalNegBinSinglegeneSinglegene-proximalNegBinPCAPCA') # do many at the same time
 
 
-
-args = c('macbook', 'A1', 'simpleCount-proximalNegBinCountCount-proximalNegBinPCAPCA-proximalNegBinSinglegeneSinglegene') # do many at the same time
 
 
 # =================== Load Libraries and Packages =========================================================
@@ -36,7 +35,7 @@ suppressPackageStartupMessages(library(cowplot))
 suppressPackageStartupMessages(library(future.apply))
 # options(future.globals.maxSize= 850*1024^2) #1st num is MB
 options(future.globals.maxSize= 2500*1024^2) #1st num is MB
-plan(multisession, workers = 8)
+plan(multisession, workers = 24)
 # plan(sequential)
 
 
@@ -58,18 +57,18 @@ assertthat::assert_that(length(args) > 1, msg="must give arg for specifying chos
 AYZW_setting_name = args[2]
 
 # args[3] = analysis methods separated by '-' e.g. simpleCount-proximalNegBinCountCount
-# should be the names of the list made in saves/AY/proximal_continuous_settings.r
-assertthat::assert_that(length(args) > 2, msg="must give arg for specifying chosen analysis methods 'Rscript <filename>.R ubergenno C SPCA8.0' (see options listed in AY/proximal_continuous_settings.r)")
+# should be the names of the list made in saves/AY/proximal_settings.r
+assertthat::assert_that(length(args) > 2, msg="must give arg for specifying chosen analysis methods 'Rscript <filename>.R ubergenno C SPCA8.0' (see options listed in AY/proximal_settings.r)")
 NC_name_raw = args[3]
 NC_names = strsplit(x = NC_name_raw, split = '-') |> unlist()
 
-source(sprintf('%s/AY/proximal_continuous_settings.r', save_dir)) # loads in list: proximal_continuous_settings
+source(sprintf('%s/AY/proximal_settings.r', save_dir)) # loads in list: proximal_settings
 
-assertthat::assert_that(all(NC_names %in% names(proximal_continuous_settings)), msg = "bad NC_name input, list mult like PCA-SPCA8.0-singlegene (see options listed in AY/proximal_continuous_settings.r)")
+assertthat::assert_that(all(NC_names %in% names(proximal_settings)), msg = "bad NC_name input, list mult like PCA-SPCA8.0-singlegene (see options listed in AY/proximal_settings.r)")
 
 
-for(NC_name in NC_names) { # save this run's settings from proximal_continuous_settings + add device
-  PROXIMAL_SETTINGS = proximal_continuous_settings[[NC_name]] # the current proximal settings
+for(NC_name in NC_names) { # save this run's settings from proximal_settings + add device
+  PROXIMAL_SETTINGS = proximal_settings[[NC_name]] # the current proximal settings
   PROXIMAL_SETTINGS$DEVICE = DEVICE
   # save parameter settings
   dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, NC_name), recursive = FALSE, showWarnings = FALSE)
@@ -85,9 +84,9 @@ for(NC_name in NC_names) { # save this run's settings from proximal_continuous_s
 
 
 
-intermediateATEs_folder = sprintf('%s/AY/%s/intermediateATEsCount', save_dir, AYZW_setting_name)
+intermediateATEs_folder = sprintf('%s/AY/%s/count-many/', save_dir, AYZW_setting_name)
 if(save_intermediateATEs == 'yes') {
-  dir.create(intermediateATEs_folder, showWarnings = FALSE)
+  dir.create(intermediateATEs_folder, showWarnings = FALSE, recursive = TRUE)
   cat(NC_name_raw, file = sprintf('%s/%s.txt', intermediateATEs_folder, NC_name_raw))
 }
 
@@ -161,7 +160,7 @@ cell_covariates = cell_covariates |>
 
 NCs_list = list()
 for(NC_name in NC_names) {
-  PROXIMAL_SETTINGS = proximal_continuous_settings[[NC_name]]
+  PROXIMAL_SETTINGS = proximal_settings[[NC_name]]
   
   if(NC_name == 'simpleCount') {                               # regular GLMs (very fast, can just keep)
     NCs = NA
@@ -191,7 +190,7 @@ for(NC_name in NC_names) {
     # e.g. only include gene_norm that are needed: (single genes will add a lot of Ys...)
     # all_As = AY$A |> unique() # grna size is small enough
     all_singlegenes = c()
-    max_num_NC_pairs = proximal_continuous_settings[['proximalNegBinSinglegeneSinglegene']]$num_NC_pairs |> max() # max number of ZW used 
+    max_num_NC_pairs = proximal_settings[['proximalNegBinSinglegeneSinglegene']]$num_NC_pairs |> max() # max number of ZW used 
     for(A_name in names(NCs)) {
       for(Y_name in names(NCs[[A_name]])) {
         all_singlegenes = c(all_singlegenes, 
@@ -246,7 +245,7 @@ rm(NT_names)
 # =================== Define fns for Effects (parallel) ============================================
 print(sprintf("[%s]    - Define fns for Effects (parallel)", Sys.time()))
 
-source(sprintf('%s/estimate_effects_pci2s_count.R', util_dir)) # for functions to estimate here
+# source(sprintf('%s/estimate_effects_pci2s_count.R', util_dir)) # for functions to estimate here
 
 
 estimate_effect_0 = estimate_ATE_pci2snegbin_make(AY = AY, 
@@ -255,14 +254,14 @@ estimate_effect_0 = estimate_ATE_pci2snegbin_make(AY = AY,
                                                   gene_norm= gene_norm_subset, 
                                                   NT_idx   = NT_idx,
                                                   NCs_list = NCs_list,                                 # list of actual NCs (or the names of ZW)
-                                                  NCs_settings=proximal_continuous_settings[NC_names], # settings for chosen methods
+                                                  NCs_settings=proximal_settings[NC_names], # settings for chosen methods
                                                   library_size=library_size, 
                                                   U_confounders=cell_covariates,
                                                   save_path=switch(save_intermediateATEs,
                                                                    'yes' = intermediateATEs_folder,
                                                                    'no'  = NULL)
                                                   ) 
-test = estimate_effect_0(AY_idx = 3)
+# test = estimate_effect_0(AY_idx = 3)
 
 
 
@@ -316,35 +315,71 @@ ATE_par = future.apply::future_mapply(estimate_effect,
 t1 = Sys.time()
 print(sprintf("[%s]        - %.2f mins", Sys.time(), difftime(t1, t0, units = "mins")))
 
-saveRDS(ATE_par, file = sprintf('%s/AY/%s/%s/effects_countGLM_ATE_par.rds', save_dir, AYZW_setting_name, proximal_setting_name)) # save this parallel res as rds
+saveRDS(ATE_par, file = sprintf('%s/AY/%s/count-many/effects_count_ATE_par.rds', save_dir, AYZW_setting_name)) # save this parallel res as rds
+
+
 
 
 # =================== Combine ATEs (into one df) ===================================================
 print(sprintf("[%s]    - Combine ATEs", Sys.time()))
-# ATE_par[, 1]
-# ATE_par[[1, ]]
-# length(ATE_par)
-# unlist(ATE_par)
-# ATE_par[1] |> as.data.frame()
 
-ATE_df = NULL
-for(whichROWS_idx in 1:length(whichROWS)) { # whichROWS_idx is always 1, 2, ...
-  cur_ATE_par = ATE_par[[whichROWS_idx]]
-  
-  if(!is.null(cur_ATE_par)) {
-    # AY test is whichROWS[whichROWS_idx]  = AY_idx!!! 
-    AY_idx = whichROWS[whichROWS_idx]
+# try to combine by reading in saved intermediateATEs, else use ATE_par (sometimes errors...)
+if(save_intermediateATEs == 'yes') {
+  # combine dataframe by loading in intermediateATE saves
+  ATE_df = NULL
+  for(fn in list.files(sprintf('%s/intermediateATEs/', intermediateATEs_folder))) {
     
-    ATE_df = rbind(ATE_df,
-                   cbind(data.frame(AY_idx=AY_idx),
-                         AY[AY_idx, ] |> `rownames<-`( NULL ),
-                         cur_ATE_par))
-    rm(AY_idx)
+    if(grepl('ATE_', fn)) { # intermediateATE should have filename like 'ATE_123.csv'
+      ATE_df_i = read.csv(sprintf('%s/intermediateATEs/%s', intermediateATEs_folder, fn))
+      AY_idx = as.numeric(gsub(pattern = '[^0-9]', replacement = '', x = fn)) # this should extract the AY_idx
+      ATE_df = rbind(ATE_df,
+                     cbind(data.frame(AY_idx=AY_idx),
+                           AY[AY_idx, ] |> `rownames<-`( NULL ),
+                           ATE_df_i))
+      
+      # sum(ATE_df_i$time_sec)/ 60 # mins/1 test... the numNC=50 makes it take really long
+      # (sum(ATE_df_i$time_sec) - 2300 - 412)/ 60 # exclude singlegene 25 and 50
+      # ggplot(ATE_df_i, aes(x = numNC, y = time_sec, color = NC_type)) + geom_line()
+      # head(ATE_df_i)
+    }
   }
+  write.csv(x = ATE_df, file = sprintf('%s/AY/%s/count-many/effects_count.csv', save_dir, AYZW_setting_name), row.names = FALSE)
+  
+  
+} else { 
+  # ATE_par[, 1]
+  # ATE_par[[1, ]]
+  # length(ATE_par)
+  # unlist(ATE_par)
+  # ATE_par[1] |> as.data.frame()
+  # 
+  ATE_df = NULL
+  for(whichROWS_idx in 1:length(whichROWS)) { # whichROWS_idx is always 1, 2, ...
+    cur_ATE_par = ATE_par[[whichROWS_idx]]
+    
+    if(!is.null(cur_ATE_par)) {
+      # AY test is whichROWS[whichROWS_idx]  = AY_idx!!! 
+      AY_idx = whichROWS[whichROWS_idx]
+      
+      ATE_df = rbind(ATE_df,
+                     cbind(data.frame(AY_idx=AY_idx),
+                           AY[AY_idx, ] |> `rownames<-`( NULL ),
+                           cur_ATE_par))
+      rm(AY_idx)
+    }
+  }
+  write.csv(x = ATE_df, file = sprintf('%s/AY/%s/count-many/effects_count.csv', save_dir, AYZW_setting_name), row.names = FALSE)
+  
+  
 }
 
-write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_countGLM.csv', save_dir, AYZW_setting_name, proximal_setting_name), row.names = FALSE)
 
+# also separately save in each NC folder (eg. AY/A/proximalNegBinCountCount/effects_count.csv)
+for(NC_name in NC_names) {
+  ATE_df_NC_name = ATE_df |> dplyr::filter(NC_type == NC_name | is.na(NC_type)) # this NC_name or lmAY or lmAYU
+  write.csv(x = ATE_df_NC_name, file = sprintf('%s/AY/%s/%s/effects_count.csv', save_dir, AYZW_setting_name, NC_name), row.names = FALSE)
+  rm(ATE_df_NC_name)
+}
 
 
 

@@ -11,8 +11,7 @@ args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop', 'A', 'SPCA8.0')
 # args = c('laptop', 'C1', 'WGCNA')
 # args = c('laptop', 'C1', 'WGCNA')
-# args = c('laptop', 'A1', 'PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene') # do many at the same time
-
+# args = c('macbook', 'A1', 'PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene') # do many at the same time
 
 suppressPackageStartupMessages(library(assertthat)) # for some assert statements
 suppressPackageStartupMessages(library(Matrix))
@@ -40,8 +39,8 @@ theme_set(theme_cowplot() +
 
 
 
-# !! DO NOT PUT PARAMETERS HERE!!: INSTEAD THEY ARE SAVED IN <save folder>/AY/proximal_continuous_settings.r
-#   e.g. saves/AY/proximal_continuous_settings.r
+# !! DO NOT PUT PARAMETERS HERE!!: INSTEAD THEY ARE SAVED IN <save folder>/AY/proximal_settings.r
+#   e.g. saves/AY/proximal_settings.r
 # 
 # # === Parameter Settings for WGNCA
 # NC_name = 'WGCNA'
@@ -103,18 +102,18 @@ assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desk
 assertthat::assert_that(length(args) > 1, msg="must give arg for specifying chosen AYZW name 'Rscript <filename>.R ubergenno C'")
 AYZW_setting_name = args[2]
 
-assertthat::assert_that(length(args) > 2, msg="must give arg for specifying chosen Negative Control 'Rscript <filename>.R ubergenno C SPCA8.0' (see options listed in AY/proximal_continuous_settings.r)")
+assertthat::assert_that(length(args) > 2, msg="must give arg for specifying chosen Negative Control 'Rscript <filename>.R ubergenno C SPCA8.0' (see options listed in AY/proximal_settings.r)")
 NC_name_raw = args[3]
 NC_names = strsplit(x = NC_name_raw, split = '-') |> unlist()
 
-source(sprintf('%s/AY/proximal_continuous_settings.r', save_dir)) # loads in list: proximal_continuous_settings
+source(sprintf('%s/AY/proximal_settings.r', save_dir)) # loads in list: proximal_settings
 
-assertthat::assert_that(all(NC_names %in% names(proximal_continuous_settings)), msg = "bad NC_name input, list mult like PCA-SPCA8.0-singlegene (see options listed in AY/proximal_continuous_settings.r)")
+assertthat::assert_that(all(NC_names %in% names(proximal_settings)), msg = "bad NC_name input, list mult like PCA-SPCA8.0-singlegene (see options listed in AY/proximal_settings.r)")
 
 
 
 for(NC_name in NC_names) {
-  PROXIMAL_SETTINGS = proximal_continuous_settings[[NC_name]] # the current proximal settings
+  PROXIMAL_SETTINGS = proximal_settings[[NC_name]] # the current proximal settings
   PROXIMAL_SETTINGS$DEVICE = DEVICE
   # save parameter settings
   dir.create(sprintf('%s/AY/%s/%s', save_dir, AYZW_setting_name, NC_name), recursive = FALSE, showWarnings = FALSE)
@@ -129,7 +128,7 @@ for(NC_name in NC_names) {
 }
 
 
-intermediateATEs_folder = sprintf('%s/AY/%s/%s/', save_dir, AYZW_setting_name, NC_name_raw)
+intermediateATEs_folder = sprintf('%s/AY/%s/continuous-%s/', save_dir, AYZW_setting_name, NC_name_raw)
 if(save_intermediateATEs == 'yes') {
   dir.create(intermediateATEs_folder, showWarnings = FALSE)
 }
@@ -213,7 +212,7 @@ invisible(gc(verbose=FALSE))
 
 NCs_list = list()
 for(NC_name in NC_names) {
-  PROXIMAL_SETTINGS = proximal_continuous_settings[[NC_name]]
+  PROXIMAL_SETTINGS = proximal_settings[[NC_name]]
   # load Negative Controls
   if(NC_name == 'PCA') {
     # use PCA Loadings
@@ -249,7 +248,7 @@ for(NC_name in NC_names) {
 all_Ys = AY$Y |> unique() 
 if('singlegene' %in% NC_names) {
   AYZW = readRDS(sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
-  max_num_NC_pairs = proximal_continuous_settings[['singlegene']]$num_NC_pairs |> max() # max number of ZW used 
+  max_num_NC_pairs = proximal_settings[['singlegene']]$num_NC_pairs |> max() # max number of ZW used 
   for(A_name in names(AYZW)) {
     for(Y_name in names(AYZW[[A_name]])) {
       all_Ys = c(all_Ys, 
@@ -284,11 +283,14 @@ NT_idx = which(apply(X = grna_odm[[NT_names, ]], MARGIN = 2, FUN = sum) > 0)
 
 
 
-
-
 # clear environment
 rm(gene_norm, gene_importance, gene_importance_subset, gene_odm, grna_odm, all_Ys)
 invisible(gc(verbose=FALSE))
+
+
+
+
+
 
 
 # =================== Define fns for ATEs (parallel) ===============================================
@@ -302,13 +304,24 @@ estimate_ATE_0 = estimate_ATE_pci2sbyNC_make(AY                      = AY,
                                              grna                    = grna, 
                                              NT_idx                  = NT_idx, 
                                              NCs_list                = NCs_list, 
-                                             NCs_settings            = proximal_continuous_settings[NC_names],
+                                             NCs_settings            = proximal_settings[NC_names],
                                              save_path               = switch(save_intermediateATEs,
                                                                               'yes' = intermediateATEs_folder,
                                                                               'no'  = NULL), 
                                              U_confounders           = cell_covariates)
 
+
+
 # test = estimate_ATE_0(AY_idx = 3)
+
+# test = get_AYZW_df_pci2sbyNCs(
+#   A_name       =AY[3, 'A'], 
+#   Y_name       =AY[3, 'Y'], 
+#   NT_idx       =NT_idx,
+#   grna         =grna, 
+#   gene_norm    =gene_norm_subset, 
+#   NCs          = NCs_list[['PCA']], 
+#   U_confounders=cell_covariates) 
 
 
 estimate_ATE <- function(AY_idx) {
@@ -364,7 +377,7 @@ t1 = Sys.time()
 print(sprintf("[%s]        - %2.2f mins", Sys.time(), difftime(t1, t0, units = "mins")))
 
 
-saveRDS(ATE_par, file = sprintf('%s/AY/%s/%s/effects_continuous_ATE_par.rds', save_dir, AYZW_setting_name, NC_name_raw)) # save this parallel res as rds
+saveRDS(ATE_par, file = sprintf('%s/AY/%s/continuous-%s/effects_continuous_ATE_par.rds', save_dir, AYZW_setting_name, NC_name_raw)) # save this parallel res as rds
 
 
 # =================== Combine ATEs (into one df) ===================================================
@@ -390,7 +403,7 @@ if(save_intermediateATEs == 'yes') {
       # head(ATE_df_i)
     }
   }
-  write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name_raw), row.names = FALSE)
+  write.csv(x = ATE_df, file = sprintf('%s/AY/%s/continuous-%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name_raw), row.names = FALSE)
   
   
 } else { 
@@ -415,7 +428,7 @@ if(save_intermediateATEs == 'yes') {
       rm(AY_idx)
     }
   }
-  write.csv(x = ATE_df, file = sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name_raw), row.names = FALSE)
+  write.csv(x = ATE_df, file = sprintf('%s/AY/%s/continuous-%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_name_raw), row.names = FALSE)
   
   
 }

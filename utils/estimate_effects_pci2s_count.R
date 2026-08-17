@@ -4,8 +4,8 @@
 if(F) {
 NC_name_raw = 'simpleCount-proximalCountCountCount'
 NC_names = strsplit(x = NC_name_raw, split = '-') |> unlist()
-proximal_continuous_settings[NC_names]
-NCs_settings            = proximal_continuous_settings[NC_names]
+proximal_settings[NC_names]
+NCs_settings            = proximal_settings[NC_names]
 NC_name = NC_names[2]
 
 # === only extract cols and idx of gene and grna we are interested in (to hopefully save time)
@@ -14,7 +14,7 @@ NC_name = NC_names[2]
 NCE_type='count'; NCO_type='count' # NCE_type='continuous'; NCO_type='continuous'
 if(NCE_type=='count' & NCO_type=='count') {
   AYZW = readRDS(sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
-  max_num_NC_pairs = proximal_continuous_settings[['proximalCountCountCount']]$num_NC_pairs |> max() # max number of ZW used 
+  max_num_NC_pairs = proximal_settings[['proximalCountCountCount']]$num_NC_pairs |> max() # max number of ZW used 
   for(A_name in names(AYZW)) {
     for(Y_name in names(AYZW[[A_name]])) {
       all_Ys = c(all_Ys, 
@@ -89,16 +89,18 @@ A_idx = which(as.logical(grna_odm[[A_name, ]]))
 # Get A
 # ------------------------------------------- #
 A_idx = which(as.logical(grna_odm[[A_name, ]])) # idx of all 'treated' cells   
-# A = grna_odm[[A_name, c(A_idx, NT_idx)]] # subset cells of 'treated' (w A grna) and 'control' (NT grna)
-A = c(rep(0, length(A_idx)), rep(1, length(NT_idx))) # these should be the same
+control_idx = setdiff(NT_idx, A_idx)                  # idx of control cells (NT without A)
+AY_data_idx  = c(A_idx, control_idx)                  # idx of data for this AY test
+# A = grna_odm[[A_name, AY_data_idx]] # subset cells of 'treated' (w A grna) and 'control' (NT grna)
+A = c(rep(0, length(A_idx)), rep(1, length(control_idx))) # these should be the same
 
 
 # Get Z and W 
 # -------------------------------------------  #
 Z_names = AYZW[[A_name]][[Y_name]][[1]]$Z_names[1:max_num_NC_pairs]
 W_names = AYZW[[A_name]][[Y_name]][[1]]$W_names[1:max_num_NC_pairs]
-dfZ = gene_odm[[Z_names, c(A_idx, NT_idx)]] |> t() |> as.matrix()
-dfW = gene_odm[[W_names, c(A_idx, NT_idx)]] |> t() |> as.matrix()
+dfZ = gene_odm[[Z_names, AY_data_idx]] |> t() |> as.matrix()
+dfW = gene_odm[[W_names, AY_data_idx]] |> t() |> as.matrix()
 colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
 colnames(dfW) = paste0('W', 1:ncol(dfW))
 
@@ -114,11 +116,11 @@ colnames(dfW) = paste0('W', 1:ncol(dfW))
 # 
 # 
 # if(is.matrix(NCs)) {
-#   dfZ = NCs[c(A_idx, NT_idx), seq(from = 2, to = ncol(NCs), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
-#   dfW = NCs[c(A_idx, NT_idx), seq(from = 1, to = ncol(NCs), by = 2)] # odds
+#   dfZ = NCs[AY_data_idx, seq(from = 2, to = ncol(NCs), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
+#   dfW = NCs[AY_data_idx, seq(from = 1, to = ncol(NCs), by = 2)] # odds
 # } else if(is.list(NCs) && ('Z_names' %in% names(NCs)) && ('W_names' %in% names(NCs)) ) {
-#   dfZ = gene_norm[NCs[['Z_names']], c(A_idx, NT_idx)] |> t() |> data.frame()
-#   dfW = gene_norm[NCs[['W_names']], c(A_idx, NT_idx)] |> t() |> data.frame()
+#   dfZ = gene_norm[NCs[['Z_names']], AY_data_idx] |> t() |> data.frame()
+#   dfW = gene_norm[NCs[['W_names']], AY_data_idx] |> t() |> data.frame()
 # } else {
 #   print(sprint('(A:%s,Y:%s) Bad NCs input in get_AYZW_df_pci2sbyNCs', A_name, Y_name))
 #   return()
@@ -127,7 +129,7 @@ colnames(dfW) = paste0('W', 1:ncol(dfW))
 
 # Get Y
 # -------------------------------------------  #
-Y = gene_odm[[Y_name, c(A_idx, NT_idx)]] |> as.vector()
+Y = gene_odm[[Y_name, AY_data_idx]] |> as.vector()
 
 for(num_NCs in NCs_settings[[NC_name]]$num_NC_pairs) {
   print(sprintf('pci2s negbin #NCs=%02.f', num_NCs))
@@ -213,7 +215,7 @@ if(is.null(U_confounders)) {
 } else {
   # Add U (if given)
   # ------------------------------------------- #
-  dfU = U_confounders[c(A_idx, NT_idx), ] 
+  dfU = U_confounders[AY_data_idx, ] 
   colnames(dfU) = paste0('U', 1:ncol(dfU)) # rename cols so no mix up 
   return(cbind(dfAYZW, dfU))
 }
@@ -274,14 +276,17 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
   
   # Get A ------------------------------------- 
   # ------------------------------------------- #
-  A_idx = which(as.logical(grna_odm[[A_name, ]])) # idx of all 'treated' cells   
-  # A = grna_odm[[A_name, c(A_idx, NT_idx)]] # subset cells of 'treated' (w A grna) and 'control' (NT grna)
-  A = c(rep(0, length(A_idx)), rep(1, length(NT_idx))) # these should be the same
+  A_idx = which(as.logical(grna_odm[[A_name, ]]))       # idx of all 'treated' cells   
+  control_idx = setdiff(NT_idx, A_idx)                  # idx of control cells (NT without A)
+  AY_data_idx  = c(A_idx, control_idx)                  # idx of data for this AY test
+  
+  A = as.integer(grna_odm[[A_name, AY_data_idx]]) # subset cells of 'treated' (w A grna) and 'control' (NT grna)
+  # A = c(rep(0, length(A_idx)), rep(1, length(control_idx))) # these should be the same
   
   
   # Get Y -------------------------------------
   # ------------------------------------------- #   
-  Y = gene_odm[[Y_name, c(A_idx, NT_idx)]] |> as.vector()
+  Y = gene_odm[[Y_name, AY_data_idx]] |> as.vector()
   
   
   # Get Z and W  ------------------------------
@@ -302,8 +307,8 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
       Z_names = NCs$Z_names[1:max_num_NC_pairs]
       W_names = NCs$W_names[1:max_num_NC_pairs]
     }
-    Z = gene_odm[[Z_names, c(A_idx, NT_idx)]] |> t() |> as.matrix()
-    W = gene_odm[[W_names, c(A_idx, NT_idx)]] |> t() |> as.matrix()
+    Z = gene_odm[[Z_names, AY_data_idx]] |> t() |> as.matrix()
+    W = gene_odm[[W_names, AY_data_idx]] |> t() |> as.matrix()
     colnames(Z) = paste0('Z', 1:ncol(Z))
     colnames(W) = paste0('W', 1:ncol(W))
   } else if(NC_types == 'ContinuousContinuous') {
@@ -311,8 +316,8 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
     #  - PCA (or WGCNA or SPCA) <-- NCs should be matrix
     #  - singlegenes  <-- NCs should be list of Z and W names
     if(is.matrix(NCs)) {
-      Z = NCs[c(A_idx, NT_idx), seq(from = 2, to = ncol(NCs), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
-      W = NCs[c(A_idx, NT_idx), seq(from = 1, to = ncol(NCs), by = 2)] # odds
+      Z = NCs[AY_data_idx, seq(from = 2, to = ncol(NCs), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
+      W = NCs[AY_data_idx, seq(from = 1, to = ncol(NCs), by = 2)] # odds
     } else if(is.list(NCs) && ('Z_names' %in% names(NCs)) && ('W_names' %in% names(NCs)) ) {
       if(is.null(max_num_NC_pairs)) { # use all the Z and W given
         Z_names = NCs$Z_names
@@ -322,8 +327,8 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
         W_names = NCs$W_names[1:max_num_NC_pairs]
       }
       if(is.null(gene_norm)) {        print('For (ContinuousContinuous & singlegenes) as NCs, must provide gene_norm input'); return()     }
-      Z = gene_norm[Z_names, c(A_idx, NT_idx)] |> t() |> as.matrix()
-      W = gene_norm[W_names, c(A_idx, NT_idx)] |> t() |> as.matrix()
+      Z = gene_norm[Z_names, AY_data_idx] |> t() |> as.matrix()
+      W = gene_norm[W_names, AY_data_idx] |> t() |> as.matrix()
     } else {
       print(sprint('(A:%s,Y:%s) Bad NCs input in get_AYZW_df_pci2s_negbin', A_name, Y_name))
       return()
@@ -344,7 +349,7 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
   if(!is.null(U_confounders)) { 
     # Add U (if given)  -------------------------
     # ------------------------------------------- #
-    dfU = U_confounders[c(A_idx, NT_idx), ] 
+    dfU = U_confounders[AY_data_idx, ] 
     colnames(dfU) = paste0('U', 1:ncol(dfU)) # rename cols so no mix up 
     df_all = cbind(df_all, dfU)
   } 
@@ -352,7 +357,7 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
   if(!is.null(library_size)) {
     # Add library size (if given)  --------------
     # ------------------------------------------- #
-    df_all$library_size = library_size[c(A_idx, NT_idx)] 
+    df_all$library_size = library_size[AY_data_idx] 
   }
   
   return(df_all)
@@ -417,10 +422,10 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
     
     # Calc for each NC_name (e.g. simpleCount, proximalNegBinCountCount, etc ...) -------------------------------------------------
     for(NC_name in names(NCs_list)) { # e.g. for this pci2s negbin- proximalNegBinCountCount or proximalNegBinContinuousContinuous
-      print(sprintf('[%s] %s', Sys.time(), NC_name))
+      # print(sprintf('[%s] %s', Sys.time(), NC_name))
       NCs = NCs_list[[NC_name]]
       
-      # === Construct df === ------------------------------------------------------------------------------------------------------
+      # === Construct df ------------------------------------------------------------------------------------------------------
       if(!is.matrix(NCs) && (is.list(NCs))) { # edit NCs into smaller list with just Z_names and W_names, and limit num_NC_pairs actually used
         # print(sprintf('%s Making NC as list of Z and Ws!', NC_name))
         NCs_new = list(Z_names = NCs[[AY[AY_idx, 'A']]][[AY[AY_idx, 'Y']]][[1]]$Z_names[1:max(NCs_settings[[NC_name]]$num_NC_pairs)],
@@ -458,7 +463,7 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
       which_estimators = NCs_settings[[NC_name]]$which_estimators
       
       # === === === === === === === === ===  ===
-      # === GLM (Pois and NB) models         ===
+      # === * GLM (Pois and NB) models =========
       # === === === === === === === === ===  ===
       
       # Oracle models using (un)meas conf: Y ~ A + offset(log(library_size)) U1 + U2 +...
@@ -511,8 +516,6 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
         performed_pois_YAU = TRUE
       }
       
-      # TODO: Add OFFSET!! (offset = library size, use 'offset' arg)... 
-      # ... need to add new offset arg in this function too i think...
       
       # === Negative Binomial Y ~ A      (no confounder adj)
       if(!is.null(which_estimators$nb_YA) && which_estimators$nb_YA && !performed_nb_YA) { # if specified and not already done
@@ -559,7 +562,8 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
       
       
       # === === === === === === === === ===  === === ===
-      # === Proximal Estimators (only pci2s here)    ===
+      # === * Proximal Neg Bin Estimators ======================
+      # ===       (pci2s::p2sls.negbin)      === === ===
       # === === === === === === === === ===  === === ===
       if(!is.null(NCs_settings[[NC_name]]$num_NC_pairs)) {
         for(num_NCs in NCs_settings[[NC_name]]$num_NC_pairs) {
@@ -571,21 +575,23 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
           # df = df_all[, chosen_cols] # subset only these cols, no need to do this
           
           
-          # === pci2s NegBin Y and Count NCs (need to specify nco types as negbin too)
+          # === pci2s NegBin Y and Count NCs (need to specify nco types as negbin too) ===
           if(!is.null(which_estimators$OCB_2SLS_pci2s_NegBinCountCount) && 
                 which_estimators$OCB_2SLS_pci2s_NegBinCountCount          
              ) {
-            print(sprintf('pci2s negbin (countcount) #NCs=%02.f', num_NCs))
+            # print(sprintf('pci2s negbin (countcount) #NCs=%02.f', num_NCs))
             t0 = Sys.time()
             pci2s_res = pci2s::p2sls.negbin(
               Y = df_all$Y, 
               A = df_all$A, 
               W = df_all[,(grepl('W', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
               Z = df_all[,(grepl('Z', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
+              offset = log(df_all$library_size),
               nco_type = rep("negbin", num_NCs),
-              variance = TRUE)
+              nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}),
+              variance = TRUE,
+              verbose = FALSE)
             t1 = Sys.time()
- 
             
             res = bind_rows(res, 
                             data.frame(
@@ -601,21 +607,24 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
             rm(pci2s_res, t0, t1)
           }
           
-          # === pci2s NegBin Y and continuous NCs (need to specify nco types as continuous)
+          # === pci2s NegBin Y and continuous NCs (need to specify nco types as continuous) ===
           if((!is.null(which_estimators$OCB_2SLS_pci2s_NegBinPCAPCA) 
                 && which_estimators$OCB_2SLS_pci2s_NegBinPCAPCA              ) ||
                (!is.null(which_estimators$OCB_2SLS_pci2s_NegBinSinglegeneSinglegene) 
                 && which_estimators$OCB_2SLS_pci2s_NegBinSinglegeneSinglegene)
              ) {
-            print(sprintf('pci2s negbin (continuouscontinuous) #NCs=%02.f', num_NCs))
+            # print(sprintf('pci2s negbin (continuouscontinuous) #NCs=%02.f', num_NCs))
             t0 = Sys.time()
             pci2s_res = pci2s::p2sls.negbin(
               Y = df_all$Y, 
               A = df_all$A, 
               W = df_all[,(grepl('W', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
               Z = df_all[,(grepl('Z', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
+              offset = log(df_all$library_size),
               nco_type = rep("linear", num_NCs),
-              variance = TRUE)
+              nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}),
+              variance = TRUE,
+              verbose = FALSE)
             t1 = Sys.time()
             
             
