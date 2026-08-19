@@ -188,7 +188,7 @@ proximal_settings = list(
                   # === NC Parameters
                   NC_type      = 'NegBinCountCount',
                   NC_name      = 'NegBinCountCount',
-                  num_NC_pairs = if(!is.null(default_num_NC_pairs)) default_num_NC_pairs else c(1, 3, 5, 8, 10, 15),
+                  num_NC_pairs = if(!is.null(default_num_NC_pairs)) default_num_NC_pairs else c(1, 3, 5, 8, 10, 15, 20),
                   # extra params for sparsePCA 
                   my_sumabsv   = NA, 
                   my_K         = NA,
@@ -204,7 +204,7 @@ proximal_settings = list(
                   # === NC Parameters
                   NC_type      = 'proximalNegBinPCAPCA',
                   NC_name      = 'proximalNegBinPCAPCA',
-                  num_NC_pairs = if(!is.null(default_num_NC_pairs)) default_num_NC_pairs else c(1, 3, 5, 8, 10, 15),
+                  num_NC_pairs = if(!is.null(default_num_NC_pairs)) default_num_NC_pairs else c(1, 3, 5, 8, 10, 15, 20),
                   # extra params for sparsePCA 
                   my_sumabsv   = NA, 
                   my_K         = NA,
@@ -221,7 +221,7 @@ proximal_settings = list(
                   # === NC Parameters
                   NC_type      = 'proximalNegBinSinglegeneSinglegene',
                   NC_name      = 'proximalNegBinSinglegeneSinglegene',
-                  num_NC_pairs = if(!is.null(default_num_NC_pairs)) default_num_NC_pairs else c(1, 3, 5, 8, 10, 15),
+                  num_NC_pairs = if(!is.null(default_num_NC_pairs)) default_num_NC_pairs else c(1, 3, 5, 8, 10, 15, 20),
                   # extra params for sparsePCA 
                   my_sumabsv   = NA, 
                   my_K         = NA,
