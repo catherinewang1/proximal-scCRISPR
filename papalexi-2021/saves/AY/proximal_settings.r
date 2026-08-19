@@ -5,7 +5,7 @@
 
 # set all num_NC_pairs if wanted (or set to NULL to use specified values inside)
 # default_num_NC_pairs = c(1, 5, 10) # set small values for testing functions
-# default_num_NC_pairs = NULL # set NULL=use specified numNCs for each method 
+default_num_NC_pairs = NULL # set NULL=use specified numNCs for each method
 
 proximal_settings = list(
     'PCA'     = list(
