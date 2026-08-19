@@ -5,7 +5,7 @@ papalexi-2021/saves/*
 !papalexi-2021/saves/AY/
 papalexi-2021/saves/AY/*
 !papalexi-2021/saves/AY/AY_settings.R
-!papalexi-2021/saves/AY/proximal_continuous_settings.r
+!papalexi-2021/saves/AY/proximal_settings.r
 
 # old code
 papalexi-2021/analysis/1_processData/old/
