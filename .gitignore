@@ -36,3 +36,5 @@ README.html
 
 # mac file 
 *.DS_Store
+
+*.vscode/
