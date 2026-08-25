@@ -259,9 +259,12 @@ estimate_effect_0 = estimate_ATE_pci2snegbin_make(AY = AY,
                                                   U_confounders=cell_covariates,
                                                   save_path=switch(save_intermediateATEs,
                                                                    'yes' = intermediateATEs_folder,
-                                                                   'no'  = NULL)
+                                                                   'no'  = NULL),
+                                                  verbose  = TRUE
                                                   ) 
-# test = estimate_effect_0(AY_idx = 3)
+print(sprintf("[%s]      + Test estimating 1 AY test", Sys.time()))
+test = estimate_effect_0(AY_idx = 3)
+print(test)
 
 
 

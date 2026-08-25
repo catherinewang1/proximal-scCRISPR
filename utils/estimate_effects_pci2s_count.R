@@ -386,7 +386,7 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
 estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_idx,
                                         NCs_list, NCs_settings, 
                                         library_size, U_confounders=NULL,
-                                        save_path=NULL) {
+                                        save_path=NULL, verbose=FALSE) {
   
   # # function that returns the importance ranking of given gene name
   # get_importance_rank = get_importance_rank_make(imp_gene_names)  
@@ -422,10 +422,11 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
     
     # Calc for each NC_name (e.g. simpleCount, proximalNegBinCountCount, etc ...) -------------------------------------------------
     for(NC_name in names(NCs_list)) { # e.g. for this pci2s negbin- proximalNegBinCountCount or proximalNegBinContinuousContinuous
-      # print(sprintf('[%s] %s', Sys.time(), NC_name))
+      if(verbose) {print(sprintf('[%s] *** %s ***', Sys.time(), NC_name))}
       NCs = NCs_list[[NC_name]]
       
       # === Construct df ------------------------------------------------------------------------------------------------------
+      if(verbose) {print(sprintf('[%s] constructing dataframe', Sys.time()))}
       if(!is.matrix(NCs) && (is.list(NCs))) { # edit NCs into smaller list with just Z_names and W_names, and limit num_NC_pairs actually used
         # print(sprintf('%s Making NC as list of Z and Ws!', NC_name))
         NCs_new = list(Z_names = NCs[[AY[AY_idx, 'A']]][[AY[AY_idx, 'Y']]][[1]]$Z_names[1:max(NCs_settings[[NC_name]]$num_NC_pairs)],
@@ -462,6 +463,8 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
       # ATE Estimate -----------------------------------------------------------------------------------------------
       which_estimators = NCs_settings[[NC_name]]$which_estimators
       
+      if(verbose) {print(sprintf('[%s] estimating', Sys.time()))}
+      
       # === === === === === === === === ===  ===
       # === * GLM (Pois and NB) models =========
       # === === === === === === === === ===  ===
@@ -475,7 +478,7 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
       
       # === Poisson Y ~ A      (no confounder adj)
       if((!is.null(which_estimators$pois_YA )) && which_estimators$pois_YA && (!performed_pois_YA)) { # if specified and not already done
-        # print('pois_YA')
+        if(verbose) {print(sprintf('[%s]     pois_YA', Sys.time()))}
         t0 = Sys.time()
         pois_YA = glm('Y ~ A + offset(log(library_size))', df_all, family = 'poisson')
         t1 = Sys.time()
@@ -498,6 +501,7 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
       # === Poisson Y ~ A + Us (   confounder adj)
       if( !is.null(which_estimators$pois_YAU) && which_estimators$pois_YAU && !performed_pois_YAU) { # if specified and not already done
         # print('pois_YAU')
+        if(verbose) {print(sprintf('[%s]     pois_YAU', Sys.time()))}
         t0 = Sys.time()
         pois_YAU = glm(unmeas_conf_formula, df_all, family = 'poisson')
         t1 = Sys.time()
@@ -520,6 +524,7 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
       # === Negative Binomial Y ~ A      (no confounder adj)
       if(!is.null(which_estimators$nb_YA) && which_estimators$nb_YA && !performed_nb_YA) { # if specified and not already done
         # print('nb_YA')
+        if(verbose) {print(sprintf('[%s]     nb_YA', Sys.time()))}
         t0 = Sys.time()
         nb_YA = MASS::glm.nb('Y ~ A + offset(log(library_size))', df_all)
         t1 = Sys.time()
@@ -542,6 +547,7 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
       # === Negative Binomial Y ~ A + Us (   confounder adj)
       if(!is.null(which_estimators$nb_YAU) && which_estimators$nb_YAU & !performed_nb_YAU) { # if specified and not already done
         # print('nb_YAU')
+        if(verbose) {print(sprintf('[%s]     nb_YAU', Sys.time()))}
         t0 = Sys.time()
         nb_YAU = MASS::glm.nb(unmeas_conf_formula, df_all)
         t1 = Sys.time()
@@ -565,6 +571,7 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
       # === * Proximal Neg Bin Estimators ======================
       # ===       (pci2s::p2sls.negbin)      === === ===
       # === === === === === === === === ===  === === ===
+      if(verbose) {print(sprintf('[%s]     Proximal pci2s.negbin', Sys.time()))}
       if(!is.null(NCs_settings[[NC_name]]$num_NC_pairs)) {
         for(num_NCs in NCs_settings[[NC_name]]$num_NC_pairs) {
           # print(num_NCs)
@@ -579,6 +586,7 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
           if(!is.null(which_estimators$OCB_2SLS_pci2s_NegBinCountCount) && 
                 which_estimators$OCB_2SLS_pci2s_NegBinCountCount          
              ) {
+            if(verbose) {print(sprintf('[%s]     pci2s negbin (countcount) #NCs=%02.f', Sys.time(), num_NCs))}
             # print(sprintf('pci2s negbin (countcount) #NCs=%02.f', num_NCs))
             t0 = Sys.time()
             pci2s_res = tryCatch({  # give pci2s results if works
@@ -620,6 +628,7 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
                (!is.null(which_estimators$OCB_2SLS_pci2s_NegBinSinglegeneSinglegene) 
                 && which_estimators$OCB_2SLS_pci2s_NegBinSinglegeneSinglegene)
              ) {
+            if(verbose) {print(sprintf('[%s]     pci2s negbin (continuouscontinuous) #NCs=%02.f', Sys.time(), num_NCs))}
             # print(sprintf('pci2s negbin (continuouscontinuous) #NCs=%02.f', num_NCs))
             t0 = Sys.time()
             pci2s_res = tryCatch({  # give pci2s results if works
