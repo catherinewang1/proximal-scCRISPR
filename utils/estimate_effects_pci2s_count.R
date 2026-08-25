@@ -581,16 +581,23 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
              ) {
             # print(sprintf('pci2s negbin (countcount) #NCs=%02.f', num_NCs))
             t0 = Sys.time()
-            pci2s_res = pci2s::p2sls.negbin(
-              Y = df_all$Y, 
-              A = df_all$A, 
-              W = df_all[,(grepl('W', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
-              Z = df_all[,(grepl('Z', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
-              offset = log(df_all$library_size),
-              nco_type = rep("negbin", num_NCs),
-              nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}),
-              variance = TRUE,
-              verbose = FALSE)
+            pci2s_res = tryCatch({  # give pci2s results if works
+              pci2s::p2sls.negbin(
+                Y = df_all$Y, 
+                A = df_all$A, 
+                W = df_all[,(grepl('W', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
+                Z = df_all[,(grepl('Z', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
+                offset = log(df_all$library_size),
+                nco_type = rep("negbin", num_NCs),
+                nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}),
+                variance = TRUE,
+                verbose = FALSE)
+            },
+            error = function(cond) { # give NA results if errored
+                       return(list(summary_second_stage=
+                                     matrix(c(NA, NA, NA), nrow=1, ncol=3, 
+                                            dimnames = list(c('A'), c('Estimate', 'Std. Error', 'Pr(>|z|)')))))
+            })
             t1 = Sys.time()
             
             res = bind_rows(res, 
@@ -615,17 +622,25 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
              ) {
             # print(sprintf('pci2s negbin (continuouscontinuous) #NCs=%02.f', num_NCs))
             t0 = Sys.time()
-            pci2s_res = pci2s::p2sls.negbin(
-              Y = df_all$Y, 
-              A = df_all$A, 
-              W = df_all[,(grepl('W', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
-              Z = df_all[,(grepl('Z', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
-              offset = log(df_all$library_size),
-              nco_type = rep("linear", num_NCs),
-              nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}),
-              variance = TRUE,
-              verbose = FALSE)
+            pci2s_res = tryCatch({  # give pci2s results if works
+              pci2s::p2sls.negbin(
+                Y = df_all$Y, 
+                A = df_all$A, 
+                W = df_all[,(grepl('W', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
+                Z = df_all[,(grepl('Z', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
+                offset = log(df_all$library_size),
+                nco_type = rep("linear", num_NCs),
+                nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}),
+                variance = TRUE,
+                verbose = FALSE)
+            },
+            error = function(cond) { # give NA results if errored
+              return(list(summary_second_stage=
+                            matrix(c(NA, NA, NA), nrow=1, ncol=3, 
+                                   dimnames = list(c('A'), c('Estimate', 'Std. Error', 'Pr(>|z|)')))))
+            })
             t1 = Sys.time()
+            
             
             
             res = bind_rows(res, 
