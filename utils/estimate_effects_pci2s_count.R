@@ -279,6 +279,14 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
   A_idx = which(as.logical(grna_odm[[A_name, ]]))       # idx of all 'treated' cells   
   control_idx = setdiff(NT_idx, A_idx)                  # idx of control cells (NT without A)
   AY_data_idx  = c(A_idx, control_idx)                  # idx of data for this AY test
+  # print('start test printing')
+  # print(A_name)
+  # print(length(AY_data_idx))
+  # print(AY_data_idx[1:5])
+  # print(grna_odm[[1:4, 1:4]])
+  # print(grna_odm[[A_name, AY_data_idx[1:5]]])
+  # print(as.integer(grna_odm[[A_name, AY_data_idx[1:5]]]))
+  # print('end test printing')
   
   A = grna_odm[[A_name, AY_data_idx]]  |> as.vector() |> as.integer() # subset cells of 'treated' (w A grna) and 'control' (NT grna)
   # A = c(rep(0, length(A_idx)), rep(1, length(control_idx))) # these should be the same
