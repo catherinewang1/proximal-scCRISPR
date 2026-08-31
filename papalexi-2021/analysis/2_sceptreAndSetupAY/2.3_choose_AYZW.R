@@ -7,9 +7,8 @@
 #                         "<save_dir>/cbgenes/<AYZW_setting_name>/CBGENE_AYZW.rds" #
 # -------------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('macbook', 'A1')
 # args = c('laptop', 'C1')
-
+# args = c('macbook', 'A1')
 
 suppressPackageStartupMessages(require(assertthat)) # for some assert statements
 suppressPackageStartupMessages(library(tibble))
@@ -61,10 +60,12 @@ saveRDS(setting,
 print(sprintf("[%s]        - Load", Sys.time()))
 
 # =================== * SCEPTRE saves ========================================================================
-SCEPTRE_savepath = sprintf('%s/sceptre/', save_dir)
-sceptre_results_power       = readRDS(sprintf('%s/results_run_power_check.rds',        SCEPTRE_savepath))
-sceptre_results_discovery   = readRDS(sprintf('%s/results_run_discovery_analysis.rds', SCEPTRE_savepath))
-sceptre_results_calibration = readRDS(sprintf('%s/results_run_calibration_check.rds',  SCEPTRE_savepath))
+# SCEPTRE_savepath = sprintf('%s/sceptre/', save_dir)
+SCEPTRE_savepath_union      = sprintf('%s/sceptre/%s/withcovariates/', save_dir, 'union'    ) # use this Null
+SCEPTRE_savepath_singleton  = sprintf('%s/sceptre/%s/withcovariates/', save_dir, 'singleton') # use this discovery and positive
+sceptre_results_power       = readRDS(sprintf('%s/results_run_power_check.rds',        SCEPTRE_savepath_singleton)) # individual grna's 
+sceptre_results_discovery   = readRDS(sprintf('%s/results_run_discovery_analysis.rds', SCEPTRE_savepath_singleton)) #    "
+sceptre_results_calibration = readRDS(sprintf('%s/results_run_calibration_check.rds',  SCEPTRE_savepath_union))     # combined grnas
 
 # =================== * count and grna data ========================================================================
 gene_odm <- ondisc::read_odm(odm_fp      = paste0(data_dir, "/papalexi-2021/processed/gene/expression_matrix.odm"),
@@ -165,8 +166,9 @@ AY = NULL
 # I am not sure this cleaned dataset has chromosome info for NT perturbations
 # since we don't really care about chromosomes anyway, I will just ignore for now. 
 NT_A = grna_chr |> filter(target == 'non-targeting') |>
-  filter(# (!is.na(target_chromosome_name)) & # ignore chr for now, bc some chr info not found
-    (n_nonzero >= setting$PERTURBATION_N_NONZERO_CELLS_MIN)) |>
+  # filter((!is.na(target_chromosome_name)) & # ignore chr for now, bc some chr info not found
+  #       (n_nonzero >= setting$PERTURBATION_N_NONZERO_CELLS_MIN) # don't filter NT grna because they are combined now
+  #       ) |>
   select(A = grna, A_chr = target_chromosome_name)
 
 Targ_A = grna_chr |> filter(target != 'non-targeting') |>
@@ -182,7 +184,9 @@ all_Y = gene_metainfo |> filter(!is.na(chromosome_name)) |> # keep chr here for 
 # =================== * Choose Null (Negative) AY ===================================================
 if(!is.na(setting$NUM_NULL) & setting$NUM_NULL > 0) {
   # filter A and Y for more QC
-  possible_sceptre_calibration = sceptre_results_calibration |> filter(grna_id%in%NT_A$A & response_id%in%all_Y$Y)
+  possible_sceptre_calibration = sceptre_results_calibration |> filter(response_id%in%all_Y$Y) # & grna_id%in%NT_A$A # change to group NT grnas
+  
+  # lapply(X = possible_sceptre_calibration$grna_target[1:4], FUN = function(v) {strsplit(v, split = '&')})
   
   # choose tests
   if(nrow(possible_sceptre_calibration) < setting$NUM_NULL) {
@@ -196,7 +200,9 @@ if(!is.na(setting$NUM_NULL) & setting$NUM_NULL > 0) {
   }
   
   AY_null = AY_null |> 
-    dplyr::mutate(A = grna_id, Y = response_id) |> 
+    dplyr::mutate(A = grna_target, 
+                  # A = grna_id, # different name when union vs singleton
+                  Y = response_id) |> 
     dplyr::select(A, Y)
   
   # add chr info
@@ -227,7 +233,9 @@ if(!is.na(setting$NUM_MAYBE) & setting$NUM_MAYBE > 0) {
   }
   
   AY_maybe = AY_maybe |> 
-    dplyr::mutate(A = grna_id, Y = response_id) |> 
+    dplyr::mutate(#A = grna_target,
+                  A = grna_id,
+                  Y = response_id) |> 
     dplyr::select(A, Y)
   
   # add chr info
@@ -403,6 +411,38 @@ print(sprintf("[%s]    - Save AY and chosen NCE/NCO", Sys.time()))
 print(sprintf("[%s]        - nrow(AY) = %s", Sys.time(), nrow(AY)))
 write.csv(AY, sprintf('%s/AY/%s/AY.csv', save_dir, AYZW_setting_name), row.names = FALSE)
 saveRDS(AYZW, sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
+
+
+
+# format the prev sceptre results together and save a copy here (for easy loading and processing)
+
+
+sceptre_AY = NULL
+for(cov_incl in c('with', 'no')) {
+  SCEPTRE_savepath_union      = sprintf('%s/sceptre/%s/%scovariates/', save_dir, 'union'    , cov_incl) # use this Null
+  SCEPTRE_savepath_singleton  = sprintf('%s/sceptre/%s/%scovariates/', save_dir, 'singleton', cov_incl) # use this discovery and positive
+  
+  sceptre_results_power       = readRDS(sprintf('%s/results_run_power_check.rds',        SCEPTRE_savepath_singleton)) # individual grna's 
+  sceptre_results_discovery   = readRDS(sprintf('%s/results_run_discovery_analysis.rds', SCEPTRE_savepath_singleton)) #    "
+  sceptre_results_calibration = readRDS(sprintf('%s/results_run_calibration_check.rds',  SCEPTRE_savepath_union))     # combined grnas
+  
+  sceptre_temp = dplyr::bind_rows(sceptre_results_power       |> dplyr::rename(Y = response_id, A = grna_id), 
+                                  sceptre_results_discovery   |> dplyr::rename(Y = response_id, A = grna_id), 
+                                  sceptre_results_calibration |> dplyr::rename(Y = response_id) |> dplyr::mutate(A = grna_target) )
+  
+  sceptre_temp = merge(AY, sceptre_temp, by = c('A', 'Y'), all.x = TRUE) # only include those in AY 
+  
+  sceptre_temp$method_type = 'sceptre'
+  sceptre_temp$method = sprintf('sceptre%s', switch(cov_incl, 'with'='U', 'no'  =''))
+  
+  
+  sceptre_AY = rbind(sceptre_AY, sceptre_temp ) 
+  rm(sceptre_temp)
+}
+
+write.csv(x    = sceptre_AY, 
+          file = sprintf('%s/AY/%s/sceptre_AY.csv', save_dir, AYZW_setting_name), row.names = FALSE)
+
 
 
 # =================== END =========================================================================

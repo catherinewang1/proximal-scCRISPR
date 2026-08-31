@@ -9,7 +9,7 @@
 # ---------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
 # args = c('ubergenno')
-# args = c('macbook')
+# args = c('macbook', 'singleton')
 
 
 
@@ -45,19 +45,18 @@ assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desk
 
 
 
+assertthat::assert_that(length(args) >= 2, msg='second arg for grna_integration_strategy: union or singleton')
+GRNA_INTEGRATION_STRATEGY = args[2]
 
 # =================================================================================================#
 # =================== START =======================================================================
 # =================================================================================================#
 print(sprintf("[%s] START: SCEPTRE", Sys.time()))
-
-
-
+print(sprintf("[%s] run with covariates:  %s  %s", Sys.time(), DEVICE, GRNA_INTEGRATION_STRATEGY))
 
 # =================== Set up saving dir + save setting ======================================#
-SCEPTRE_savepath = sprintf('%s/sceptre/', save_dir)
+SCEPTRE_savepath = sprintf('%s/sceptre/%s/withcovariates/', save_dir, GRNA_INTEGRATION_STRATEGY)
 dir.create(SCEPTRE_savepath, recursive = TRUE, showWarnings = FALSE)
-
 
 
 # gene_deviance_topnoTFonly = read.csv(sprintf('%s/gene_deviance_topnoTFonly.csv', save_dir))
@@ -266,7 +265,9 @@ sceptre_object <- set_analysis_parameters(
   discovery_pairs = discovery_pairs, # remove? just don't have any discovery pairs? no include
   positive_control_pairs = positive_control_pairs,
   side = side, 
-  grna_integration_strategy = 'singleton',
+  # grna_integration_strategy = 'singleton', # single grnas together?
+  # grna_integration_strategy = 'union', # hopefully combines NTs?
+  grna_integration_strategy = GRNA_INTEGRATION_STRATEGY,
   formula_object = 'default'
 )
 print(sceptre_object) # output suppressed for brevity

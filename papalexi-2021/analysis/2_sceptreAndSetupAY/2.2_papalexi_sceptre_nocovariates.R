@@ -9,7 +9,7 @@
 # ---------------------------------------------------------------------------- #
 args = commandArgs(trailingOnly = TRUE)
 # args = c('ubergenno')
-# args = c('macbook')
+# args = c('macbook', 'singleton')
 
 
 
@@ -43,21 +43,24 @@ source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on 
 
 assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
 
-
+assertthat::assert_that(length(args) >= 2, msg='second arg for grna_integration_strategy: union or singleton')
+GRNA_INTEGRATION_STRATEGY = args[2]
 
 
 # =================================================================================================#
 # =================== START =======================================================================
 # =================================================================================================#
 print(sprintf("[%s] START: SCEPTRE", Sys.time()))
-
+print(sprintf("[%s] run with no covariates:  %s  %s", Sys.time(), DEVICE, GRNA_INTEGRATION_STRATEGY))
 
 
 
 # =================== Set up saving dir + save setting ======================================#
-SCEPTRE_nocovariates_savepath = sprintf('%s/sceptre/', save_dir)
-SCEPTRE_savepath = sprintf('%s/sceptrenocovariates/', save_dir)
-dir.create(SCEPTRE_savepath, recursive = TRUE, showWarnings = FALSE)
+SCEPTRE_savepath_withcovariates= sprintf('%s/sceptre/%s/withcovariates/', save_dir, GRNA_INTEGRATION_STRATEGY) # should have already run
+SCEPTRE_savepath_nocovariates  = sprintf('%s/sceptre/%s/nocovariates/',   save_dir, GRNA_INTEGRATION_STRATEGY)
+# SCEPTRE_savepath_nocovariates  = sprintf('%s/sceptre/', save_dir)
+# SCEPTRE_savepath = sprintf('%s/sceptrenocovariates/', save_dir)
+dir.create(SCEPTRE_savepath_nocovariates, recursive = TRUE, showWarnings = FALSE)
 
 
 
@@ -258,9 +261,9 @@ print(sprintf('[%s]: SCEPTRE 2. Set analysis parameters', format(Sys.time(), dig
 
 print('     Set discovery and positive and calibration as previous sceptre analysis')
 # for no covariates, read in prev analysis for sceptre
-sceptre_wcov_positive    = readRDS(sprintf('%s/results_run_power_check.rds',        SCEPTRE_nocovariates_savepath))
-sceptre_wcov_discovery   = readRDS(sprintf('%s/results_run_discovery_analysis.rds', SCEPTRE_nocovariates_savepath))
-sceptre_wcov_calibration = readRDS(sprintf('%s/results_run_calibration_check.rds',  SCEPTRE_nocovariates_savepath))
+sceptre_wcov_positive    = readRDS(sprintf('%s/results_run_power_check.rds',        SCEPTRE_savepath_withcovariates))
+sceptre_wcov_discovery   = readRDS(sprintf('%s/results_run_discovery_analysis.rds', SCEPTRE_savepath_withcovariates))
+sceptre_wcov_calibration = readRDS(sprintf('%s/results_run_calibration_check.rds',  SCEPTRE_savepath_withcovariates))
 
 positive_control_pairs = sceptre_wcov_positive  |> dplyr::select(grna_target, response_id) |> dplyr::distinct()
 discovery_pairs        = sceptre_wcov_discovery |> dplyr::select(grna_target, response_id) |> dplyr::distinct()
@@ -279,7 +282,9 @@ sceptre_object <- set_analysis_parameters(
   discovery_pairs = discovery_pairs, # remove? just don't have any discovery pairs? no include
   positive_control_pairs = positive_control_pairs,
   side = side, 
-  grna_integration_strategy = 'singleton',
+  # grna_integration_strategy = 'singleton', # single grnas together?
+  # grna_integration_strategy = 'union', # hopefully combines NTs?
+  grna_integration_strategy = GRNA_INTEGRATION_STRATEGY,
   formula_object = 'default'
 )
 print(sceptre_object) # output suppressed for brevity
@@ -469,7 +474,7 @@ plot(sceptre_object)
 print(sprintf('[%s]: SCEPTRE 8. Write outputs to directory', format(Sys.time(), digits = 0)))
 sceptre::write_outputs_to_directory(
   sceptre_object = sceptre_object, 
-  directory = SCEPTRE_savepath
+  directory = SCEPTRE_savepath_nocovariates
 )
 
 SCEPTRE_time_benchmark = 
@@ -478,10 +483,10 @@ SCEPTRE_time_benchmark =
        avg_time_per_test = difftime(t1, t0, units = 'secs')/nrow(sceptre_object@discovery_pairs),
        info = 'SCEPTRE on papalexi timing for discovery pair analysis')
 
-saveRDS(SCEPTRE_time_benchmark, file = sprintf('%s/SCEPTRE_time_benchmark.rds', SCEPTRE_savepath))
+saveRDS(SCEPTRE_time_benchmark, file = sprintf('%s/SCEPTRE_time_benchmark.rds', SCEPTRE_savepath_nocovariates))
 
 # sceptre_object@discovery_result
-# test_load_results = readRDS(sprintf('%s/results_run_discovery_analysis.rds', SCEPTRE_savepath))
+# test_load_results = readRDS(sprintf('%s/results_run_discovery_analysis.rds', SCEPTRE_savepath_nocovariates))
 # test_load_results
 
 
