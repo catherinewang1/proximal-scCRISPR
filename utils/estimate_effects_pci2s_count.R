@@ -272,24 +272,30 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
   #     if singlegenes   (!is.matrix(NCs)), the input gene_norm must be given and NCs must be a list of the Z_names and W_names
   
   
-  
-  
-  # Get A ------------------------------------- 
+  # Get A -------------------------------------
   # ------------------------------------------- #
-  A_idx = which(as.logical(grna_odm[[A_name, ]]))       # idx of all 'treated' cells   
-  control_idx = setdiff(NT_idx, A_idx)                  # idx of control cells (NT without A)
-  AY_data_idx  = c(A_idx, control_idx)                  # idx of data for this AY test
-  # print('start test printing')
-  # print(A_name)
-  # print(length(AY_data_idx))
-  # print(AY_data_idx[1:5])
-  # print(grna_odm[[1:4, 1:4]])
-  # print(grna_odm[[A_name, AY_data_idx[1:5]]])
-  # print(as.integer(grna_odm[[A_name, AY_data_idx[1:5]]]))
-  # print('end test printing')
+  # idx of all 'treated' cells    
+  A_names = strsplit(A_name, split = '&') |> unlist() # if NT1&NT7...
   
-  A = grna_odm[[A_name, AY_data_idx]]  |> as.vector() |> as.integer() # subset cells of 'treated' (w A grna) and 'control' (NT grna)
-  # A = c(rep(0, length(A_idx)), rep(1, length(control_idx))) # these should be the same
+  if(length(A_names) > 1) {
+    # print(A_names)
+    A_allcells = colSums(grna_odm[[A_names, ]])
+    A_idx       = which(as.logical(A_allcells))       # idx of cells receiving this A grna
+    control_idx = setdiff(NT_idx, A_idx)                  # idx of control cells (NT without A)
+    AY_data_idx  = c(A_idx, control_idx)                  # idx of data for this AY test
+    # subset cells of 'treated' (w A grna) and 'control' (NT grna)
+    A = A_allcells[AY_data_idx] 
+    rm(A_allcells)
+  } else {
+    # A_grna_idx = which(row.names(grna) == A_name)       # idx of A grna
+    # A_idx      = which(as.logical(grna[A_grna_idx, ]))  # idx of cells receiving this A grna
+    A_idx       = which(as.logical(grna_odm[[A_name, ]]))       # idx of cells receiving this A grna
+    control_idx = setdiff(NT_idx, A_idx)                  # idx of control cells (NT without A)
+    AY_data_idx  = c(A_idx, control_idx)                  # idx of data for this AY test
+    # subset cells of 'treated' (w A grna) and 'control' (NT grna)
+    A = grna_odm[[A_name, AY_data_idx]] |> as.vector()
+    # A = c(rep(0, length(A_idx)), rep(1, length(NT_idx))) # these should be the same
+  }
   
   
   # Get Y -------------------------------------
@@ -348,7 +354,10 @@ get_AYZW_df_pci2s_negbin <- function(A_name, Y_name, NT_idx,
     return()
   }
   
-  
+  # print(A)
+  # print(Y)
+  # print(Z)
+  # print(W)
   df_all = cbind(A=A,
                    Y=Y,
                    Z=Z,
@@ -647,7 +656,7 @@ estimate_ATE_pci2snegbin_make <- function(AY, gene_odm, grna_odm, gene_norm, NT_
                 Z = df_all[,(grepl('Z', colnames(df_all))) & (colnames(df_all) %in% chosen_cols)], 
                 offset = log(df_all$library_size),
                 nco_type = rep("linear", num_NCs),
-                nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}),
+                # nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}), # No offsets for continuous versions
                 variance = TRUE,
                 verbose = FALSE)
             },

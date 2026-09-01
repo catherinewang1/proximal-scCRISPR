@@ -5,9 +5,38 @@
 
 # set all num_NC_pairs if wanted (or set to NULL to use specified values inside)
 # default_num_NC_pairs = c(1, 5, 10) # set small values for testing functions
-default_num_NC_pairs = NULL # set NULL=use specified numNCs for each method
+default_num_NC_pairs = c(1, 2, 3, 5, 7, 8, 10, 15, 20) # reasonable set of numNCs
+# default_num_NC_pairs = NULL # set NULL=use specified numNCs for each method
 
 proximal_settings = list(
+    'simpleLinear' = list(
+      # === NC Parameters
+      NC_type      = 'linear',
+      NC_name      = 'linear',
+      num_NC_pairs = if(!is.null(default_num_NC_pairs)) default_num_NC_pairs else c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20),
+      # extra params for sparsePCA 
+      my_sumabsv   = NA, 
+      my_K         = NA,
+      N_subsample  = NA, 
+      # === procedure parameters
+      save_intermediateATEs = 'yes',        # 'yes'/'no' whether to save intermedate ATEs as they are estimated (should be removed, specify in overall script. keep for later if it is helpful to do one by one, but probably not.)
+      # === Parameter Settings for which estimators to perform
+      which_estimators = list(
+        lm_YA        = TRUE,
+        lm_YAU       = TRUE
+        # pois_YAU     = TRUE,
+        # nb_YAU       = TRUE,
+        # OCB_2SLS     = FALSE,
+        # OCB_2SLS_pci2s=FALSE,
+        # OCB_2SLSReg  = FALSE,
+        # OCB_GMM      = FALSE,
+        # OCB_GMMRw    = FALSE,
+        # OCB_GMMRwReg = FALSE,
+        # OCB_LinOSPI  = FALSE,
+        # OCB_LinOS    = FALSE,
+        # OCB_LinOStrim= FALSE
+      )
+    ),
     'PCA'     = list(
                  # === NC Parameters
                  NC_type      = 'PCA',

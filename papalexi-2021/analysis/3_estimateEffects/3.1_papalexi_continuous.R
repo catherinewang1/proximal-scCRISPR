@@ -12,6 +12,7 @@ args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop', 'C1', 'WGCNA')
 # args = c('laptop', 'C1', 'WGCNA')
 # args = c('macbook', 'A1', 'PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene') # do many at the same time
+# args = c('macbook', 'A1', 'simpleLinear') 
 
 suppressPackageStartupMessages(library(assertthat)) # for some assert statements
 suppressPackageStartupMessages(library(Matrix))
@@ -26,7 +27,8 @@ suppressPackageStartupMessages(library(cowplot))
 library(future.apply)
 # options(future.globals.maxSize= 850*1024^2) #1st num is MB
 options(future.globals.maxSize= 2500*1024^2) #1st num is MB
-plan(multisession, workers = 24)
+# plan(multisession, workers = 24)
+plan(multisession, workers = 15)
 # plan(sequential)
 
 
@@ -232,6 +234,9 @@ for(NC_name in NC_names) {
     # print(sprintf('not implemented NC_name: %s', NC_name))
     NCs = readRDS(sprintf('%s/AY/%s/AYZW.rds', save_dir, AYZW_setting_name))
     
+  } else if(NC_name == 'simpleLinear') {
+    # this is ok
+    NCs = NA
   } else {
     print(sprintf('Bad NC_name: %s', NC_name)) # should've already been caught at the beginning
   }

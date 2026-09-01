@@ -24,29 +24,47 @@
     # Get A
     # -------------------------------------------
     # idx of all 'treated' cells    
-    # A_grna_idx = which(row.names(grna) == A_name)       # idx of A grna
-    # A_idx      = which(as.logical(grna[A_grna_idx, ]))  # idx of cells receiving this A grna
-    A_idx       = which(as.logical(grna[A_name, ]))       # idx of cells receiving this A grna
-    control_idx = setdiff(NT_idx, A_idx)                  # idx of control cells (NT without A)
-    AY_data_idx  = c(A_idx, control_idx)                  # idx of data for this AY test
-    # subset cells of 'treated' (w A grna) and 'control' (NT grna)
-    A = grna[A_name, AY_data_idx]
-    # A = c(rep(0, length(A_idx)), rep(1, length(NT_idx))) # these should be the same
+    A_names = strsplit(A_name, split = '&') |> unlist() # if NT1&NT7...
+    
+    if(length(A_names) > 1) {
+      A_allcells = colSums(grna[A_names, ])
+      A_idx       = which(as.logical(A_allcells))       # idx of cells receiving this A grna
+      control_idx = setdiff(NT_idx, A_idx)                  # idx of control cells (NT without A)
+      AY_data_idx  = c(A_idx, control_idx)                  # idx of data for this AY test
+      # subset cells of 'treated' (w A grna) and 'control' (NT grna)
+      A = A_allcells[AY_data_idx] 
+    } else {
+      # A_grna_idx = which(row.names(grna) == A_name)       # idx of A grna
+      # A_idx      = which(as.logical(grna[A_grna_idx, ]))  # idx of cells receiving this A grna
+      A_idx       = which(as.logical(grna[A_name, ]))       # idx of cells receiving this A grna
+      control_idx = setdiff(NT_idx, A_idx)                  # idx of control cells (NT without A)
+      AY_data_idx  = c(A_idx, control_idx)                  # idx of data for this AY test
+      # subset cells of 'treated' (w A grna) and 'control' (NT grna)
+      A = grna[A_name, AY_data_idx]
+      # A = c(rep(0, length(A_idx)), rep(1, length(NT_idx))) # these should be the same
+    }
+    
     
     # Get Z and W 
-    # -------------------------------------------  
+    # -------------------------------------------  # TODO change order of if- ifna or null{} else { if() else ()} else {bad input}
     if(is.matrix(NCs)) {
       dfZ = NCs[AY_data_idx, seq(from = 2, to = ncol(NCs), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
       dfW = NCs[AY_data_idx, seq(from = 1, to = ncol(NCs), by = 2)] # odds
+      colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
+      colnames(dfW) = paste0('W', 1:ncol(dfW))
     } else if(is.list(NCs) && ('Z_names' %in% names(NCs)) && ('W_names' %in% names(NCs)) ) {
       dfZ = gene_norm[NCs[['Z_names']], AY_data_idx] |> t() |> data.frame()
       dfW = gene_norm[NCs[['W_names']], AY_data_idx] |> t() |> data.frame()
+      colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
+      colnames(dfW) = paste0('W', 1:ncol(dfW))
+    } else if(is.na(NCs) || is.null(NCs)) {
+      dfZ = NULL
+      dfW = NULL
     } else {
       print(sprintf('(A:%s,Y:%s) Bad NCs input in get_AYZW_df_pci2sbyNCs', A_name, Y_name))
       return()
     }
-    colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
-    colnames(dfW) = paste0('W', 1:ncol(dfW))
+    
     
     # Get Y
     # using already loaded in gene_norm (faster)
@@ -59,10 +77,10 @@
     
     # Assemble together
     # -------------------------------------------
-    dfAYZW = cbind(data.frame(A = as.vector(A), 
+    dfAYZW = dplyr::bind_cols(
+                   data.frame(A = as.vector(A), 
                               Y = Y),
                    dfZ, dfW)
-    
     
     if(is.null(U_confounders)) { 
       return(dfAYZW)
@@ -130,7 +148,7 @@ estimate_ATE_pci2sbyNC_make <- function(AY, gene_norm, grna, NT_idx,
       NCs = NCs_list[[NC_name]]
       
       # === Construct df ===
-      if(!is.matrix(NCs)) { # edit NCs into smaller list with just Z_names and W_names, and limit num_NC_pairs actually used
+      if(!is.matrix(NCs) && (is.list(NCs))) { # edit NCs into smaller list with just Z_names and W_names, and limit num_NC_pairs actually used
         # print(sprintf('%s Making NC as list of Z and Ws!', NC_name))
         NCs_new = list(Z_names = NCs[[AY[AY_idx, 'A']]][[AY[AY_idx, 'Y']]][[1]]$Z_names[1:max(NCs_settings[[NC_name]]$num_NC_pairs)],
                        W_names = NCs[[AY[AY_idx, 'A']]][[AY[AY_idx, 'Y']]][[1]]$W_names[1:max(NCs_settings[[NC_name]]$num_NC_pairs)])
@@ -148,8 +166,7 @@ estimate_ATE_pci2sbyNC_make <- function(AY, gene_norm, grna, NT_idx,
             U_confounders=U_confounders) 
       
       df_all$A = as.numeric(df_all$A) # convert trtmt A to numeric 0/1 if not already (alt T/F)
-      
-      
+      # print(head(df_all))
       
       which_estimators = NCs_settings[[NC_name]]$which_estimators
       # === === === === === === === === ===  ===

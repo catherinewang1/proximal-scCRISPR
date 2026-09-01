@@ -17,7 +17,8 @@ args = commandArgs(trailingOnly = TRUE)
 # args = c('laptop',  'A')
 # args = c('macbook', 'A')
 # args = c('macbook', 'A1', 'simpleCount-proximalNegBinCountCount-proximalNegBinSinglegeneSinglegene-proximalNegBinPCAPCA') # do many at the same time
-
+# args = c('macbook', 'A1', 'simpleCount')
+# args = c('macbook', 'A1', 'simpleCount-proximalNegBinSinglegeneSinglegene-proximalNegBinPCAPCA')
 
 
 
@@ -36,6 +37,7 @@ suppressPackageStartupMessages(library(future.apply))
 # options(future.globals.maxSize= 850*1024^2) #1st num is MB
 options(future.globals.maxSize= 2500*1024^2) #1st num is MB
 plan(multisession, workers = 24)
+# plan(multisession, workers = 15)
 # plan(sequential)
 
 
@@ -159,6 +161,7 @@ cell_covariates = cell_covariates |>
 
 
 NCs_list = list()
+gene_norm_subset = NA # default NA, but change to actual if proximalNegBinSinglegeneSinglegene is selected
 for(NC_name in NC_names) {
   PROXIMAL_SETTINGS = proximal_settings[[NC_name]]
   
@@ -260,11 +263,14 @@ estimate_effect_0 = estimate_ATE_pci2snegbin_make(AY = AY,
                                                   save_path=switch(save_intermediateATEs,
                                                                    'yes' = intermediateATEs_folder,
                                                                    'no'  = NULL),
-                                                  verbose  = FALSE
+                                                  verbose  = TRUE
                                                   ) 
 # print(sprintf("[%s]      + Test estimating 1 AY test", Sys.time()))
 # test = estimate_effect_0(AY_idx = 3)
+# test = estimate_effect_0(AY_idx = 21)
 # print(test)
+
+
 
 
 
@@ -276,7 +282,7 @@ estimate_effect <- function(AY_idx) {
                       return(NULL)
                     })
   # if errored, return NULL
-  if(is.null(res_df)) {
+  if(is.null(res_df)) { # does nothing?
     return(NULL)
   } else {
     return(res_df)
