@@ -1,0 +1,522 @@
+---
+title: "4.X_visualizeStandard"
+format: 
+  html:
+    theme: flatly
+    toc: true
+    toc-depth: 4
+    fig-format: svg 
+    embed-resources: true
+    self-contained-math: true
+editor: source
+execute: 
+  echo: false
+  warning: false
+  error: false
+---
+
+
+
+Visualize standard methods' results (Neg Bin, Linear on transformed, and SCEPTRE). 
+These standard methods should have false positives when not including covariates (the confounders) and should have none or few false positives when including the covariates.
+
+
+
+
+
+# Load
+
+
+```{r output=FALSE}
+# Libraries and Parameters
+# ========================================================================================================================================================================
+suppressPackageStartupMessages(library(assertthat)) # for some assert statements
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(cowplot))
+suppressPackageStartupMessages(library(ggh4x))
+
+
+theme_set(theme_cowplot() +
+            theme(plot.title = element_text(hjust = .5),
+                  plot.subtitle = element_text(hjust = .5),
+                  strip.background = element_rect(fill = "white", color = 'black'),
+                  panel.grid.minor = element_blank(),
+                  panel.grid.major = element_blank()))
+
+
+# === === === === === === === === === === === === === === === === === === === === === === === === === 
+# parameters
+DEVICE                = 'macbook'
+AYZW_setting_name     = 'B'
+NC_names_raw = 'simpleLinear'
+NC_names = strsplit(x = NC_names_raw, split = '-') |> unlist()
+proximal_setting_name_count = 'simpleCount'
+source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
+
+# --- Folder ---
+plot_dir = sprintf('%s/AY/%s/plots/standard/', save_dir, AYZW_setting_name)
+dir.create(plot_dir, showWarnings = FALSE, recursive=TRUE)
+
+# === === === === === === === === === === === === === === === === === === === === === === === === === 
+
+# load chosen AYZW names
+AY   = read.csv(sprintf('%s/AY/%s/AY.csv', save_dir, AYZW_setting_name))
+
+# Continuous
+# ========================================================================================================================================================================
+effects_continuous = read.csv(sprintf('%s/AY/%s/%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_names_raw))
+# effects_continuous = effects_continuous |> filter(type != 'maybe')
+# effects_continuous$type = factor(effects_continuous$type,
+#        levels = c('negative', 'positive'),
+#        labels = c(    'Null', 'Alternative'))
+
+# Count GLM
+# ========================================================================================================================================================================
+effects_count = read.csv(sprintf('%s/AY/%s/%s/effects_count.csv', save_dir, AYZW_setting_name, proximal_setting_name_count)) 
+# effects_count = effects_count |> filter(type != 'maybe')
+# effects_count$type = factor(effects_count$type,
+#        levels = c('negative', 'positive'),
+#        labels = c(    'Null', 'Alternative'))
+
+
+# SCEPTRE
+# ========================================================================================================================================================================
+# read in the previously formatted relevant rows when creating the AY pairs (2.3_xxx.r)
+effects_sceptre = read.csv(sprintf('%s/AY/%s/sceptre_AY.csv', save_dir, AYZW_setting_name)) 
+# effects_sceptre = effects_sceptre |> filter(type != 'maybe')
+# effects_sceptre$type = factor(effects_sceptre$type,
+#        levels = c('negative', 'positive'),
+#        labels = c(    'Null', 'Alternative'))
+
+
+# head(effects_sceptre); colnames(effects_sceptre)
+# colnames(effects_count)
+# format to other effects df format
+# doesn't really matter, but for now, we set the
+# ATE estimate = log_2_fold_change! and the se is NA for now.
+# because we have se(fold_change) but maybe needs some more transofrmation for log_2
+effects_sceptre = effects_sceptre |>
+  dplyr::rename(pval = p_value, ATE = log_2_fold_change) |>
+  dplyr::mutate(se = NA, time_sec = NA, NC_type = NA,
+                numNC = NA, basis = NA
+                )
+
+effects_sceptre = effects_sceptre[, colnames(effects_sceptre) %in% colnames(effects_continuous)]
+
+
+
+
+
+
+
+
+# Config order and colors
+# ========================================================================================================================================================================
+# for each method, color that represents. also use this ordering
+method_color_df = data.frame(method=c('lmYA', 'lmYAU', 
+                                        'poisYA', 'poisYAU', 
+                                        'nbYA', 'nbYAU', 
+                                        'sceptre', 'sceptreU'),
+                              color =c(colorRampPalette(c('white', 'darkblue'))(8)[c(4, 8)],   
+                                       colorRampPalette(c('white', 'darkgreen'))(8)[c(4, 8)],
+                                       colorRampPalette(c('white', 'darkorchid4'))(8)[c(4, 8)],
+                                       colorRampPalette(c('white', 'darkorange2'))(8)[c(4, 8)]
+                             ))
+
+# 2 lines for (w/ confounders)
+method_nicenames_multiline = c('lmYA'    = 'Linear',
+                     'lmYAU'   = 'Linear\n(w/ confounders)',
+                     'poisYA'  = 'Poisson',
+                     'poisYAU' = 'Poisson\n(w/ confounders)',
+                     'nbYA'    = 'Negative Binomial',
+                     'nbYAU'   = 'Negative Binomial\n(w/ confounders)',
+                     'sceptre' = 'SCEPTRE',
+                     'sceptreU' = 'SCEPTRE\n(w/ confounders)')
+# 1 line
+method_nicenames = c('lmYA'    = 'Linear', 
+                     'lmYAU'   = 'Linear (w/ confounders)', 
+                     'poisYA'  = 'Poisson', 
+                     'poisYAU' = 'Poisson (w/ confounders)', 
+                     'nbYA'    = 'Negative Binomial', 
+                     'nbYAU'   = 'Negative Binomial (w/ confounders)', 
+                     'sceptre' = 'SCEPTRE',
+                     'sceptreU' = 'SCEPTRE (w/ confounders)')
+method_color_df$method_nicename = unname(method_nicenames)
+
+method_colors = method_color_df$color |> `names<-`(method_color_df$method_nicename)
+
+# barplot(1:length(method_color_df$color), col = method_color_df$color)
+
+
+# All
+# ========================================================================================================================================================================
+effects = dplyr::bind_rows(effects_continuous, effects_count, effects_sceptre)
+# effects = effects |> filter(type != 'maybe')
+effects$type = factor(effects$type,
+       levels = c('negative', 'positive', 'maybe'),
+       labels = c(    'Null', 'Alternative', 'Discovery'))
+
+# effects = effects |> mutate(method_long = paste0(method, numNC))
+# effects |> arrange(A, Y, method)
+
+effects = effects |> 
+          mutate(method_raw       = method, 
+                 method           = factor(method_raw, levels = method_color_df$method, labels = method_color_df$method_nicename),
+                 method_multiline = factor(method_raw, levels = names(method_nicenames_multiline), labels = method_nicenames_multiline)) 
+effects = effects |> select(-NC_type, -numNC, -basis)
+```
+
+
+
+
+# Compare standard methods
+
+
+# ATE Pairplots
+```{r fig.width=10, fig.height=10}
+
+effects  |> select(A, Y, method_raw, ATE) |> reshape2::dcast(A + Y ~ method_raw, value.var = 'ATE') |> select(-A, -Y) |> pairs(main = 'ATE')
+effects  |> select(A, Y, method_raw, pval) |> reshape2::dcast(A + Y ~ method_raw, value.var = 'pval') |> select(-A, -Y) |> pairs(main = 'p-value')
+
+# effects |> filter(method_raw %in% c('nbYAU', 'sceptreU')) |> select(A, Y, method_raw, ATE) |> reshape2::dcast(A + Y ~ method_raw, value.var = 'ATE') |> ggplot() + geom_abline(aes(intercept = 0 , slope = 1), col = 'darkgray') + geom_point(aes(x = nbYAU, y = sceptreU))  + labs(title = 'NB vs SCEPTRE (w/ U)')
+# 
+# effects |> filter(method_raw %in% c('nbYAU', 'lmYAU')) |> select(A, Y, method_raw, ATE) |> reshape2::dcast(A + Y ~ method_raw, value.var = 'ATE') |> ggplot() + geom_abline(aes(intercept = 0 , slope = 1), col = 'darkgray') + geom_point(aes(x = nbYAU, y = lmYAU))  + labs(title = 'NB vs Lin (w/ U)')
+```
+
+
+
+# Standard Method Results
+
+## Histogram of estimates and p-values
+
+Histogram of estimates
+```{r, fig.width=10, fig.height = 10}
+
+method_multiline_labeller <- function(x) {
+  y = c()
+  for(x_ in x) {
+    if(x_ %in% names(method_nicenames_multiline)) {y = c(y, method_nicenames_multiline[x_])}
+    else {y=c(y,x_)}
+  }
+  return(y)
+}
+p = ggplot(effects,
+       aes(x = ATE, fill = method)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .05) + # bins = 50) +
+  geom_vline(aes(xintercept = 0), color = 'gray15', linewidth = .4) +
+  coord_cartesian(xlim = c(-2, 1), ylim = c(0, 3)) +
+  scale_y_continuous(breaks = 0:2, expand = expansion(mult = c(0, .05))) +
+  scale_fill_manual(values = method_colors, 
+                    guide = guide_legend(ncol = 1)) +
+  facet_grid(cols = vars(type), 
+             rows = vars(method_raw),  # vars(method_long), # vars(method, NC_type, numNC), 
+             labeller = labeller(method_raw=as_labeller(method_multiline_labeller)),
+             scales = 'free') + 
+  labs(title = 'Histogram of Estimates',
+       fill = 'Method') +
+  theme(strip.text.y = element_text(size = 8), 
+        axis.text.y = element_text(size = 8), 
+        panel.spacing.x = unit(1, "lines"),
+        panel.spacing.y = unit(0, "lines"))
+p
+ggsave(sprintf('%s/estimates_hist_tall.pdf', plot_dir), height = 10, width= 10)
+
+```
+
+```{r fig.width=12, fig.height = 5}
+p + facet_grid(rows = vars(type), 
+             cols = vars(method_raw),  # vars(method_long), # vars(method, NC_type, numNC), 
+             labeller = labeller(method_raw=as_labeller(method_multiline_labeller)),
+             scales = 'free')  +
+  theme(strip.text.x = element_text(size = 8), 
+        axis.text.x = element_text(size = 8), 
+        panel.spacing.y = unit(1, "lines"),
+        panel.spacing.x = unit(0, "lines"))
+ggsave(sprintf('%s/estimates_hist_wide.pdf', plot_dir), height = 5, width= 12)
+```
+
+
+Histogram of p-values
+```{r fig.width=10, fig.height = 10}
+
+p = ggplot(effects,
+       aes(x = pval, fill = method)) +
+  geom_histogram(aes(y = after_stat(..density..)), binwidth = .020) + # bins = 50) +
+  scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1'), 
+                     expand = expansion(mult = c(.01, .01))) +
+  # coord_cartesian(ylim = c(0, 3)) +
+  scale_y_continuous( expand = expansion(mult = c(0, .05))) +
+  scale_fill_manual(values = method_colors, guide = guide_legend(ncol = 1)) +
+  facet_grid2(cols = vars(type), 
+             rows = vars(method_raw), # vars(method_long), # vars(method, NC_type, numNC), 
+             labeller = labeller(method_raw=as_labeller(method_multiline_labeller)),
+             axes = 'x', remove_labels = 'x', independent = 'y', shrink = TRUE,
+             scales = 'free') + 
+  labs(title = 'Histogram of p-values',
+       x = 'p-value',
+       fill = 'Method') +
+  theme(strip.text.y = element_text(size = 8), 
+        axis.text.y = element_text(size = 8), 
+        panel.spacing.x = unit(1, "lines"),
+        panel.spacing.y = unit(0, "lines"))
+p
+
+ggsave(sprintf('%s/pval_hist_tall.pdf', plot_dir), height = 10, width= 10)
+
+
+# # # force same axes- does not look good, but gives perspective
+# p + facet_grid2(cols = vars(type),
+#              rows = vars(NC_type, numNC), # vars(method_long), # vars(method, NC_type, numNC),
+#              axes = 'x', remove_labels = 'x', independent = 'y', shrink = TRUE,
+#              scales = 'fixed')
+```
+
+
+```{r fig.width=15, fig.height = 5}
+p + 
+# facet_grid(rows = vars(type), 
+#              cols = vars(method_raw),  # vars(method_long), # vars(method, NC_type, numNC), 
+#              labeller = labeller(method_raw=as_labeller(method_multiline_labeller)),
+#              scales = 'free')  +
+    facet_grid2(rows = vars(type), 
+                cols = vars(method_raw), # vars(method_long), # vars(method, NC_type, numNC), 
+             labeller = labeller(method_raw=as_labeller(method_multiline_labeller)),
+             axes = 'x', remove_labels = 'x', independent = 'y', shrink = TRUE,
+             scales = 'free') + 
+  theme(strip.text.x = element_text(size = 8), 
+        axis.text.x = element_text(size = 8), 
+        panel.spacing.y = unit(1, "lines"),
+        panel.spacing.x = unit(0, "lines"))
+ggsave(sprintf('%s/pval_hist_wide.pdf', plot_dir), height = 5, width= 15)
+```
+
+
+```{r fig.width=15, fig.height=5}
+# force same axes- does not look good, but gives perspective
+p + 
+  facet_grid(rows = vars(type),
+             cols = vars(method_raw),  # vars(method_long), # vars(method, NC_type, numNC),
+             labeller = labeller(method_raw=as_labeller(method_multiline_labeller)),
+             scales = 'free')  +
+  theme(strip.text.x = element_text(size = 8), 
+        axis.text.x = element_text(size = 8), 
+        panel.spacing.y = unit(1, "lines"),
+        panel.spacing.x = unit(0, "lines"))
+ggsave(sprintf('%s/pval_hist_wide2.pdf', plot_dir), height = 5, width= 12)
+```
+
+
+## QQ-plots/Rejection Rates of p-values
+
+
+QQ-plot (basically)
+```{r fig.height=3, fig.width=9}
+# the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
+plot_df = effects |> # filter(method_raw %in% c('sceptre', 'sceptreU')) |> 
+            group_by(type, method) |> 
+            reframe(pval=sort(pval), count=sum(!is.na(pval)), rejection_rate = (1:count)/count) 
+
+#----- p-values: qqplot vs uniform = rejection rate by pval threshold (all numNC)  ---------- 'pval_qqplot.pdf'
+ggplot(plot_df,
+       aes(x = pval, y = rejection_rate, color = method)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_line(linewidth = .5, alpha = .9, key_glyph = "rect") +
+  geom_point(size=.4, alpha=.7, key_glyph = "rect") +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_color_manual(values = method_colors, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = 'Rejection Rate by P-value Threshold', 
+       x = 'p-value threshold', y = 'rejection rate',
+       color = 'Method') +
+  facet_grid(cols = vars(type)) +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+ggsave(sprintf('%s/pval_qqplot.pdf', plot_dir), height = 3, width= 9)
+
+
+
+
+#----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf'
+p = ggplot(plot_df,
+       aes(y = -log(pval+(1e-500), base = 10), x = -log(rejection_rate+(1e-500), base = 10), color = method)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_line(linewidth = .5, alpha = .8, key_glyph = 'rect') +
+  geom_point(size = 2, alpha = .7, key_glyph = 'rect', stroke=NA) +
+  # scale_x_continuous(limits = c(2, 3.5)) +
+  # scale_y_continuous(limits = c(0, 200)) +
+  scale_color_manual(values = method_colors, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
+       color = 'Method') +
+  facet_grid(cols = vars(type), scales = 'free') + # facetted_pos_scales doesn't seem to work with facet_grid
+  # facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right") +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+p
+
+ggsave(sprintf('%s/pval_qqplot_log.pdf', plot_dir), height = 3, width= 9)
+
+
+
+# use gg4x to set limits separately 
+# https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975
+#----- p-values: log10 qqplot (Focus on same tail) ------------------------ 'pval_qqplot_log_tail1.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.2, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.2, 2)),
+    type == 'Discovery'   ~ scale_x_continuous(limits = c(.2, 2))),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 10), oob=scales::squish),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 10), oob=scales::squish),
+    type == 'Discovery'   ~ scale_y_continuous(limits = c(0, 10), oob=scales::squish))
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail1.pdf', plot_dir), height = 3, width= 9)
+
+
+#----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail2.pdf'
+p + geom_line() + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(0, 3)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(0, 3)),
+    type == 'Discovery'   ~ scale_x_continuous(limits = c(0, 3))),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 3), oob=scales::squish),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 3), oob=scales::squish),
+    type == 'Discovery'   ~ scale_y_continuous(limits = c(0, 3), oob=scales::squish))
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail2.pdf', plot_dir), height = 3, width= 9)
+
+#----- p-values: log10 qqplot (Focus even more on different tails) ------------------------ 'pval_qqplot_log_tail3.pdf'
+
+
+ggsave(sprintf('%s/pval_qqplot_log_tail3.pdf', plot_dir), height = 3, width= 9)
+```
+
+
+
+
+# SCEPTRE
+
+## With and Without Confounders (U)
+
+```{r fig.width=9, fig.height=3}
+plot_df = effects |> filter(method_raw %in% c('sceptre', 'sceptreU')) |>
+            group_by(type, method) |>
+            reframe(pval=sort(pval), count=sum(!is.na(pval)), rejection_rate = (1:count)/count)
+
+
+# commpare with and without confounders
+ggplot(plot_df, aes(x = pval, y = rejection_rate, color = method)) +
+  geom_abline(aes(intercept = 0, slope = 1)) +
+  geom_point(size=.4, alpha=.7, key_glyph = "rect") +
+  # geom_line(linewidth = 1, alpha = .9, key_glyph = "rect") +
+  scale_color_manual(values = method_colors, guide = guide_legend(ncol = 1)) +
+  facet_grid(cols = vars(type))
+
+
+```
+
+
+```{r fig.width=12, fig.height = 4}
+# the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
+plot_df = effects |> filter(method_raw %in% c('sceptre', 'sceptreU')) |> 
+            group_by(type, method) |> 
+            reframe(pval=sort(pval), count=sum(!is.na(pval)), rejection_rate = (1:count)/count) 
+
+#----- p-values: qqplot vs uniform = rejection rate by pval threshold (all numNC)  ---------- 'pval_qqplot.pdf'
+ggplot(plot_df,
+       aes(x = pval, y = rejection_rate, color = method)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_point(size=.4, alpha=.7, key_glyph = "rect") +
+  # geom_line(linewidth = 1, alpha = .9, key_glyph = "rect") +
+  scale_x_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1')) +
+  scale_y_continuous(limits = c(0, 1)) +
+  scale_color_manual(values = method_colors, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = 'Rejection Rate by P-value Threshold', 
+       x = 'p-value threshold', y = 'rejection rate',
+       color = 'Method') +
+  facet_grid(cols = vars(type)) +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+ggsave(sprintf('%s/pval_qqplot.pdf', plot_dir), height = 7, width= 8)
+
+
+
+
+#----- p-values: log10 qqplot -------------------------------------------------- 'pval_qqplot_log.pdf'
+p = ggplot(plot_df,
+       aes(y = -log(pval, base = 10), x = -log(rejection_rate, base = 10), color = method)) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_line(linewidth = .9, alpha = .8, key_glyph = 'rect') +
+  geom_point(size = 2, alpha = .7, key_glyph = 'rect', stroke=NA) +
+  # scale_x_continuous(limits = c(2, 3.5)) +
+  # scale_y_continuous(limits = c(0, 200)) +
+  scale_color_manual(values = method_colors, guide = guide_legend(ncol = 1)) + #, labels = lapply(levels(plot_df$method_long), latex2exp::TeX)) +
+  labs(title = '-log(p-value) by -log(Unif(0,1))', 
+       x = latex2exp::TeX('theoretical -$log_{10}$(Unif(0,1))'), y = latex2exp::TeX('sample -$log_{10}$(p-value)'),
+       color = 'Method') +
+  facet_grid(cols = vars(type), scales = 'free') + # facetted_pos_scales doesn't seem to work with facet_grid
+  # facet_wrap(vars(type), ncol=1, scales = 'free', strip.position = "right") +
+  theme(legend.text = element_text(size = 8), legend.key.size = unit(.4, units = 'cm'))
+p
+
+ggsave(sprintf('%s/pval_qqplot_log.pdf', plot_dir), height = 7, width= 8)
+
+
+
+# use gg4x to set limits separately 
+# https://stackoverflow.com/questions/72962172/custom-y-axis-breaks-of-facet-wrap/73006975#73006975
+#----- p-values: log10 qqplot (Focus on same tail) ------------------------ 'pval_qqplot_log_tail1.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(.2, 2)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(.2, 2)),
+    type == 'Discovery'   ~ scale_x_continuous(limits = c(.2, 2))),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 40), oob=scales::squish),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 40), oob=scales::squish),
+    type == 'Discovery'   ~ scale_y_continuous(limits = c(0, 40), oob=scales::squish))
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail1.pdf', plot_dir), height = 6, width= 6)
+
+
+#----- p-values: log10 qqplot (Focus on different tails) ---------------------------------- 'pval_qqplot_log_tail2.pdf'
+p + ggh4x::facetted_pos_scales(
+  x = list(
+    type == 'Null'        ~ scale_x_continuous(limits = c(0, 3)),
+    type == 'Alternative' ~ scale_x_continuous(limits = c(0, 3)),
+    type == 'Discovery'   ~ scale_x_continuous(limits = c(0, 3))),
+  y = list(
+    type == 'Null'        ~ scale_y_continuous(limits = c(0, 3), oob=scales::squish),
+    type == 'Alternative' ~ scale_y_continuous(limits = c(0, 3), oob=scales::squish),
+    type == 'Discovery'   ~ scale_y_continuous(limits = c(0, 3), oob=scales::squish))
+  )
+
+ggsave(sprintf('%s/pval_qqplot_log_tail2.pdf', plot_dir), height = 6, width= 6)
+
+#----- p-values: log10 qqplot (Focus even more on different tails) ------------------------ 'pval_qqplot_log_tail3.pdf'
+
+
+ggsave(sprintf('%s/pval_qqplot_log_tail3.pdf', plot_dir), height = 6, width= 6)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
