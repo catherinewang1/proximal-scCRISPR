@@ -95,7 +95,7 @@ gene_dev_df |> head()
 # ============================================================================== #
 
 
-# --------  discovery tests  ------ # 
+# --------  \__discovery tests  ------ 
 # filter for perturbations (in this example dataset, they seem ok already, but we can filter here too)
 rowSums(grna) |> hist(breaks = 50)
 GRNA_SAMPLESIZE_MIN = 80 # just set a thresh here based on distn
@@ -117,7 +117,7 @@ disc_tests_df = expand.grid(grna=all_As, gene=all_Ys, stringsAsFactors = FALSE) 
 disc_tests_df = disc_tests_df[sample(nrow(disc_tests_df), size = NUM_DISC_TESTS), ] |> mutate(type = 'discovery')
 
 
-# --------  'positive' tests  ------ # 
+# --------  \__'positive' tests  ------ 
 # also require 'positive' tests, even if they did not pass the qc (some grna targeted genes are not here in the subset...)
 pos_tests_vec = row.names(grna)[row.names(grna) %in% row.names(gene)]
 pos_tests_df = data.frame(grna = pos_tests_vec, gene = pos_tests_vec, type = 'positive')
@@ -128,6 +128,8 @@ AY = rbind(pos_tests_df, disc_tests_df)
 dir.create(sprintf('%s/AY/', save_dir))
 dir.create(sprintf('%s/AY/exampledata/', save_dir))
 write.csv(x = AY, file = sprintf('%s/AY/exampledata/AY.csv', save_dir), row.names = FALSE) # csv 
+
+validsinglegenes = all_Ys # valid names for single genes
 
 rm(GRNA_SAMPLESIZE_MIN, GENE_NUMNONZEROCELLS_MIN, GENE_IMPORTANCERANK_MAX, NUM_DISC_TESTS)
 rm(all_As, all_Ys, disc_tests_df, pos_tests_vec, pos_tests_df, gene_dev_df) # prob keep all_Ys to have a collection of genes to use as NCs
@@ -140,10 +142,12 @@ rm(all_As, all_Ys, disc_tests_df, pos_tests_vec, pos_tests_df, gene_dev_df) # pr
 dir.create(sprintf('%s/AY/exampledata/intermediateATEs/', save_dir))
 
 
-NCs = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir))  # PCA loadings
+NCs_pca = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir))  # PCA loadings
 numNCs = c(1, 3, 5, 10, 15, 20)
 libsize_log = log((metadata$nUMI |> as.numeric())+ 1e-20)
 control_cell_idx = which(colSums(grna) == 0) # cells with GFP
+
+
 
 # control_cell_idx2 = which(metadata$Perturbation == 'GFP') # cells with GFP  table(control_cell_idx == control_cell_idx2)
 
@@ -158,7 +162,7 @@ control_cell_idx = which(colSums(grna) == 0) # cells with GFP
 
 #' estimate ATEs/logFoldChanges/Coefficients using loaded in vars in environment
 #' Specifically: 
-#'    grna, gene, gene_norm, AY
+#'    grna, gene, gene_norm, AY, validsinglegenes
 #'    libsize_log, control_cell_idx, NCs, numNCs
 #'    
 #' res is dataframe with cols:
@@ -183,8 +187,20 @@ estimate_effects <- function(AY_idx, save_intermediateATEs=TRUE) {
     libsize_log = libsize_log[AY_data_idx])
   
   # Proximal with PCA loadings
-  dfZ = NCs[AY_data_idx, seq(from = 2, to = min(2*max(numNCs), ncol(NCs)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
-  dfW = NCs[AY_data_idx, seq(from = 1, to = min(2*max(numNCs), ncol(NCs)), by = 2)] # odds
+  dfZ = NCs_pca[AY_data_idx, seq(from = 2, to = min(2*max(numNCs), ncol(NCs_pca)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
+  dfW = NCs_pca[AY_data_idx, seq(from = 1, to = min(2*max(numNCs), ncol(NCs_pca)), by = 2)] # odds
+  colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
+  colnames(dfW) = paste0('W', 1:ncol(dfW))
+  
+  # Proximal with singlegenes
+  NC_names = setdiff(validsinglegenes, c(A_name, Y_name)) # set of genes to use as NCs (not outcome and not grna target [assume grna name is the targeted gene name])
+  NC_names = sample(NC_names, 2*max(numNCs))
+  # Z_names = NC_names[1:max(numNCs)]
+  # W_names = NC_names[(max(numNCs)+1):(2*max(numNCs))]
+  
+  NCs_singlegene = gene_norm[NC_names, AY_data_idx] |> t() |> as.data.frame()
+  dfZ = NCs_singlegene[AY_data_idx, seq(from = 2, to = min(2*max(numNCs), ncol(NCs_singlegene)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
+  dfW = NCs_singlegene[AY_data_idx, seq(from = 1, to = min(2*max(numNCs), ncol(NCs_singlegene)), by = 2)] # odds
   colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
   colnames(dfW) = paste0('W', 1:ncol(dfW))
   
@@ -245,6 +261,35 @@ estimate_effects <- function(AY_idx, save_intermediateATEs=TRUE) {
                     data.frame(
                       NC_type     = 'PCA',
                       method      = '2SLSpci2s',
+                      method_type = 'proximal',
+                      numNC       = numNCs_,
+                      ATE = pci2s_res$summary_second_stage['A', 'Estimate'],
+                      se  = pci2s_res$summary_second_stage['A', 'Std. Error'],
+                      tstat= pci2s_res$summary_second_stage['A', 'z value'],
+                      pval= pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
+                      time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+    
+    rm(pci2s_res, t0, t1)
+  }
+  rm(dfZ, dfW, numNCs_)
+  
+  
+  
+  # ===== \__ Proximal singlegenes ====
+  for(numNCs_ in numNCs)  {
+    t0 = Sys.time()
+    pci2s_res = pci2s::p2sls.lm(
+      Y = df$Y_norm, 
+      A = df$A, 
+      W = dfZ[,1:numNCs_], 
+      Z = dfW[,1:numNCs_], 
+      variance = TRUE)
+    t1 = Sys.time()
+    
+    res = bind_rows(res, 
+                    data.frame(
+                      NC_type     = 'PCA',
+                      method      = 'proximallin',
                       method_type = 'proximal',
                       numNC       = numNCs_,
                       ATE = pci2s_res$summary_second_stage['A', 'Estimate'],
@@ -408,7 +453,7 @@ if(F) {
       res = bind_rows(res, 
                       data.frame(
                         NC_type     = 'PCA',
-                        method      = '2SLSpci2s',
+                        method      = 'proximal',
                         method_type = 'proximal',
                         numNC       = numNCs_,
                         ATE = pci2s_res$summary_second_stage['A', 'Estimate'],
