@@ -7,6 +7,20 @@ papalexi-2021/saves/AY/*
 !papalexi-2021/saves/AY/AY_settings.R
 !papalexi-2021/saves/AY/proximal_settings.r
 
+jin-2020/saves_causarray/
+jin-2020/saves_fulldata/
+jin-2020/saves/*
+!jin-2020/saves/AY/
+jin-2020/saves/AY/*
+!jin-2020/saves/AY/fulldata/
+jin-2020/saves/AY/fulldata/*
+!jin-2020/saves/AY/fulldata/AY.csv
+!jin-2020/saves/AY/fulldata/effects.csv
+
+
+# ignored code
+jin-2020/analysis/X_causarraytutorials/
+
 # old code
 papalexi-2021/analysis/1_processData/old/
 papalexi-2021/analysis/1_processData/wgcna_old/
