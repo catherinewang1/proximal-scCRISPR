@@ -16,7 +16,7 @@ jin-2020/saves/AY/*
 jin-2020/saves/AY/fulldata/*
 !jin-2020/saves/AY/fulldata/AY.csv
 !jin-2020/saves/AY/fulldata/effects.csv
-
+jin-2020/saves*
 
 # ignored code
 jin-2020/analysis/X_causarraytutorials/
@@ -31,6 +31,7 @@ papalexi-2021/analysis/4_compareEstimators/old/
 
 papalexi-2021/XX_analysis_old/
 
+jin-2020/analysis/3_fulldataexcitatoryneurons/1.XX_start_jin_on_causarraydata.R
 
 # locally rendered md
 README.html
