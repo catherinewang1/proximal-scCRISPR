@@ -1,0 +1,11 @@
+VCC subsampled h5 data cleaned and processed from Jin-Hong Du.
+
+I thought this was Jin-2025 data and just labeled as VCC, but perhaps it is not. 
+
+VCC is actually another dataset/experiment. The cleaned h5ad has log normalized counts, and it is not possible to un-transform without nUMIs.
+
+Sources: 
+
+Roohani, Y. H. et al. Virtual Cell Challenge: Toward a Turing test for the virtual cell. Cell 188, 3370–3374 (2025). Doi:10.1016/j.cell.2025.06.008
+
+The raw dataset can be found here: https://console.cloud.google.com/marketplace/product/bigquery-public-data/arc-institute?project=gcp-public-data-arc-institute
