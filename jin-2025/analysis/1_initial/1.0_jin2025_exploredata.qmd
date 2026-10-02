@@ -1,0 +1,825 @@
+---
+title: "1.0_jin2025_exploredata"
+format:
+  html:
+    embed-resources: true
+execute:
+  echo: true
+params:
+  # load_as_seurat: true
+  NUM_IMPORTANT_GENES: 4000 # number of top genes to keep for normalization
+  CELL_SUBSET_SIZE: 25000   # number of cells to subset for calculating gene deviance
+  RUN_EVEN_IF_SAVED: false   # run even if some intermediate files are saved
+---
+
+First explore the data from Jin-2025 experiment
+
+Mouse brain data from Xin Jin's lab \~ 2025 and downloaded from dropbox
+
+Email: Ergan to Jin-Hong to Catherine:
+
+```         
+    Please check the following two links of the data available.
+    Those data is shared in 2 batches by Seoyeon, where one is containing 10 perturbations and another one contains 48 perturbations.
+
+    
+    Both datasets have the aligned cell types and you can easily use sc.concat([data_1, data_2]) to combine them.
+```
+
+```{r}
+#| warning: false
+#| echo: false
+#| include: false
+#| output: false
+
+args = c('macbook')
+
+
+assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
+DEVICE = args[1]
+source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
+save_dir = paste0(save_dir, '/1_initial')
+assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
+
+
+dir.create(save_dir)
+
+library(Matrix)
+library(dplyr)
+library(Seurat)
+# library(SeuratObject)
+library(anndataR)
+library(ggplot2)
+
+ggplot2::theme_set(theme_classic() +
+                   theme(plot.title = element_text(hjust = .5)))
+```
+
+# Load data
+
+```{r}
+#| cache: true
+load_as_seurat = FALSE # runs out of memory for seurat version
+if(load_as_seurat) {
+  # load h5ad as Seurat
+  t0 = Sys.time()
+  jin2025_10pert = anndataR::read_h5ad(sprintf('%s/subset_adata_SCARF_10celltypes_10perturbations.h5ad', data_dir), as = "Seurat")
+  t1 = Sys.time(); print(sprintf('Seurat load time for 10 pert is %2.2f mins', difftime(t1, t0, units = "mins"))) # 1.12 mins
+  jin2025_48pert = anndataR::read_h5ad(sprintf('%s/subset_adata_SCARF_10celltypes_48perturbations.h5ad', data_dir), as = "Seurat") # <-- runs out of memory
+  
+  # format(object.size(jin2025_10pert), units = 'Gb') # 7.1 Gb
+} else {
+  # load h5ad (simpler?)
+  t0 = Sys.time()
+  jin2025_10pert = anndataR::read_h5ad(sprintf('%s/subset_adata_SCARF_10celltypes_10perturbations.h5ad', data_dir))
+  t1 = Sys.time() 
+  jin2025_48pert = anndataR::read_h5ad(sprintf('%s/subset_adata_SCARF_10celltypes_48perturbations.h5ad', data_dir))
+  t2 = Sys.time()
+  print(sprintf('h5ad plain load time for is %2.2f and %2.2f mins for 10 and 48 pert, respectively', 
+                difftime(t1, t0, units = "mins"), difftime(t2, t1, units = "mins"))) #  0.19 and 0.23 min
+  
+  # format(object.size(jin2025_10pert$X), units = 'Gb') # 6.9 Gb
+  # format(object.size(jin2025_48pert$X), units = 'Gb') # 8.9 Gb
+  rm(t0, t1, t2)
+}
+
+
+# metadata_all = rbind(jin2025_10pert$obs |> mutate(dataset = '10pert'), 
+#                      jin2025_48pert$obs |> mutate(dataset = '48pert'))
+metadata_10 = jin2025_10pert$obs |> mutate(dataset = '10pert')
+metadata_48 = jin2025_48pert$obs |> mutate(dataset = '48pert')
+row.names(metadata_10) = paste0(row.names(metadata_10), ':10pert')
+row.names(metadata_48) = paste0(row.names(metadata_48), ':48pert')
+metadata_all = rbind(metadata_10, metadata_48); rm(metadata_10, metadata_48)
+```
+
+10 perturbation: 19070 genes x 110968 cells receiving 10 perturbations
+
+48 perturbation: 19070 genes x 142619 cells receiving 48 perturbations
+
+## Summary stats of data
+
+In 10 perturbation dataset: - `{r} jin2025_10pert$n_vars()` genes x `{r} jin2025_10pert$n_obs()` cells
+
+In 48 perturbation dataset: - `{r} jin2025_48pert$n_vars()` genes x `{r} jin2025_48pert$n_obs()` cells
+
+## Checks of data
+
+All cells pass QC
+
+```{r}
+jin2025_10pert$obs |> pull(passes_qc) |> table()
+jin2025_48pert$obs |> pull(passes_qc) |> table()
+```
+
+Cell metadata
+
+```{r}
+jin2025_10pert$obs |> head(3)
+jin2025_48pert$obs |> head(3)
+```
+
+Check cell names are unique
+
+```{r}
+length(jin2025_10pert$obs_names) == length(unique(jin2025_10pert$obs_names))
+length(jin2025_48pert$obs_names) == length(unique(jin2025_48pert$obs_names))
+```
+
+Check no same cellnames between datasets- ok they have the same names
+
+```{r}
+intersect(jin2025_10pert$obs_names, jin2025_48pert$obs_names) |> length()
+```
+
+Need to rename cellnames to tell if they come from 10 or 48 pert dataset
+
+```{r}
+jin2025_10pert$obs_names[1:3]
+jin2025_48pert$obs_names[1:3]
+```
+
+Check gene names are the same and in the same order
+
+```{r}
+all(jin2025_10pert$var_names == jin2025_48pert$var_names)
+```
+
+Check all the `obs$gene_target` are measured genes (ie don't need to rename)
+
+```{r}
+all(setdiff(unique(jin2025_10pert$obs$gene_target), 'Non_target') %in% jin2025_10pert$var_names)
+all(setdiff(unique(jin2025_48pert$obs$gene_target), 'Non_target') %in% jin2025_48pert$var_names)
+```
+
+## EDA: perturbation
+
+Number of cells receiving each perturbation (y-axis cut off)
+
+```{r}
+#| fig-height: 5
+#| fig-width: 10
+
+
+
+gene_target_order = c('Non_target', 
+               jin2025_10pert$obs$gene_target |> unique() |> setdiff('Non_target') |> sort(),
+               jin2025_48pert$obs$gene_target |> unique() |> setdiff('Non_target') |> sort())
+
+gene_target_color = c('snow2', 
+                      rep('springgreen3', length(unique(jin2025_10pert$obs$gene_target))),
+                      rep('slateblue2', length(unique(jin2025_48pert$obs$gene_target))))
+names(gene_target_color) = gene_target_order
+# ggplot(metadata_all, aes(y = gene_target)) +
+#   geom_bar(color = 'black', fill = 'white') +
+#   scale_x_log10()
+ggplot(metadata_all, 
+       aes(x = factor(gene_target, levels = gene_target_order),
+           fill = gene_target)) +
+  geom_bar(color = 'black') +
+  scale_fill_manual(values = gene_target_color) +
+  # scale_y_log10(expand = c(0, .05)) +
+  coord_cartesian(ylim = c(0, 2000), expand = FALSE) +
+  labs(title = 'Number of cells receiving each perturbation', x = 'perturbation (gene target)') +
+  theme(axis.text.x = element_text(angle = 90, hjust=1, vjust=.6), 
+        legend.position='none') +
+  geom_vline(aes(xintercept = 12.5), linewidth = .6, linetype = 'longdash', color = 'brown2') +
+  geom_text(aes(label = '10 perturbations', x = 11.8, y = 1650, angle = 90), color = 'springgreen3') +
+  geom_text(aes(label = '48 perturbations', x = 13.2, y = 1650, angle = 90), color = 'slateblue2')
+```
+
+The number of non-targeting receiving cells is
+
+```{r}
+sum(metadata_all$gene_target=='Non_target')
+```
+
+
+
+# Construct grna matrix
+
+There are two ways we can construct tests. Suppose we have three perturbations targeting the same gene called guideA1, guideA2, and guideA3.
+
+We can test for individual guides to genes: (guideA1 - gene) (guideA2 - gene) (guideA3 - gene)
+
+Or we can combine them: \[guideA1 or guideA2 or guideA3\] - gene
+
+I think these are usually combined. In our case, we would also want to separate the Non-Targeting perturbations in order to construct true Null tests.
+
+We will create 2 grna matrices-
+
+- grna: #cells x #targeted genes+1NT = 253,587 x 58 targeted genes +1NT- for cell i and gene target j, the (i,j)th element will be a 1 if the cell received any of the guides that targeted this gene
+- grnaNT
+
+Most targeted genes have 4 guides targeting this gene (all except Prpf6, which has 3). There are 399 Non-targeting guides.
+
+```{r}
+#| eval: false
+#| warning: false
+#| include: false
+#| output: false
+metadata_all$gene_target |> unique() |> length()
+metadata_all$guide_call |> unique() |> length()
+metadata_all |> select(guide_call, gene_target) |> distinct() |> arrange(gene_target, guide_call)
+
+metadata_all |>  select(guide_call, gene_target) |> filter(gene_target == 'Non_target') 
+metadata_all |> group_by(gene_target) |> summarize(n_guides = length(unique(guide_call)))
+```
+
+```{r}
+# construct grna: perturbation assignment for combined perturbations 
+grna = model.matrix(~gene_target-1, 
+             data = metadata_all |> mutate(gene_target = relevel(gene_target, ref = 'Non_target')),
+             check.names = FALSE)
+colnames(grna) <- sub("^gene_target", "", colnames(grna))
+grna = t(grna)                                               # feature x cell
+grna = as(grna, 'dgRMatrix')                                 # convert to sparse matrix
+
+
+
+# construct grnaNT: perturbation assignment for individual Non_target perturbations 
+grnaNT = model.matrix(~guide_call-1 , 
+             data = metadata_all,
+             check.names = FALSE)
+colnames(grnaNT) <- sub("^guide_call", "", colnames(grnaNT))
+grnaNT = grnaNT[, grepl('Non_target', colnames(grnaNT))]     # subset only NT guides
+grnaNT = t(grnaNT)                                           # feature x cell
+grnaNT = as(grnaNT, 'dgRMatrix')                             # convert to sparse matrix
+
+
+# some checks
+assertthat::assert_that(all(row.names(grna) %in% metadata_all$gene_target), msg='grna matrix cols should match gene targets')
+assertthat::assert_that(all(row.names(grnaNT) %in% metadata_all$guide_call), msg='grnaNT matrix cols should match guide calls')
+```
+
+The dimension of `grna` is `{r} dim(grna)`
+
+The dimension of `grnanT` is `{r} dim(grnaNT)`
+
+
+
+
+
+# Select genes
+
+## Load Transcription Factor genes
+
+Many of the TF gene list for humans overlap (1055 out of 1639).
+
+```{r}
+# human TF list, but have some overlap?
+# load list of genes that are Transcription Factors (read in xlsx sheet)
+tf_raw = readxl::read_xlsx(path = paste0(data_dir, "/../extra/transcriptionfactorlist.xlsx"),  # given from Kathryn over slack (suppl of a paper?)
+                           sheet = 2) |> suppressMessages() # suppress messages on how they renamed columns
+# clean up a bit
+#      2nd col ('...2') is gene name, 4th col is TF indicator 'Is TF?'
+#      First row is not data (2 rows of colnames)
+tf = tf_raw[-1 , c('...2', 'Is TF?')]
+colnames(tf) = c('gene_name', 'TF')
+# table(tf$TF) # only levels are No, Yes
+#        No  Yes 
+#       1126 1639 
+TF_names = tf |> dplyr::filter(TF == 'Yes') |> dplyr::pull(gene_name)
+
+(tolower(TF_names) %in% tolower(jin2025_10pert$var_names)) |> table()
+# FALSE  TRUE 
+#   584  1055
+
+rm(tf_raw, tf)
+```
+
+From a separate list of mouse TF genes, there are 1310 TF genes identified (e.g. previous missed 255, assuming the sets of names intersect)
+
+```{r}
+mouseTF = read.csv(paste0(data_dir, "/../extra/mousetranscriptionfactor/mouseTranscriptionFactors.txt"), header = FALSE, sep = '\t')
+colnames(mouseTF) = c('ensembl', 'gene_name')
+mouseTF
+
+(mouseTF$gene_name %in% (jin2025_10pert$var_names)) |> table()
+# FALSE  TRUE 
+#    64  1310 
+
+# case matches
+(tolower(mouseTF$gene_name) %in% tolower(jin2025_10pert$var_names)) |> table()
+# FALSE  TRUE 
+#    64  1310 
+```
+
+1041 genes intersect
+
+```{r}
+intersect(tolower(TF_names), tolower(mouseTF$gene_name)) |> length()
+```
+
+```{r}
+TF_list = union(TF_names, mouseTF$gene_name) |> stringr::str_to_title()
+```
+
+## Load Housekeeping genes
+
+Downloaded `.json` file from https://www.gsea-msigdb.org/gsea/msigdb/cards/HOUNKPE_HOUSEKEEPING_GENES.html
+
+```{r}
+housekeepgenes0 = jsonlite::read_json(paste0(data_dir, "/../extra/housekeepinggenes/HOUNKPE_HOUSEKEEPING_GENES.v2026.1.Hs.json"))
+housekeepgenes = housekeepgenes0$HOUNKPE_HOUSEKEEPING_GENES$geneSymbols |> unlist()
+housekeepgenes = stringr::str_to_title(housekeepgenes)
+
+
+housekeepgenes %in% jin2025_10pert$var_names |> table()
+# 83  1046 
+(tolower(housekeepgenes) %in% tolower(jin2025_10pert$var_names)) |> table()
+# 83  1046 
+```
+
+## Calculate gene deviance/importance (+ add TF and housekeep info)
+
+Choose the top `params$NUM_IMPORTANT_GENES`=`{r} params$NUM_IMPORTANT_GENES` genes by the most important (the most deviant genes) from `scry::devianceFeatureSelection`
+
+```{r}
+# load if already saved
+if(!params$RUN_EVEN_IF_SAVED & 'gene_dev.csv' %in% list.files(save_dir)) {
+  gene_dev_df = read.csv(file = sprintf('%s/gene_dev.csv', save_dir)) 
+} else {
+  # subset the data because there are a lot of cells, CELL_SUBSET_SIZE = 25000 around this much, some rounding
+  
+  prop_10pert = jin2025_10pert$n_obs() / (jin2025_10pert$n_obs() + jin2025_48pert$n_obs()) # sample prop from each dataset
+  
+  # round(prop_10pert * params$CELL_SUBSET_SIZE)
+  # jin2025_10pert$shape()
+  # dim(jin2025_10pert$X) # 110968 19070- oh X is cell x gene
+  # dim(jin2025_48pert$X)
+  # jin2025_10pert$X[1:4, 1:5]
+  
+  
+  
+  counts_subset = rbind(jin2025_10pert$X[sample(jin2025_10pert$n_obs(), size = round(   prop_10pert  * params$CELL_SUBSET_SIZE), replace = FALSE), ],
+                        jin2025_48pert$X[sample(jin2025_48pert$n_obs(), size = round((1-prop_10pert) * params$CELL_SUBSET_SIZE), replace = FALSE), ])
+  counts_subset = t(counts_subset) # cell x gene
+  # dim(counts_subset) # 19070 genes x # subsampled cells
+  
+  # Input should be: row = feature, col = cell
+  gene_dev = scry::devianceFeatureSelection(object=counts_subset, fam='binomial') # < 1 min
+  gene_dev_df = data.frame(gene_idx = 1:length(gene_dev), deviance=gene_dev)  |> 
+                dplyr::arrange(desc(gene_dev)) |> dplyr::mutate(importance_rank = 1:n())  # add rank importance 
+  gene_dev_df = gene_dev_df[names(gene_dev), ] |> tibble::rownames_to_column(var = 'gene_name') |> # reorder to original
+                dplyr::mutate(is_grna_target = (gene_name %in%  gene_target_order)) # add T/F is a perturbation target
+  
+  
+  # add columns: is transcription factor and is housekeeping gene
+  gene_dev_df = gene_dev_df |> mutate(is_transcription_factor = (gene_name %in% TF_list),
+                                      is_housekeeping = (gene_name %in% housekeepgenes) )
+  
+  # get (top X genes + grna target genes + housekeeping genes?) x (all cells)
+  # (bc prev counts_subset used to calculate gene dev subset cells for performance)
+  gene_dev_df = gene_dev_df |> mutate(is_normalized_gene = importance_rank <= params$NUM_IMPORTANT_GENES | is_grna_target | is_housekeeping) 
+  
+
+  write.csv(x = gene_dev_df, file = sprintf('%s/gene_dev.csv', save_dir), row.names = FALSE) # csv 
+  rm(gene_dev, counts_subset, prop_10pert)
+}
+normalized_genes_names = gene_dev_df |> filter(is_normalized_gene) |> pull(gene_name) |> sort()
+```
+
+```{r}
+#| eval: false
+#| warning: false
+#| include: false
+#| output: false
+gene_dev_df |> filter(importance_rank <= params$NUM_IMPORTANT_GENES | is_grna_target | is_housekeeping) |> arrange(desc(importance_rank))
+gene_dev_df |> filter(importance_rank <= params$NUM_IMPORTANT_GENES | is_grna_target | is_housekeeping) |> 
+  arrange(desc(importance_rank)) |> pull(is_transcription_factor) |> table()
+
+gene_dev_df |> filter(importance_rank <= params$NUM_IMPORTANT_GENES | is_grna_target | is_housekeeping) |> select(is_grna_target | is_housekeeping) |> table()
+```
+
+
+
+
+# Save cell metadata and grna and grnaNT as h5 files and clear environment
+
+```{r}
+#| eval: false
+#| warning: false
+#| include: false
+#| output: false
+library(h5lite)
+
+h5file <- sprintf('%s/jin2025.h5', save_dir)
+
+# metadata about the excitatory neuron cells
+print(sprintf("[%s]        + cell_metadata", Sys.time()))
+h5_write(metadata_all , h5file, "cell_metadata/cell_metadata")
+
+
+# grna assignments
+print(sprintf("[%s]        + grna", Sys.time()))
+h5_write(as.matrix(grna), h5file, "grna/grna")
+h5_write(row.names(grna), h5file, "grna/row_grnanames")
+h5_write( colnames(grna), h5file, "grna/col_cellnames")
+
+# grna NT assignments
+print(sprintf("[%s]        + grnaNT", Sys.time()))
+h5_write(as.matrix(grnaNT), h5file, "grnaNT/grnaNT")
+h5_write(row.names(grnaNT), h5file, "grnaNT/row_grnanames")
+h5_write( colnames(grnaNT), h5file, "grnaNT/col_cellnames")
+
+
+
+# even gene counts is too large...
+# gene counts
+# print(sprintf("[%s]        + counts", Sys.time()))
+# h5_write(as.matrix(gene_counts), h5file, "counts/counts")        # it seems that python has trouble reading in with extra rownames and columns...
+# h5_write(gene_counts, h5file, "counts/counts")
+# h5_write(row.names(gene_counts), h5file, "counts/row_genenames") # so create hierarchy and save rownames and colnames separately
+# h5_write(colnames(gene_counts), h5file, "counts/col_cellnames")  
+
+
+# 
+# library(rhdf5)
+# h5createGroup(h5file, "counts")
+# h5createGroup(h5file, "counts/counts")
+# h5write(gene_counts, h5file, "counts/counts")
+
+
+# # gene normalized
+# print(sprintf("[%s]        + gene_norm", Sys.time()))
+# h5_write(as.matrix(gene_norm), h5file, "gene_norm/gene_norm")
+# h5_write(row.names(gene_norm), h5file, "gene_norm/row_genenames")
+# h5_write( colnames(gene_norm), h5file, "gene_norm/col_cellnames")
+
+# test
+# mat_in <- h5_read(h5file, "counts/counts") # R reads in row and colnames
+# colnames(gene_counts) == rownames(grna)
+
+# check cells are in the same order
+# all(row.names(metadata_all) == metadata_all$NAME)
+# all(row.names(metadata_all) == colnames(gene_counts))
+# all(row.names(metadata_all) == colnames(gene_norm))
+# all(row.names(metadata_all) == colnames(grna))
+
+
+
+# format(object.size(gene_counts), units = 'Mb')
+# format(object.size(as(gene_counts, 'dgCMatrix')), units = 'Mb') # what if in sparse col format... same
+
+
+
+
+```
+
+
+
+```{r}
+# # save as anndata??
+# # only the subsetted genes
+# row.names(gene_dev_df) = gene_dev_df$gene_name # so that rows subsetable by gene name
+# 
+# ad <- anndataR::AnnData(
+#   X   = t(gene_counts),
+#   obs = metadata_all,
+#   var = gene_dev_df[row.names(gene_counts), ]
+# )
+# 
+# format(object.size(gene_counts), units = 'Gb')
+# 
+# write_h5ad(ad, sprintf('%s/anndata.h5ad', save_dir), compression = 'gzip', mode = 'w') # 800 MB
+# # write_h5ad(ad, sprintf('%s/anndata2.h5ad', save_dir), compression = 'lzf', mode = 'w') # larger 1.2 GB
+
+# ad_read = anndataR::read_h5ad(sprintf('%s/anndata.h5ad', save_dir), as = 'HDF5AnnData')
+# 
+# ad_read
+```
+
+
+
+# Normalize genes: top `{r} params$NUM_IMPORTANT_GENES` + grna targets + housekeeping 
+
+
+
+
+```{r}
+#| eval: false
+#| warning: false
+#| include: false
+#| output: false
+# subset each of the datasets and rename cells to indicate source (:10pert or :48pert)
+gene_counts_10 = jin2025_10pert$X[, normalized_genes_names]
+row.names(gene_counts_10) = paste0(row.names(gene_counts_10), ':10pert')
+gene_counts_48 = jin2025_48pert$X[, normalized_genes_names]
+row.names(gene_counts_48) = paste0(row.names(gene_counts_48), ':48pert')
+
+
+gene_counts = rbind(gene_counts_10, gene_counts_48)
+gene_counts = t(gene_counts)
+rm(gene_counts_10, gene_counts_48)
+
+gene_counts <- as(gene_counts, "HDF5Matrix")
+gc()
+
+
+# remove all non-relevant objects in environment
+rm(list = setdiff(objects(),
+           c('gene_counts', 'params', 'gene_norm',
+             'DEVICE', 'save_dir', 'util_dir', 'data_dir')))
+gc()
+
+# genes in the rows and samples in the columns
+gene_norm = scry::nullResiduals(gene_counts,
+                                fam  = "binomial",
+                                type = "deviance") #  genes x  cells
+
+
+# Save as hdf5 file and also delete prev saves
+hdf5_filename = sprintf('%s/jin2025_subsetgenes.hdf5', save_dir)
+
+rhdf5::h5ls(hdf5_filename)
+h5lite::h5_delete(file=hdf5_filename, name='gene_norm/', attr = NULL, warn = TRUE) # delete current h5 groupdata if already present
+
+rhdf5::h5createGroup(hdf5_filename, group = 'gene_norm') # create group
+HDF5Array::writeHDF5Array(gene_norm, filepath = hdf5_filename, 
+                          name = 'gene_norm/gene_norm', 
+                          verbose=TRUE, with.dimnames = TRUE)
+
+# save the counts
+# h5lite::h5_delete(file=hdf5_filename, name='counts/', attr = NULL, warn = TRUE) # delete
+h5lite::h5_delete(file=hdf5_filename, name='gene_counts/', attr = NULL, warn = TRUE) # delete
+rhdf5::h5createGroup(hdf5_filename, group = 'gene_counts') # create group
+HDF5Array::writeHDF5Array(gene_counts, filepath = hdf5_filename, 
+                          name = 'gene_counts/gene_counts', 
+                          verbose=TRUE, with.dimnames = TRUE)
+
+
+```
+
+does not work bc too much memory required. 
+
+```{r}
+
+# # subset each of the datasets and rename cells to indicate source (:10pert or :48pert)
+# gene_counts_10 = jin2025_10pert$X[, normalized_genes_names]
+# row.names(gene_counts_10) = paste0(row.names(gene_counts_10), ':10pert')
+# gene_counts_48 = jin2025_48pert$X[, normalized_genes_names]
+# row.names(gene_counts_48) = paste0(row.names(gene_counts_48), ':48pert')
+# 
+# 
+# gene_counts = rbind(gene_counts_10, gene_counts_48) 
+# gene_counts = t(gene_counts)
+# rm(gene_counts_10, gene_counts_48)
+# gc()
+# 
+# 
+# # remove all non-relevant objects in environment
+# rm(list = setdiff(objects(),
+#            c('gene_counts', 'params', 'gene_norm', 
+#              'DEVICE', 'save_dir', 'util_dir', 'data_dir')))
+# gc()
+# 
+# # genes in the rows and samples in the columns
+# gene_norm = scry::nullResiduals(gene_counts, 
+#                                 fam  = "binomial", 
+#                                 type = "deviance") #  genes x  cells
+# # write.csv(   x = gene_norm, file = sprintf('%s/gene_norm.csv', save_dir)) # csv (dont, this is large)
+# # saveRDS(object = gene_norm, file = sprintf('%s/gene_norm.rds', save_dir)) # this is smaller (is rds smaller or h5?)
+# # format(object.size(gene_norm), units = 'Gb') # .2 Gb
+# # format(object.size(gene_counts), units = 'Gb') # .2 Gb
+```
+
+Other ways to save/load data
+
+```{r}
+# library(rhdf5)
+# rhdf5::h5ls(sprintf('%s/jin2025_subsetgenes.h5ad', save_dir))
+# mydata = rhdf5::h5read(sprintf('%s/jin2025_subsetgenes.h5ad', save_dir), "/X/data")
+# 
+# mydata
+# 
+# HDF5Array::HDF5Array(sprintf('%s/jin2025_subsetgenes.h5ad', save_dir), '/X/data')
+# 
+# 
+# 
+# rhdf5::h5ls(sprintf('%s/jin2025_subsetgenes.hdf5', save_dir))
+# mydata = rhdf5::h5read(sprintf('%s/jin2025_subsetgenes.hdf5', save_dir), "/counts")
+# dim(mydata)
+# 
+# gene_counts = t(mydata)
+```
+
+
+```{r}
+# library(DelayedArray)
+# # load from python saved hdf5 format
+# rhdf5::h5ls(sprintf('%s/jin2025_subsetgenes.hdf5', save_dir))
+# gene_counts = rhdf5::h5read(sprintf('%s/jin2025_subsetgenes.hdf5', save_dir), "/counts/counts")
+# 
+# 
+# 
+# hdf5_filename = sprintf('%s/jin2025_subsetgenes.hdf5', save_dir)
+# 
+# gene_counts <- as(gene_counts, "HDF5Matrix")
+# row.names(gene_counts) = rhdf5::h5read(hdf5_filename, "/counts/col_genenames")
+# colnames(gene_counts)  = rhdf5::h5read(hdf5_filename, "/counts/row_cellnames")
+# dim(gene_counts)
+# 
+# 
+# gene_norm = scry::nullResiduals(gene_counts, 
+#                                 fam  = "binomial", 
+#                                 type = "deviance") #  genes x  cells
+# 
+# row.names(gene_norm) = rhdf5::h5read(hdf5_filename, "/counts/col_genenames")
+# colnames(gene_norm)  = rhdf5::h5read(hdf5_filename, "/counts/row_cellnames")
+# dim(gene_norm)
+# 
+# 
+# rhdf5::h5createGroup(hdf5_filename, group = 'gene_norm')
+# rhdf5::h5write(obj = gene_norm, file = hdf5_filename, name = 'gene_norm/gene_norm')
+# 
+# 
+# HDF5Array::writeHDF5Array(gene_norm, filepath = hdf5_filename, name = 'gene_norm/gene_norm', verbose=TRUE)
+# 
+# 
+# # test = as.matrix(gene_norm) # runs out of memory
+
+
+```
+
+
+# PCA
+
+
+```{r}
+#| eval: false
+#| warning: false
+#| include: false
+#| output: false
+#| echo: true
+# subsample size (same used in gene deviance calcs)
+set.seed(12345)
+subsample_cells = sample(ncol(gene_norm), size=params$CELL_SUBSET_SIZE, replace=FALSE) |> sort()
+gene_norm_PCA = gene_norm[, subsample_cells] |> t()
+
+# perform pca
+pca_res = prcomp(x = gene_norm_PCA, rank.=100, retx = TRUE, center = TRUE, scale. = TRUE)
+
+# construct NCs as the actual loadings: [all cells x valid genes] %*% [rotation of valid genes x PCs]
+# NC_loadings = t(gene_norm) %*% pca_res$rotation
+NC_loadings = scale(t(gene_norm), center=TRUE,scale=TRUE) %*% pca_res$rotation # should center/scale first oops, but they are linearlly corr so i don't think it matters much hopefully
+
+# save
+dir.create(sprintf('%s/pca/', save_dir), showWarnings = FALSE)
+saveRDS(NC_loadings, sprintf('%s/pca/NCloadings.rds', save_dir)) 
+
+
+rm(subsample_cells, gene_norm_PCA)
+
+```
+
+
+```{r}
+#| eval: false
+#| warning: false
+#| include: false
+#| output: false
+# test if data needs to be scaled and centered first
+library(DelayedMatrixStats)
+library(sparseMatrixStats)
+
+
+subsample_cells
+pca_mult_loadings = gene_norm_PCA %*% pca_res$rotation[, 1:2]
+
+
+apply(gene_norm_PCA, CenterTitle)
+pca_mult_loadings_centerscale = scale(gene_norm_PCA, center=TRUE,scale=TRUE) %*% pca_res$rotation[, 1:2]
+
+dim(pca_mult_loadings)
+pca_mult_loadings[1:5, ]
+# versus
+
+dim(pca_res$x)
+pca_mult_loadings[1:5, 1:2]; pca_res$x[1:5, 1:2]
+
+
+plot(pca_mult_loadings[1:50, 1], pca_res$x[1:50, 1]); abline(a=0,b=1)
+plot(pca_mult_loadings_centerscale[1:50, 1], pca_res$x[1:50, 1]); abline(a=0,b=1)
+
+```
+
+
+
+# Extra
+
+### Extra exploration of h5ad objects
+
+```{r}
+#| eval: false
+#| warning: false
+#| include: false
+#| output: false
+
+jin2025_10pert$n_vars()
+jin2025_10pert$n_obs()
+
+
+jin2025_10pert
+jin2025_48pert
+
+
+jin2025_10pert$varp
+jin2025_10pert$var
+jin2025_10pert$obs
+jin2025_10pert$obsm
+
+jin2025_10pert@meta.data |> head()
+jin2025_10pert@meta.data |> colnames()
+jin2025_10pert@meta.data |> select(nCount_RNA, nFeature_RNA, num_rna_umi) |> head(10)
+
+all(jin2025_10pert@meta.data$nCount_RNA == jin2025_10pert@meta.data$num_rna_umi)
+jin2025_10pert@assays
+jin2025_10pert@tools
+names(jin2025_10pert)
+
+jin2025_10pert@commands
+jin2025_10pert@project.name
+jin2025_10pert@active.ident
+jin2025_10pert@graphs
+jin2025_10pert@neighbors
+jin2025_10pert@reductions
+
+jin2025_10pert@reductions$X_umap@cell.embeddings |> dim()
+
+
+all(jin2025_10pert@meta.data |> row.names()  == jin2025_10pert@reductions$X_umap@cell.embeddings |> row.names())
+
+
+plot_df = jin2025_10pert@reductions$X_umap@cell.embeddings[sample(nrow(jin2025_10pert@reductions$X_umap@cell.embeddings), size = 1000), ]
+plot_df = cbind(plot_df, jin2025_10pert@meta.data[row.names(plot_df), ])
+
+plot(plot_df[, 1], plot_df[, 2])
+
+plot_df |> head(3)
+
+ggplot(plot_df, aes(x = Xumap_1, y = Xumap_2)) + 
+  # geom_point(aes(color = sex)) 
+  # geom_point(aes(color = batch))
+  # geom_point(aes(color = orig.ident))
+  # geom_point(aes(color = sample_id)) +
+  # geom_point(aes(color = source)) +
+  # geom_point(aes(color = tissue)) +
+  # geom_point(aes(color = guide_call)) +
+  # geom_point(aes(color = predicted_class)) +
+  # geom_point(aes(color = predicted_subclass)) +
+  # geom_point(aes(color = cell_type)) +
+  # geom_point(aes(color = neuron_type)) +
+  # geom_point(aes(color = region_level1)) +
+  # geom_point(aes(color = region_level2)) +
+  geom_point(aes(color = gene_target)) +
+  theme(legend.position = 'right')
+
+
+
+jin2025_10pert@assays$RNA['X'] |> dim()
+
+
+jin2025_10pert # 19070 features across 110968 samples within 1 assay 
+
+# read not as seurat data object (adds a lot of size?)
+jin2025_48pert = anndata::read_h5ad(sprintf('%s/subset_adata_SCARF_10celltypes_48perturbations.h5ad', data_dir))
+jin2025_48pert = anndataR::read_h5ad(sprintf('%s/subset_adata_SCARF_10celltypes_48perturbations.h5ad', data_dir))
+
+jin2025_48pert$obs
+jin2025_48pert$shape()
+jin2025_48pert$n_obs()
+X = jin2025_48pert$X
+
+object.size(jin2025_48pert)
+format(object.size(X), units = 'Gb')
+format(object.size(jin2025_10pert), units = 'Gb')
+
+
+X[1:4, 1:4]
+jin2025_48pert$n_vars() # 19070
+jin2025_48pert$n_obs() # 142619
+names(jin2025_48pert)
+test = jin2025_48pert$as_Seurat()
+
+names(jin2025_48pert)
+```
+
+### Extra way to load h5ad
+
+```{r}
+#| eval: false
+#| warning: false
+#| include: false
+#| output: false
+
+# in the future, can use srtdisk if there are memory issues
+library(Seurat)
+library(srtdisk)
+
+crc10 <- srtdisk::LoadH5AD(sprintf('%s/subset_adata_SCARF_10celltypes_10perturbations.h5ad', data_dir), verbose = TRUE)
+crc48 <- srtdisk::LoadH5AD(sprintf('%s/subset_adata_SCARF_10celltypes_48perturbations.h5ad', data_dir), verbose = TRUE)
+
+crc48@meta.data
+
+```
