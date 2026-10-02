@@ -195,6 +195,12 @@ Overall Methods
 
 
 
+# Data: Jin et al.
+
+Available at: (make an account and sign in to download)
+
+https://singlecell.broadinstitute.org/single_cell/study/SCP1184/in-vivo-perturb-seq-reveals-neuronal-and-glial-abnormalities-associated-with-asd-risk-genes#study-visualize
+
 # Extra:
 
 

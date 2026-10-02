@@ -41,7 +41,7 @@ theme_set(theme_cowplot() +
 
 # parameters
 DEVICE                = 'macbook'
-AYZW_setting_name     = 'A'
+AYZW_setting_name     = 'A1'
 
 
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
@@ -50,8 +50,8 @@ source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on 
 # Continuous
 # ========================================================================================================================================================================
 # proximal_setting_name_continuous = 'SPCA8.0'
-proximal_setting_name_continuous = 'SPCA34.5'
-# proximal_setting_name_continuous = 'PCA'
+# proximal_setting_name_continuous = 'SPCA34.5'
+proximal_setting_name_continuous = 'PCA'
 plot_dir_continuous = sprintf('%s/AY/%s/%s/plots/', save_dir, AYZW_setting_name, proximal_setting_name_continuous) # create plot_dir (based on save_dir + settings)
 dir.create(plot_dir_continuous, showWarnings = FALSE)
 
@@ -154,6 +154,20 @@ dim(effects); head(effects)
 
 ```{r}
 print(sprintf('The proximal setting name is: %s', proximal_setting_name_continuous))
+```
+
+
+
+# test load effects
+```{r}
+
+# try loading in the parallel results for counts
+ATE_par = readRDS(sprintf('%s/AY/A1/count-many/effects_count_ATE_par.rds', save_dir))
+ATE_par = readRDS(sprintf('%s/AY/A/count-many/effects_count_ATE_par.rds', save_dir))
+
+
+
+ATE_par = readRDS(sprintf('%s/AY/A/count-many/effects_count_ATE_par.rds', save_dir))
 ```
 
 

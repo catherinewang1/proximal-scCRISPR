@@ -1,0 +1,328 @@
+---
+title: "5.2_proximalBestPlots"
+format: 
+  html:
+    theme: flatly
+    toc: true
+    toc-depth: 4
+    fig-format: svg 
+    embed-resources: true
+    self-contained-math: true
+editor: source
+execute: 
+  echo: false
+  warning: false
+  error: false
+---
+
+
+
+
+
+
+
+# Load
+
+
+
+
+```{r}
+# test
+```
+
+
+
+
+```{r output=FALSE}
+# Libraries and Parameters
+# ========================================================================================================================================================================
+suppressPackageStartupMessages(library(assertthat)) # for some assert statements
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(cowplot))
+suppressPackageStartupMessages(library(ggh4x))
+
+
+theme_set(theme_cowplot() +
+            theme(plot.title = element_text(hjust = .5),
+                  plot.subtitle = element_text(hjust = .5),
+                  strip.background = element_rect(fill = "white", color = 'black'),
+                  panel.grid.minor = element_blank(),
+                  panel.grid.major = element_blank()))
+
+
+# === === === === === === === === === === === === === === === === === === === === === === === === === 
+# parameters
+DEVICE                = 'macbook'
+AYZW_setting_name     = 'A1'
+NC_names_raw = 'PCA-SPCA8.0-SPCA34.5-WGCNA-singlegene'
+NC_names = strsplit(x = NC_names_raw, split = '-') |> unlist()
+NC_names_chosen = NC_names[c(1, 2, 3, 4, 5)] #all for now, but only include SPC8.0 later i think, can set the order of the NCs here
+
+source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
+# === === === === === === === === === === === === === === === === === === === === === === === === === 
+
+
+
+# Continuous
+# ========================================================================================================================================================================
+
+# --- Folder ---
+plot_dir_continuous = sprintf('%s/AY/%s/plots/continuous/', save_dir, AYZW_setting_name) # create plot_dir (based on save_dir + settings)
+dir.create(plot_dir_continuous, showWarnings = FALSE, recursive=TRUE)
+
+# --- Resulting Data ---
+chosen_NCtype_numNC = data.frame(NC_type=c('poisYA', 'poisYAU', 'nbYA', 'nbYAU', 'lmYA', 'lmYAU', 'PCA', 'SPCA8.0', 'SPCA34.5', 'WGCNA', 'singlegene'),
+                                 numNC  =c(     NA ,        NA,    NA ,      NA,    NA ,      NA,   10,         15,         10,       9,      25))
+chosen_NCtype_numNC = rbind(chosen_NCtype_numNC, 
+                            data.frame(NC_type=c('proximalNegBinCountCount', 'proximalNegBinSinglegeneSinglegene', 'proximalNegBinPCAPCA'),
+                                       numNC  =c(           10             ,                  10                 ,            10            ))
+                           )
+
+
+effects_continuous = read.csv(sprintf('%s/AY/%s/continuous-%s/effects_continuous.csv', save_dir, AYZW_setting_name, NC_names_raw))
+effects_continuous = effects_continuous |> filter(type != 'maybe')
+effects_continuous$type = factor(effects_continuous$type,
+       levels = c('negative', 'positive'),
+       labels = c(    'Null', 'Alternative'))
+
+# --- Colors and Ordering and Format Text Labels ---
+
+
+# # config colors for plot
+# method_long_colors = c( colorRampPalette(c('white', '#00a300'))(8)[c(4, 8)], 
+#                         viridis::plasma(11)[c(3, 4, 5, 6, 7, 8, 9, 10)])
+# barplot(height = 1:length(method_long_colors), col = method_long_colors)
+# for each NC_type, choose just 1 numNC to represent 
+use_all_numNC = TRUE
+chosen_numNC_subset = list('PCA'        = c(1, 3, 5,  7, 10, 15, 20),
+                           'SPCA8.0'    = c(1, 3, 5,  7, 10, 15, 20),
+                           'SPCA34.5'   = c(1, 3, 5,  7, 10, 15, 20),
+                           'WGCNA'      = c(1, 3, 5,  7,  9),
+                           'singlegene' = c(1, 3, 5, 10, 15, 30, 50))
+
+color_pallette = paletteer::paletteer_d("colorblindr::OkabeIto_black") 
+NC_base_colors = c('lm' = '#C11800FF', 'PCA'=color_pallette[3], 'SPCA8.0'=color_pallette[6], 'SPCA34.5'=color_pallette[1], 'WGCNA'=color_pallette[5], 'singlegene'=color_pallette[7])
+# NC_base_colors = c('PCA'='blue', 'SPCA8.0'='red', 'SPCA34.5'='orange', 'WGCNA'='green', 'singlegene'='purple')
+barplot(names.arg = NC_base_colors, height = 1:length(NC_base_colors), col = NC_base_colors)
+
+format_methodlong <- function(method, NC_type, numNC) {
+  if(method == 'lmYA' )     {return("Lin Reg")}
+  if(method == 'lmYAU')     {return("Lin Reg (w/ confounders)")}
+  if(method == 'poisYA')    {return("Pois")}
+  if(method == 'poisYAU')   {return("Pois (w/ confounders)")}
+  if(method == 'negbinYA')  {return("Neg Bin")}
+  if(method == 'negbinYAU') {return("Neg Bin (w/ confounders)")}
+  
+  if(method == '2SLSpci2s') {
+    if(       NC_type == 'proximalNegBinCountCount') {
+      NC_type_short = 'Neg Bin Y w/ count gene NCs'
+    } else if(NC_type == 'proximalNegBinSinglegeneSinglegene') {
+      NC_type_short = 'Neg Bin Y w/ continuous gene NCs'
+    } else if(NC_type == 'proximalNegBinPCAPCA') {
+      NC_type_short = 'Neg Bin Y w/ continuous PCA NCs'
+    } else {
+      NC_type_short = NC_type
+    }
+    return(sprintf('Proximal: %s (#NC=%d)', NC_type_short, numNC))
+  }
+}
+
+
+# source(sprintf('%s/AY/proximal_continuous_settings.r', save_dir)) # loads in list: proximal_continuous_settings
+
+# construct the ordering
+method_long_paste  =  c('lmYANANA', 'lmYAUNANA')
+method_long_order  =  c('Lin Reg', 'Lin Reg (w/ confounders)')
+method_long_colors =  colorRampPalette(c('white', NC_base_colors[['lm']]))(8)[c(4, 8)]
+for(NC_name in NC_names_chosen) {
+  # proximal_setting = readRDS(sprintf('%s/AY/%s/%s/proximal_setting.rds', save_dir, AYZW_setting_name, NC_name))
+  # proximal_setting = proximal_continuous_settings[[NC_name]]
+  # cur_numNCs = proximal_setting$num_NC_pairs
+  # if only select a few numNCs, select that here
+  all_cur_numNCS =  effects_continuous |> filter(NC_type == NC_name) |> pull(numNC) |> unique() |> sort()
+  if(use_all_numNC) {
+    cur_numNCs = all_cur_numNCS
+  } else {
+    cur_numNCs = intersect(chosen_numNC_subset[[NC_name]], all_cur_numNCS)
+  }
+  
+  
+  colors_to_add = colorRampPalette(c('white', NC_base_colors[NC_name]))(length(cur_numNCs) + 1)[-(1)]
+  method_long_names_to_add = c()
+  for(numNC_1 in cur_numNCs) {
+    method_long_names_to_add = c(method_long_names_to_add, format_methodlong('2SLSpci2s', NC_name, numNC_1))
+  }
+  
+  method_long_paste  = c(method_long_paste, paste0('2SLSpci2s', NC_name,cur_numNCs))
+  method_long_order  = c(method_long_order, method_long_names_to_add)
+  method_long_colors = c(method_long_colors, colors_to_add)
+  rm( method_long_names_to_add, colors_to_add)
+}
+names(method_long_colors) = method_long_order
+methodlong_continuous_df = data.frame(level = method_long_paste,
+                                      label = method_long_order, 
+                                      color = method_long_colors)
+
+
+effects_continuous = effects_continuous |> 
+                     mutate(method_long = factor(paste0(method, NC_type, numNC), 
+                                                 levels = method_long_paste,
+                                                 labels = method_long_order))
+
+effects_continuous = effects_continuous |> mutate(method = factor(method, levels = c('lmYA', 'lmYAU', '2SLSpci2s')))
+
+
+#' convert NC_type to the current method_i, if NC_type is NA and method_i is lmYA or lmYAU
+fn_turn_NC_type_lm <- function(NC_type_i, method_i) {
+  if(is.na(NC_type_i) && method_i %in% c('lmYA', 'lmYAU')) {return(method_i)}
+  else {return(NC_type_i)}
+}
+effects_continuous$NC_type = mapply(FUN = fn_turn_NC_type_lm,
+                                    NC_type_i = effects_continuous$NC_type, 
+                                    method_i = as.character(effects_continuous$method)) |> unname()
+effects_continuous = effects_continuous |> mutate(NC_type = factor(NC_type, levels = c('lmYA', 'lmYAU', NC_names_chosen)))
+
+
+dim(effects_continuous); head(effects_continuous)
+
+
+# Count- GLM + pci2s Neg Bin
+# ========================================================================================================================================================================
+proximal_setting_name_count = 'count-many'
+
+
+plot_dir_count = sprintf('%s/AY/%s/plots/count/', save_dir, AYZW_setting_name) # create plot_dir (based on save_dir + settings)
+dir.create(plot_dir_count, showWarnings = FALSE)
+
+
+effects_count = read.csv(sprintf('%s/AY/%s/%s/effects_count.csv', save_dir, AYZW_setting_name, proximal_setting_name_count)) # laptop time 5 mins vs ubergenno time 45 mins...
+effects_count = effects_count |> filter(type != 'maybe')
+effects_count$type = factor(effects_count$type,
+       levels = c('negative', 'positive'),
+       labels = c(    'Null', 'Alternative'))
+
+effects_count = effects_count |> filter(!is.na(pval)) # remove those that errored
+
+
+# config colors for plot
+
+# old
+# method_long_colors_count = c(colorRampPalette(c('white', 'darkblue'))(8)[c(4, 8)], #light blue, darker blue
+#                              colorRampPalette(c('white', 'darkorchid4'))(8)[c(4, 8)]  #light teal, darker teal
+#                              )
+# barplot(1:length(method_long_colors_count), col = method_long_colors_count)
+# names(method_long_colors_count) =  c("Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)")
+# 
+# effects_count$method_long = factor(effects_count$method_long, 
+#        levels = c( "poisYANA",  "poisYAUNA", "nbYANA", "nbYAUNA"),
+#        labels = c("Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)"))
+# effects_count = effects_count |> mutate(method_long = factor(paste0(method, NC_type, numNC), 
+#                                                  levels = method_long_paste,
+#                                                  labels = method_long_order))
+
+
+method_long_level_count = c() # the original paste(..,..,..) for method long column
+method_long_label_count = c() # the nice labels for method long column (also contains the order)
+method_long_color_count =  c() # the colors for method long count methods
+
+# Add count GLMs
+method_long_level_count = c(method_long_level_count, c( "poisYANANA",  "poisYAUNANA", "nbYANANA", "nbYAUNANA"))
+method_long_label_count = c(method_long_label_count, c("Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)"))
+method_long_color_count = c(method_long_color_count, 
+                            c(colorRampPalette(c('white', 'darkblue'))(8)[c(4, 8)],    #light blue, darker blue
+                              colorRampPalette(c('white', 'darkorchid4'))(8)[c(4, 8)]  #light teal, darker teal
+                            ))
+
+chosen_numNC_subset_count = list(
+                           'proximalNegBinCountCount'              = c(1, 3, 5,  7,8, 10, 15, 20),
+                           'proximalNegBinSinglegeneSinglegene'    = c(1, 3, 5,  7,8, 10, 15, 20),
+                           'proximalNegBinPCAPCA'                  = c(1, 3, 5,  7,8, 10, 15, 20))
+color_pallette_count = paletteer::paletteer_d("colorblindr::OkabeIto_black") 
+color_pallette_count = c('orange', 'pink', 'darkgreen') # temp colors
+NC_base_colors_count = c('proximalNegBinCountCount'          =color_pallette_count[1],
+                         'proximalNegBinSinglegeneSinglegene'=color_pallette_count[2], 
+                         'proximalNegBinPCAPCA'              =color_pallette_count[3])
+for(NC_name in names(chosen_numNC_subset_count)) {
+  all_cur_numNCS =  effects_count |> filter(NC_type == NC_name) |> pull(numNC) |> unique() |> sort()
+  cur_numNCs = intersect(chosen_numNC_subset_count[[NC_name]], all_cur_numNCS)
+  
+  colors_to_add = colorRampPalette(c('white', NC_base_colors_count[NC_name]))(length(cur_numNCs) + 1)[-(1)]
+  method_long_names_to_add = c()
+  for(numNC_1 in cur_numNCs) {
+    method_long_names_to_add = c(method_long_names_to_add, format_methodlong('2SLSpci2s', NC_name, numNC_1))
+  }
+  
+  method_long_level_count  = c(method_long_level_count, paste0('2SLSpci2s', NC_name,cur_numNCs))
+  method_long_label_count  = c(method_long_label_count, method_long_names_to_add)
+  method_long_color_count = c(method_long_color_count, colors_to_add)
+  rm( method_long_names_to_add, colors_to_add, cur_numNCs, all_cur_numNCS, NC_name, numNC_1)
+}
+
+names(method_long_color_count) = method_long_label_count
+# put into a dataframe to be cleaner
+methodlong_count_df = data.frame(level = method_long_level_count,
+                                 label = method_long_label_count, 
+                                 color = method_long_color_count)
+
+effects_count = effects_count |> 
+                    mutate(method_long = factor(paste0(method, NC_type, numNC), 
+                                                levels = methodlong_count_df$level, 
+                                                labels = methodlong_count_df$label))
+
+
+# effects_count |> filter(is.na(method_long))
+# effects_continuous |> filter(is.na(method_long))
+
+dim(effects_count); head(effects_count)
+
+
+# All
+# ========================================================================================================================================================================
+
+# save results of 'all' together in continuous folder
+plot_dir_all = sprintf('%s/AY/%s/plots/all/', save_dir, AYZW_setting_name)  # create plot_dir (based on save_dir + settings)
+dir.create(plot_dir_all, showWarnings = FALSE)
+
+
+# config colors for plot
+method_long_colors_all = c(method_long_colors[1:2], 
+                           method_long_color_count[1:4], 
+                           method_long_colors[3:length(method_long_colors)],
+                           method_long_color_count[5:length(method_long_color_count)])
+barplot(1:length(method_long_colors_all), col = method_long_colors_all)
+
+# bind df and order cols
+NC_type_all_ordering = c('lmYA'    = 'Linear', 
+                         'lmYAU'   = 'Linear\n(w/ confounders)', 
+                         'poisYA'  = 'Poisson', 
+                         'poisYAU' = 'Poisson\n(w/ confounders)', 
+                         'nbYA'    = 'Negative Binomial', 
+                         'nbYAU'   = 'Negative Binomial\n(w/ confounders)', 
+                         NC_names_chosen |> `names<-`( NC_names_chosen ), 
+                         names(chosen_numNC_subset_count) |> `names<-`(names(chosen_numNC_subset_count)))
+
+
+
+
+# effects = rbind(effects_continuous, effects_count)
+effects = dplyr::bind_rows(effects_continuous, effects_count) # and fill NA if col not present
+effects[is.na(effects$NC_type), 'NC_type'] = effects[is.na(effects$NC_type), 'method'] # for glm row, set NC_type to method
+effects$NC_type     = factor(effects$NC_type,     levels = names(NC_type_all_ordering))
+effects$method_long = factor(effects$method_long, levels = names(method_long_colors_all))
+
+# effects = effects |> mutate(method_long = paste0(method, numNC))
+# 
+# effects$method_long = factor(effects$method_long, 
+#        levels = c("poisYANA",      "poisYAUNA", "nbYANA",           "nbYAUNA",                             "lmYANA",                            "lmYAUNA" ,       
+#                          "2SLSpci2s1",       "2SLSpci2s3",       "2SLSpci2s5",       "2SLSpci2s8",       "2SLSpci2s10",       "2SLSpci2s15",       "2SLSpci2s20"),
+#        labels = c( "Poisson", "Poisson (w/ confounders)", "Negative Binomial", "Negative Binomial (w/ confounders)", "Lin Reg", "Lin Reg (w/ confounders)", 
+#                    "Proximal (#NC=1)", "Proximal (#NC=3)", "Proximal (#NC=5)", "Proximal (#NC=8)", "Proximal (#NC=10)", "Proximal (#NC=15)", "Proximal (#NC=20)"))
+
+# effects$type = factor(effects$type,
+#        levels = c('negative', 'positive'),
+#        labels = c(    'Null', 'Alternative'))
+
+dim(effects); head(effects)
+
+```
