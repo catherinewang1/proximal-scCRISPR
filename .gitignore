@@ -37,6 +37,10 @@ papalexi-2021/XX_analysis_old/
 
 jin-2020/analysis/3_fulldataexcitatoryneurons/1.XX_start_jin_on_causarraydata.R
 
+
+# cache folders
+*__pycache__/
+
 # locally rendered md
 README.html
 
@@ -57,3 +61,5 @@ README.html
 *.DS_Store
 
 *.vscode/
+.Rproj.user
+.positai

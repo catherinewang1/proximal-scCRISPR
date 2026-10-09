@@ -3,9 +3,6 @@
 
 
 
-
-
-
 #' estimate ATEs/logFoldChanges/Coefficients using loaded in vars in environment
 #' Specifically: 
 #'    grna, gene, gene_norm, AY, validsinglegenes
@@ -21,7 +18,7 @@
 #' @param control_cell_idx (vector) of integer indices for the control cells
 #'       (columns of gene_norm, gene, grna) and (rows of covariates)
 #' @param gene_norm (matrix) of gene x cell continuous gene expression
-#' @param gene (matrix) of gene x cell count gene expression
+#' @param gene_counts (matrix) of gene x cell count gene expression
 #' @param grna (matrix) of perturbation/grna x cell assignment
 #' @param libsize_log (vector) of log library size (log nUMIs)
 #' @param NCs_pca (matrix/dataframe) of PCA loadings for NC variables
@@ -44,7 +41,7 @@ estimate_effects <- function(
                 # proximal number of NCs
                 numNCs, 
                 # data
-                control_cell_idx, gene_norm, gene, grna, 
+                control_cell_idx, gene_norm, gene_counts, grna, 
                 libsize_log, 
                 # info for NCs or covariates
                 NCs_pca=NULL,
@@ -60,6 +57,7 @@ estimate_effects <- function(
                 run_proximal_linear_singlegenes = TRUE,
                 run_proximal_negbin_singlegenes = TRUE,
                 subsample_control_size = NA) {
+
     # print(sprintf('ATE%s.csv', AY_idx))
     # print(list.files(intermediateATEs_folder))
     # skip this run if this test is already saved
@@ -80,27 +78,28 @@ estimate_effects <- function(
   
     # ===== assemble df =====
     # get idx of relevant grna
-    if(grepl(pattern='Non_target', x = A_name)) {
-      # 
-      NT_vector = strsplit(A_name, '&')[[1]]#; print(NT_vector)
-      NT_matrix = grna[NT_vector, ]
-      # print(dim(grna[NT_vector, ]))
-      NT_01 = colSums(grna[NT_vector, ]) |> as.vector()
+    if(grepl(pattern='Non_target', x = A_name)) { # non-targeting grnas are separate
+      # parse NT combo name (e.g. 'NT1&NT2')
+      NT_vector = strsplit(A_name, '&')[[1]]
+      
+      NT_01 = colSums(grna[NT_vector, , drop=FALSE]) |> as.vector()
       NT_idx = which(NT_01 == 1)
       
-      control_cell_idx_noNTtrt = setdiff(selected_control_cells, NT_idx)
-      if(is.na(subsample_control_size) | (subsample_control_size >= length(control_cell_idx))) {
+      control_cell_idx_noNTtrt = setdiff(control_cell_idx, NT_idx)
+
+      # deal with subsampling if requested
+      if(is.na(subsample_control_size) | (subsample_control_size >= length(control_cell_idx_noNTtrt))) {
         selected_control_cells = control_cell_idx_noNTtrt
       } else {
         selected_control_cells = sample(x=control_cell_idx_noNTtrt, size=subsample_control_size, replace=FALSE)
       }
-      AY_data_idx = c(NT_idx, setdiff(selected_control_cells, NT_idx))
-
+      AY_data_idx = c(NT_idx, selected_control_cells)
+    
       A_01 = NT_01[AY_data_idx]
 
       rm(control_cell_idx_noNTtrt, selected_control_cells)
-    } else {
-      # use grna
+    } else { # trtment grnas vs controls
+      # deal with subsampling if requested
       if(is.na(subsample_control_size) | (subsample_control_size >= length(control_cell_idx))) {
         selected_control_cells = control_cell_idx
       } else {
@@ -114,15 +113,13 @@ estimate_effects <- function(
       rm(selected_control_cells)
     }
 
-  # return(A_01)
     df = data.frame(
       A           =        A_01,
-      Y           =        gene[Y_name, AY_data_idx], 
+      Y_count     = gene_counts[Y_name, AY_data_idx], 
       Y_norm      =   gene_norm[Y_name, AY_data_idx],
       libsize_log = libsize_log[      AY_data_idx]
     )
-
-  # return(df)
+  
   
   
   lm_formula     = 'Y_norm ~ A'
@@ -146,7 +143,7 @@ estimate_effects <- function(
   # ===== estimate =====
   # ===== \__Linear Model Fit =====
   t0 = Sys.time()
-  lmfit = lm(formula='Y_norm ~ A', data = df)
+  lmfit = lm(formula=lm_formula, data = df)
   lmfit_summary = summary(lmfit)
   t1 = Sys.time()
   
@@ -163,13 +160,13 @@ estimate_effects <- function(
                     time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
   rm(lmfit, lmfit_summary, t1, t0)
   # return(res)
-  
+
   # ===== \__ Negative Binomial Fit  ====
   t0 = Sys.time()
   # nbfit = MASS::glm.nb(formula='Y ~ A + offset(libsize_log)', data = df)
   # nbfit_summary = summary(nbfit)
   nbfit = tryCatch({  # give negbin results if works
-          MASS::glm.nb(formula='Y ~ A + offset(libsize_log)', data = df)
+          MASS::glm.nb(formula=negbin_formula, data = df)
         },
         error = function(cond) { # give NA results if errored
           return(NULL)
@@ -200,9 +197,10 @@ estimate_effects <- function(
                     tstat= nbfit_summary$coefficients['A', 'z value'],
                     pval= nbfit_summary$coefficients['A', 'Pr(>|z|)'],
                     time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+    rm(nbfit_summary)
   }
   
-  
+
   # res = bind_rows(res, 
   #                 data.frame(
   #                   NC_type     = NA,
@@ -214,9 +212,8 @@ estimate_effects <- function(
   #                   tstat= nbfit_summary$coefficients['A', 'z value'],
   #                   pval= nbfit_summary$coefficients['A', 'Pr(>|z|)'],
   #                   time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
-  rm(nbfit, nbfit_summary, t1, t0)
-  # return(res)
-
+  rm(nbfit, t1, t0)
+  
   # ===== \__ Proximal PCA ====
   # Proximal with PCA loadings
   dfZ = NCs_pca[AY_data_idx, seq(from = 2, to = min(2*max(numNCs), ncol(NCs_pca)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
@@ -260,10 +257,11 @@ estimate_effects <- function(
     
     # ===== \__\__Proximal Negative Binomial ====
     if(run_proximal_negbin_pca){   
+        # return(df)
         t0 = Sys.time()
         pci2s_res = tryCatch({  # give pci2s results if works
           pci2s::p2sls.negbin(
-            Y = df$Y, 
+            Y = df$Y_count, 
             A = df$A, 
             W = dfZ[,1:numNCs_] |> as.data.frame(), 
             Z = dfW[,1:numNCs_] |> as.data.frame(), 
@@ -300,18 +298,19 @@ estimate_effects <- function(
   rm(dfZ, dfW, numNCs_)
   
   
-  
   # ===== \__ Proximal singlegenes ====
   if(run_proximal_linear_singlegenes | run_proximal_negbin_singlegenes) {
     if(is.null(validsinglegenes)) {
         print('Error with prox singlegenes: did not give validsinglegenes input')
     } else {
+        # print('run_proximal_linear_singlegenes')
         # ===== \__\__Proximal Linear ====
         # Proximal with singlegenes
         NC_names = setdiff(validsinglegenes, c(A_name, Y_name)) # set of genes to use as NCs (not outcome and not grna target [assume grna name is the targeted gene name])
         NC_names = sample(NC_names, 2*max(numNCs))
         # Z_names = NC_names[1:max(numNCs)]
         # W_names = NC_names[(max(numNCs)+1):(2*max(numNCs))]
+        
         
         NCs_singlegene = gene_norm[NC_names, AY_data_idx] |> t() |> as.data.frame()
         dfZ = NCs_singlegene[ , seq(from = 2, to = min(2*max(numNCs), ncol(NCs_singlegene)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
@@ -358,7 +357,7 @@ estimate_effects <- function(
               t0 = Sys.time()
               pci2s_res = tryCatch({  # give pci2s results if works
                 pci2s::p2sls.negbin(
-                  Y = df$Y, 
+                  Y = df$Y_count, 
                   A = df$A, 
                   W = dfZ[,1:numNCs_] |> as.data.frame(), 
                   Z = dfW[,1:numNCs_] |> as.data.frame(), 
