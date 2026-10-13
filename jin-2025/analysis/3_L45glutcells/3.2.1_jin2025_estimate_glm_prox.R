@@ -16,7 +16,7 @@
 # - 2.2.4 sceptre
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('macbook', 'smallDense')
+# args = c('macbook', 'smallDense', '8')
 
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
@@ -28,7 +28,7 @@ assertthat::assert_that(length(args) > 0, msg="must give arg for specifying AY s
 AY_SETTING_NAME = args[2]
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying num threads eg 'Rscript <filename>.R ubergenno small 8'")
-THREADS = args[3]
+THREADS = as.integer(args[3])
 
 
 
