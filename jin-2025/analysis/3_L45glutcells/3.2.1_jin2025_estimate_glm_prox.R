@@ -38,7 +38,7 @@ THREADS = args[3]
 # suppressPackageStartupMessages(library(anndataR))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
-suppressPackageStartupMessages(library(h5lite))
+# suppressPackageStartupMessages(library(h5lite))
                                                                                                                                    
 suppressPackageStartupMessages(library(DelayedMatrixStats))
 suppressPackageStartupMessages(library(sparseMatrixStats))
