@@ -224,7 +224,7 @@ fake_As = grep('Non_target', setdiff(row.names(grna), 'Non_target'), value=TRUE)
 
 
 # construct AY tests base on whether dense setting is chosen or not
-if(!is.null(SETTING$DENSE) | SETTING$DENSE) {
+if(!is.null(SETTING$DENSE) && SETTING$DENSE) {
   # first select all the grna targets
   # then choose other Ys from all_Ys. all_Ys should be arranged by importance rank, so choose the top important/most deviance genes as responses
   selected_Ys = c(true_As, setdiff(all_Ys, true_As))[1:SETTING$NUM_Y]
