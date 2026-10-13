@@ -16,7 +16,7 @@
 # - 2.2.4 sceptre
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('macbook', 'smallDense', '8')
+# args = c('macbook', 'small', '8')
 
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
@@ -136,6 +136,7 @@ print(sprintf("[%s] START: glm and proximal estimates for Jin2025", Sys.time()))
 
 source(sprintf('%s/quick_estimate/quickGLMs.R', util_dir))
 source(sprintf('%s/quick_estimate/quickPCI2S.R', util_dir))
+source(sprintf('%s/quick_estimate/quickPCI2S_bygene.R', util_dir))
 
 
 dir.create(sprintf('%s/AY/', save_dir), showWarnings = FALSE)
@@ -447,7 +448,7 @@ print(sprintf("[%s]        + nrow(AY)=%s", Sys.time(), nrow(AY)))
 print(sprintf("[%s]        + #unique grna=%s", Sys.time(), length(unique(AY$grna))))
 print(sprintf("[%s]        + #unique gene=%s", Sys.time(), length(unique(AY$gene))))
 
-# source(sprintf('%s/quick_estimate/quickPCI2S_bygene.R', util_dir))
+
 
 effects_df = NULL
 for(Y_name in unique(AY$gene)) {
@@ -484,8 +485,8 @@ for(Y_name in unique(AY$gene)) {
                                                      subsample_control_size = NA)
   },
   error = function(cond) {
-    # message(sprintf('Error est ATE w pci2s with %s', 
-    #                 AY_idx)) 
+    message(sprintf('Error est ATE w pci2s with %s',
+                    Y_name))
     return(NULL)
   })
   
