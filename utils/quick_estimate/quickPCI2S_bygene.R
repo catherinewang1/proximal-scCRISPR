@@ -413,7 +413,7 @@ estimate_effects_bygene <- function(
   }
   
   if(save_intermediateATEs) {
-    write.csv(res, sprintf('%s/%s', intermediateATEs_folder, intermediateATE_fn), row.names=FALSE)
+    write.csv(res_df, sprintf('%s/%s', intermediateATEs_folder, intermediateATE_fn), row.names=FALSE)
   } 
 
   return(res_df)
