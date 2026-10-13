@@ -16,7 +16,7 @@
 # - 2.2.4 sceptre
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('macbook', 'small', '8')
+# args = c('macbook', 'denseSmall', '8')
 
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
@@ -127,6 +127,8 @@ AY_SETTINGS = list(
 )
 
 
+assertthat::assert_that(AY_SETTING_NAME %in% names(AY_SETTINGS), msg="AY_SETTINGS input must be a member of the available setting names")
+
 SETTING = AY_SETTINGS[[AY_SETTING_NAME]]
 
 
@@ -210,9 +212,10 @@ assertthat::assert_that(all(colnames(gene_norm) == row.names(metadata))) # same 
 # ============================================================================== #
 # =============  Construct AY tests: ===========================================
 # ============================================================================== #
+print(sprintf("[%s]    - construct AY tests", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
 
 # ================ some prep for constructing tests
-
+print(sprintf("[%s]        + some prep selecting possible As and Ys", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
 # genes_nonzero = row.names(gene_counts)[(rowSums(gene_counts == 0) >= GENE_NUMNONZEROCELLS_MIN)] # genes that meet the nonzero threshold, should be lready filtered
 all_Ys_df = gene_dev_df |>  
   # filter(gene_name %in% genes_nonzero) |>  
@@ -239,6 +242,7 @@ fake_As = grep('Non_target', setdiff(row.names(grna), 'Non_target'), value=TRUE)
 
 # construct AY tests base on whether dense setting is chosen or not
 if(!is.null(SETTING$DENSE) && SETTING$DENSE) {
+  print(sprintf("[%s]        + select AYs under dense setting", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
   # first select all the grna targets
   # then choose other Ys from all_Ys. all_Ys should be arranged by importance rank, so choose the top important/most deviance genes as responses
   selected_Ys = c(true_As, setdiff(all_Ys, true_As))[1:SETTING$NUM_Y]
@@ -248,6 +252,7 @@ if(!is.null(SETTING$DENSE) && SETTING$DENSE) {
   AY[(AY$grna == AY$gene), 'type'] = 'positive'
   AY[grepl(pattern='Non_target', x = AY$grna), 'type'] = 'negative'
 } else {
+  print(sprintf("[%s]        + select AYs under not dense setting", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
   # =============  \__Construct Negative tests: ===============================================
   AY_negative = data.frame(# grna = sample(setdiff(row.names(grna), 'Non_target'), size = AY_NUM_DISCOVERY, replace=TRUE),
     grna = sample(fake_As, size=SETTING$AY_NUM_NEGATIVE*1.2, replace=TRUE),
@@ -259,8 +264,8 @@ if(!is.null(SETTING$DENSE) && SETTING$DENSE) {
   
   
   # ============= \__Construct Discovery tests: ============================================
-  AY_discovery = data.frame(grna = sample(true_As, size=SETTING$AY_NUM_DISCOVERY*1.2, replace=TRUE),
-                            gene = sample( all_Ys, size=SETTING$AY_NUM_DISCOVERY*1.2, replace=TRUE),
+  AY_discovery = data.frame(grna = sample(true_As, size=SETTING$AY_NUM_DISCOVERY*1.3, replace=TRUE),
+                            gene = sample( all_Ys, size=SETTING$AY_NUM_DISCOVERY*1.3, replace=TRUE),
                             type = 'discovery') |> 
     filter(grna != gene) |>        # random choice of grnas and genes may result in pos tests, so sample more
     distinct() |> 
