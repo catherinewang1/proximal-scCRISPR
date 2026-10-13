@@ -78,7 +78,7 @@ estimate_effects <- function(
   
     # ===== assemble df =====
     # get idx of relevant grna
-    if(grepl(pattern='Non_target', x = A_name)) { # non-targeting grnas are separate
+    if(!(A_name %in% row.names(grna)) & grepl(pattern='Non_target', x = A_name)) { # non-targeting grnas are separate
       # parse NT combo name (e.g. 'NT1&NT2')
       NT_vector = strsplit(A_name, '&')[[1]]
       
