@@ -495,6 +495,11 @@ for(Y_name in unique(AY$gene)) {
 }
 
 
+write.csv(x = effects_df, file = sprintf('%s/AY/%s/effects.csv', save_dir, AY_SETTING_NAME), row.names = FALSE)
+
+
+
+
 # ============================================================================== #
 # =================== Get ATEs by AY_idx (parallel) ============================
 # ============================================================================== #
