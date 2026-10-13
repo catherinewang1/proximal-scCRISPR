@@ -109,6 +109,19 @@ AY_SETTINGS = list(
                         run_proximal_linear_singlegenes = TRUE,
                         run_proximal_negbin_singlegenes = FALSE),
     skip_if_saved_intermediateATEs=FALSE
+  ), 
+  
+  'denseMedium' = list(
+    DENSE = TRUE,
+    NUM_Y = 1000,
+    AY_NUM_NEGATIVE  = NA,
+    AY_NUM_DISCOVERY = NA,
+    numNCs = c(1, 3, 5, 10),
+    prox_methods = list(run_proximal_linear_pca         = TRUE,
+                        run_proximal_negbin_pca         = FALSE,
+                        run_proximal_linear_singlegenes = TRUE,
+                        run_proximal_negbin_singlegenes = FALSE),
+    skip_if_saved_intermediateATEs=FALSE
   )
   
 )
