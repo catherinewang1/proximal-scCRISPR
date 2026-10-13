@@ -150,7 +150,7 @@ colnames( gene_counts) = rhdf5::h5read(h5file, name = 'gene_counts/.gene_counts_
 
 # h5lite::h5_ls(h5file)
 # rhdf5::h5closeAll()
-rhdf5::h5ls(h5file)
+# rhdf5::h5ls(h5file)
 
 # =================== Load grna, grnaNT, metadata, gene_dev_df
 
@@ -224,7 +224,7 @@ fake_As = grep('Non_target', setdiff(row.names(grna), 'Non_target'), value=TRUE)
 
 
 # construct AY tests base on whether dense setting is chosen or not
-if(!is.na(SETTING$DENSE) | SETTING$DENSE) {
+if(!is.null(SETTING$DENSE) | SETTING$DENSE) {
   # first select all the grna targets
   # then choose other Ys from all_Ys. all_Ys should be arranged by importance rank, so choose the top important/most deviance genes as responses
   selected_Ys = c(true_As, setdiff(all_Ys, true_As))[1:SETTING$NUM_Y]
