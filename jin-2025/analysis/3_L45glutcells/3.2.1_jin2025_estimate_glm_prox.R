@@ -148,13 +148,25 @@ row.names(gene_counts) = rhdf5::h5read(h5file, name = 'gene_counts/.gene_counts_
 colnames( gene_counts) = rhdf5::h5read(h5file, name = 'gene_counts/.gene_counts_dimnames/2') |> as.vector()
 
 
-h5lite::h5_ls(h5file)
-rhdf5::h5closeAll()
+# h5lite::h5_ls(h5file)
+# rhdf5::h5closeAll()
+rhdf5::h5ls(h5file)
 
 # =================== Load grna, grnaNT, metadata, gene_dev_df
-grna     = h5lite::h5_read(h5file, name = 'grna/grna')
-# grnaNT   = h5lite::h5_read(h5file, name = 'grnaNT/grnaNT')
-metadata = h5lite::h5_read(h5file, name = 'cell_metadata/cell_metadata')
+
+# using h5lite package, it is slightly easier, but the package is only available for newer versions of R
+# grna     = h5lite::h5_read(h5file, name = 'grna/grna') # grna x cells
+# metadata = h5lite::h5_read(h5file, name = 'cell_metadata/cell_metadata')
+
+# use rhdf5 bc h5lite not available for R version 4.1 on server
+grna            = rhdf5::h5read(h5file, name = 'grna/grna') |> t()
+class(grna)     = "logical"
+row.names(grna) = rhdf5::h5read(h5file, name = 'grna/grna_rownames') 
+colnames( grna) = rhdf5::h5read(h5file, name = 'grna/grna_colnames') 
+
+metadata            = rhdf5::h5read(h5file, name = 'cell_metadata/cell_metadata')
+row.names(metadata) = rhdf5::h5read(h5file, name = 'cell_metadata/cell_metadata_rownames')
+
 
 gene_dev_df = read.csv(file = sprintf('%s/gene_dev.csv', save_dir)) 
 
