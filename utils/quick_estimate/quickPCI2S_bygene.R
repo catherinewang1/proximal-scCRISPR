@@ -28,14 +28,15 @@
 #' @param gene_counts (matrix) of gene x cell count gene expression
 #' @param grna (matrix) of perturbation/grna x cell assignment
 #' @param libsize_log (vector) of log library size (log nUMIs)
-#' @param NCs_pca (matrix/dataframe) of PCA loadings for NC variables
+#' # @param NCs_pca (matrix/dataframe) of PCA loadings for NC variables
+#' @param NCs (list) of matrices/dataframes of NC variables (e.g. PCA loadings)
 #' @param validsinglegenes (vector) of characters 
 #' @param covariates (matrix/dataframe) of cell x features of potential 
 #'                   covariates to add to the models
 #' @param save_intermediateATEs (boolean) whether to save this current AY test in intermediateATEs/ subfolder
 #' @param skip_if_saved_intermediateATEs (boolean) whether to skip computation if this AY test is already saved in intermediateATEs/ subfolder
-#' @param run_proximal_linear_pca (boolean) whether to run linear proximal with PCA NCs
-#' @param run_proximal_negbin_pca (boolean) whether to run neg bin proximal with PCA NCs
+#' @param run_proximal_linear_NClist (boolean) whether to run linear proximal with  NC list
+#' @param run_proximal_negbin_NClist (boolean) whether to run neg bin proximal with  NC list
 #' @param run_proximal_linear_singlegenes (boolean) whether to run linear proximal with singlegenes NCs
 #' @param run_proximal_negbin_singlegenes (boolean) whether to run neg bin proximal with singlegenes NCs
 #' @param subsample_control_size (integer) when the control sample size is very large, the methods take a very long time, and it would be better
@@ -54,7 +55,8 @@ estimate_effects_bygene <- function(
                 grna, 
                 libsize_log, 
                 # info for NCs or covariates
-                NCs_pca=NULL,
+                # NCs_pca=NULL,
+                NCs=NULL,
                 Y_validsinglegenes=NULL,
                 covariates=NULL,
                 # saving intermediateATEs
@@ -62,8 +64,8 @@ estimate_effects_bygene <- function(
                 skip_if_saved_intermediateATEs=FALSE,
                 intermediateATEs_folder=NULL,
                 # which proximal estimates
-                run_proximal_linear_pca         = TRUE,
-                run_proximal_negbin_pca         = TRUE,
+                run_proximal_linear_NClist         = TRUE,
+                run_proximal_negbin_NClist         = TRUE,
                 run_proximal_linear_singlegenes = TRUE,
                 run_proximal_negbin_singlegenes = TRUE,
                 subsample_control_size = NA) {
@@ -209,88 +211,181 @@ estimate_effects_bygene <- function(
     #                   time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
     rm(nbfit, t1, t0)
     
-    # ===== \__ Proximal PCA ====
-    # Proximal with PCA loadings
-    dfZ = NCs_pca[cur_idx, seq(from = 2, to = min(2*max(numNCs), ncol(NCs_pca)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
-    dfW = NCs_pca[cur_idx, seq(from = 1, to = min(2*max(numNCs), ncol(NCs_pca)), by = 2)] # odds
-    colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
-    colnames(dfW) = paste0('W', 1:ncol(dfW))
-    for(numNCs_ in numNCs)  {
-      if(run_proximal_linear_pca) {
-        # ===== \__\__Proximal Linear ====
-        t0 = Sys.time()
-        pci2s_res = tryCatch({  # give pci2s results if works
-          pci2s::p2sls.lm(
-            Y = df$Y_norm, 
-            A = df$A, 
-            W = dfZ[,1:numNCs_] |> as.data.frame(), 
-            Z = dfW[,1:numNCs_] |> as.data.frame(), 
-            X = cur_covariates,
-            variance = TRUE)
-        },
-        error = function(cond) { # give NA results if errored
-          return(list(summary_second_stage=
-                        matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
-                               dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
-        })
-        t1 = Sys.time()
+
+    # Change NCs_pca input to be a list of named NC matrices with the names=NC type 
+    # e.g. NCs = list('PCA_cntrlcells' = NCs_pca, 'PCA_mixcells' = NCs_pca_mixcells) where 
+    # NCs_pca and NCs_pca_mixcells are two different constructions of Negarive Controls
+    
+    for(NC_type in names(NCs)) {
+        # ===== \__ Proximal PCA ====
+      # Proximal with PCA loadings
+      NCs_cur = NCs[[NC_type]]
+      dfZ = NCs_cur[cur_idx, seq(from = 2, to = min(2*max(numNCs), ncol(NCs_cur)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
+      dfW = NCs_cur[cur_idx, seq(from = 1, to = min(2*max(numNCs), ncol(NCs_cur)), by = 2)] # odds
+      colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
+      colnames(dfW) = paste0('W', 1:ncol(dfW))
+      for(numNCs_ in numNCs)  {
+        if(run_proximal_linear_NClist) {
+          # ===== \__\__Proximal Linear ====
+          t0 = Sys.time()
+          pci2s_res = tryCatch({  # give pci2s results if works
+            pci2s::p2sls.lm(
+              Y = df$Y_norm, 
+              A = df$A, 
+              W = dfZ[,1:numNCs_] |> as.data.frame(), 
+              Z = dfW[,1:numNCs_] |> as.data.frame(), 
+              X = cur_covariates,
+              variance = TRUE)
+          },
+          error = function(cond) { # give NA results if errored
+            return(list(summary_second_stage=
+                          matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
+                                 dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
+          })
+          t1 = Sys.time()
+          
+          res = bind_rows(res, 
+                          data.frame(
+                            NC_type     =  NC_type,
+                            method      = 'proximallinear',
+                            method_type = 'proximal',
+                            numNC       = numNCs_,
+                            ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
+                            se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
+                            tstat= pci2s_res$summary_second_stage['A', 'z value'],
+                            pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
+                            time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+          
+          rm(pci2s_res, t0, t1)
+        }
         
-        res = bind_rows(res, 
-                        data.frame(
-                          NC_type     = 'PCA',
-                          method      = 'proximallinear',
-                          method_type = 'proximal',
-                          numNC       = numNCs_,
-                          ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
-                          se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
-                          tstat= pci2s_res$summary_second_stage['A', 'z value'],
-                          pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
-                          time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+        # ===== \__\__Proximal Negative Binomial ====
+        if(run_proximal_negbin_NClist){   
+          # return(df)
+          t0 = Sys.time()
+          pci2s_res = tryCatch({  # give pci2s results if works
+            pci2s::p2sls.negbin(
+              Y = df$Y_count, 
+              A = df$A, 
+              W = dfZ[,1:numNCs_] |> as.data.frame(), 
+              Z = dfW[,1:numNCs_] |> as.data.frame(), 
+              X = cur_covariates,
+              offset = df$libsize_log,
+              nco_type = rep("linear", numNCs_),
+              # nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}), # No offsets for continuous versions
+              variance = TRUE,
+              verbose = FALSE)
+          },
+          error = function(cond) { # give NA results if errored
+            return(list(summary_second_stage=
+                          matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
+                                 dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
+          })
+          t1 = Sys.time()
+          
+          res = bind_rows(res, 
+                          data.frame(
+                            NC_type     = NC_type,
+                            method      = 'proximalnegbin',
+                            method_type = 'proximal',
+                            numNC       = numNCs_,
+                            ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
+                            se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
+                            tstat= pci2s_res$summary_second_stage['A', 'z value'],
+                            pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
+                            time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+          
+          rm(pci2s_res, t0, t1)
+        }
         
-        rm(pci2s_res, t0, t1)
       }
-      
-      # ===== \__\__Proximal Negative Binomial ====
-      if(run_proximal_negbin_pca){   
-        # return(df)
-        t0 = Sys.time()
-        pci2s_res = tryCatch({  # give pci2s results if works
-          pci2s::p2sls.negbin(
-            Y = df$Y_count, 
-            A = df$A, 
-            W = dfZ[,1:numNCs_] |> as.data.frame(), 
-            Z = dfW[,1:numNCs_] |> as.data.frame(), 
-            X = cur_covariates,
-            offset = df$libsize_log,
-            nco_type = rep("linear", numNCs_),
-            # nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}), # No offsets for continuous versions
-            variance = TRUE,
-            verbose = FALSE)
-        },
-        error = function(cond) { # give NA results if errored
-          return(list(summary_second_stage=
-                        matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
-                               dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
-        })
-        t1 = Sys.time()
-        
-        res = bind_rows(res, 
-                        data.frame(
-                          NC_type     = 'PCA',
-                          method      = 'proximalnegbin',
-                          method_type = 'proximal',
-                          numNC       = numNCs_,
-                          ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
-                          se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
-                          tstat= pci2s_res$summary_second_stage['A', 'z value'],
-                          pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
-                          time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
-        
-        rm(pci2s_res, t0, t1)
-      }
-      
+      rm(dfZ, dfW, numNCs_)
     }
-    rm(dfZ, dfW, numNCs_)
+
+
+
+    # # ===== \__ Proximal PCA ====
+    # # Proximal with PCA loadings
+    # dfZ = NCs_pca[cur_idx, seq(from = 2, to = min(2*max(numNCs), ncol(NCs_pca)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
+    # dfW = NCs_pca[cur_idx, seq(from = 1, to = min(2*max(numNCs), ncol(NCs_pca)), by = 2)] # odds
+    # colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
+    # colnames(dfW) = paste0('W', 1:ncol(dfW))
+    # for(numNCs_ in numNCs)  {
+    #   if(run_proximal_linear_pca) {
+    #     # ===== \__\__Proximal Linear ====
+    #     t0 = Sys.time()
+    #     pci2s_res = tryCatch({  # give pci2s results if works
+    #       pci2s::p2sls.lm(
+    #         Y = df$Y_norm, 
+    #         A = df$A, 
+    #         W = dfZ[,1:numNCs_] |> as.data.frame(), 
+    #         Z = dfW[,1:numNCs_] |> as.data.frame(), 
+    #         X = cur_covariates,
+    #         variance = TRUE)
+    #     },
+    #     error = function(cond) { # give NA results if errored
+    #       return(list(summary_second_stage=
+    #                     matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
+    #                            dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
+    #     })
+    #     t1 = Sys.time()
+        
+    #     res = bind_rows(res, 
+    #                     data.frame(
+    #                       NC_type     = 'PCA',
+    #                       method      = 'proximallinear',
+    #                       method_type = 'proximal',
+    #                       numNC       = numNCs_,
+    #                       ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
+    #                       se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
+    #                       tstat= pci2s_res$summary_second_stage['A', 'z value'],
+    #                       pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
+    #                       time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+        
+    #     rm(pci2s_res, t0, t1)
+    #   }
+      
+    #   # ===== \__\__Proximal Negative Binomial ====
+    #   if(run_proximal_negbin_pca){   
+    #     # return(df)
+    #     t0 = Sys.time()
+    #     pci2s_res = tryCatch({  # give pci2s results if works
+    #       pci2s::p2sls.negbin(
+    #         Y = df$Y_count, 
+    #         A = df$A, 
+    #         W = dfZ[,1:numNCs_] |> as.data.frame(), 
+    #         Z = dfW[,1:numNCs_] |> as.data.frame(), 
+    #         X = cur_covariates,
+    #         offset = df$libsize_log,
+    #         nco_type = rep("linear", numNCs_),
+    #         # nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}), # No offsets for continuous versions
+    #         variance = TRUE,
+    #         verbose = FALSE)
+    #     },
+    #     error = function(cond) { # give NA results if errored
+    #       return(list(summary_second_stage=
+    #                     matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
+    #                            dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
+    #     })
+    #     t1 = Sys.time()
+        
+    #     res = bind_rows(res, 
+    #                     data.frame(
+    #                       NC_type     = 'PCA',
+    #                       method      = 'proximalnegbin',
+    #                       method_type = 'proximal',
+    #                       numNC       = numNCs_,
+    #                       ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
+    #                       se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
+    #                       tstat= pci2s_res$summary_second_stage['A', 'z value'],
+    #                       pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
+    #                       time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+        
+    #     rm(pci2s_res, t0, t1)
+    #   }
+      
+    # }
+    # rm(dfZ, dfW, numNCs_)
     
     
     # ===== \__ Proximal singlegenes ====

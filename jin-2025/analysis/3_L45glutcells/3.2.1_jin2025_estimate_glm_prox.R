@@ -16,7 +16,7 @@
 # - 2.2.4 sceptre
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('macbook', 'denseSmall', '8')
+# args = c('macbook', 'denseSmall', 'pca_both', '8')
 
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
@@ -24,11 +24,15 @@ DEVICE = args[1]
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
 assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
 
-assertthat::assert_that(length(args) > 0, msg="must give arg for specifying AY setting eg 'Rscript <filename>.R ubergenno small'")
+assertthat::assert_that(length(args) > 1, msg="must give arg for specifying AY setting eg 'Rscript <filename>.R ubergenno small'")
 AY_SETTING_NAME = args[2]
 
-assertthat::assert_that(length(args) > 0, msg="must give arg for specifying num threads eg 'Rscript <filename>.R ubergenno small 8'")
-THREADS = as.integer(args[3])
+
+NCsListSettingName = args[3]
+
+
+assertthat::assert_that(length(args) > 3, msg="must give arg for specifying num threads eg 'Rscript <filename>.R ubergenno small 8'")
+THREADS = as.integer(args[4])
 
 
 
@@ -69,19 +73,28 @@ AY_SETTINGS = list(
     AY_NUM_NEGATIVE  = 150,
     AY_NUM_DISCOVERY = 150,
     numNCs = c(1, 3, 5, 10),
-    prox_methods = list(run_proximal_linear_pca         = TRUE,
-                        run_proximal_negbin_pca         = FALSE,
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = FALSE,
                         run_proximal_linear_singlegenes = TRUE,
                         run_proximal_negbin_singlegenes = FALSE),
     skip_if_saved_intermediateATEs=TRUE
   ),
-  
+  'small2' = list( # run again but with both PCA NCs
+    AY_NUM_NEGATIVE  = 150,
+    AY_NUM_DISCOVERY = 150,
+    numNCs = c(1, 3, 5, 10),
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = FALSE,
+                        run_proximal_linear_singlegenes = TRUE,
+                        run_proximal_negbin_singlegenes = FALSE),
+    skip_if_saved_intermediateATEs=TRUE
+  ),
   'smallNB' = list(
     AY_NUM_NEGATIVE  = 150,
     AY_NUM_DISCOVERY = 150,
     numNCs = c(1, 3, 5, 10),
-    prox_methods = list(run_proximal_linear_pca         = TRUE,
-                        run_proximal_negbin_pca         = TRUE,
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = TRUE,
                         run_proximal_linear_singlegenes = TRUE,
                         run_proximal_negbin_singlegenes = TRUE),
     skip_if_saved_intermediateATEs=TRUE
@@ -91,8 +104,8 @@ AY_SETTINGS = list(
     AY_NUM_NEGATIVE  = 1000,
     AY_NUM_DISCOVERY = 1000,
     numNCs = c(1, 3, 5, 8, 10, 15),
-    prox_methods = list(run_proximal_linear_pca         = TRUE,
-                        run_proximal_negbin_pca         = FALSE,
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = FALSE,
                         run_proximal_linear_singlegenes = TRUE,
                         run_proximal_negbin_singlegenes = FALSE),
     skip_if_saved_intermediateATEs=TRUE
@@ -104,8 +117,8 @@ AY_SETTINGS = list(
     AY_NUM_NEGATIVE  = NA,
     AY_NUM_DISCOVERY = NA,
     numNCs = c(1, 3, 5, 8, 10, 15),
-    prox_methods = list(run_proximal_linear_pca         = TRUE,
-                        run_proximal_negbin_pca         = FALSE,
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = FALSE,
                         run_proximal_linear_singlegenes = TRUE,
                         run_proximal_negbin_singlegenes = FALSE),
     skip_if_saved_intermediateATEs=FALSE
@@ -117,8 +130,8 @@ AY_SETTINGS = list(
     AY_NUM_NEGATIVE  = NA,
     AY_NUM_DISCOVERY = NA,
     numNCs = c(1, 3, 5, 10),
-    prox_methods = list(run_proximal_linear_pca         = TRUE,
-                        run_proximal_negbin_pca         = FALSE,
+    prox_methods = list(run_proximal_linear_NClist      = TRUE,
+                        run_proximal_negbin_NClist      = FALSE,
                         run_proximal_linear_singlegenes = TRUE,
                         run_proximal_negbin_singlegenes = FALSE),
     skip_if_saved_intermediateATEs=FALSE
@@ -127,10 +140,25 @@ AY_SETTINGS = list(
 )
 
 
-assertthat::assert_that(AY_SETTING_NAME %in% names(AY_SETTINGS), msg="AY_SETTINGS input must be a member of the available setting names")
+assertthat::assert_that(AY_SETTING_NAME %in% names(AY_SETTINGS), msg=sprintf("AY_SETTINGS input must be a member of the available setting names. Available AY_SETTINGS are: %s", 
+                                                                             paste0(names(AY_SETTINGS), collapse = ', ')))
 
 SETTING = AY_SETTINGS[[AY_SETTING_NAME]]
 
+
+NCsListSettings = list(
+  'pca_cntrlcell'=list(pca_cntrlcell=TRUE,
+                       pca_mixcell  =FALSE),
+  'pca_mixcell'  =list(pca_cntrlcell=FALSE,
+                       pca_mixcell  =TRUE),
+  'pca_both'     =list(pca_cntrlcell=TRUE,
+                       pca_mixcell  =TRUE),
+  'none'         =list(pca_cntrlcell=FALSE,
+                       pca_mixcell  =FALSE)
+)
+assertthat::assert_that(NCsListSettingName %in% names(NCsListSettings), msg=sprintf("NCsListSettingName input must be a member of the available setting names. Available NCsListSettingName are: %s", 
+                                                                             paste0(names(NCsListSettings), collapse = ', ')))
+NCsListSetting = NCsListSettings[[NCsListSettingName]]
 
 
 # =================== START ========================================================================
@@ -369,10 +397,20 @@ control_cell_idx = which(grna['Non_target', ] == 1) |> as.vector()
 libsize_log      = log(metadata[, 'num_rna_umi'] + 1e-5)
 
 # prep reused variables in estimating fns (prox)
-NCs_pca = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir)) |> as.matrix() # PCA loadings
+NCs = list()
+if(NCsListSetting$pca_cntrlcell) {
+  NCs_pca = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir)) |> as.matrix() # PCA loadings
+  NCs['PCA'] = NCs_pca
+}
+if(NCsListSetting$pca_mixcell) {
+  NCs_pca_mix = readRDS(sprintf('%s/pca/NCloadings_mixTrtUntrtCells.rds', save_dir)) |> as.matrix() # PCA loadings
+  NCs['PCA_mixcells'] = NCs_pca_mix
+}
+# NCs = list('PCA' = NCs_pca, 'PCA_mixcells' = NCs_pca_mix)
+
 
 rm(metadata)
-gc()
+invisible(gc())
 
 # ================ checks
 assertthat::assert_that(all(row.names(gene_norm_subset) == row.names(gene_counts_subset))) # same genes and in same order
@@ -453,10 +491,11 @@ print(sprintf("[%s]        + nrow(AY)=%s", Sys.time(), nrow(AY)))
 print(sprintf("[%s]        + #unique grna=%s", Sys.time(), length(unique(AY$grna))))
 print(sprintf("[%s]        + #unique gene=%s", Sys.time(), length(unique(AY$gene))))
 
-
+Y_responses = unique(AY$gene) # put the grna responses first
+Y_responses = c(Y_responses[Y_responses %in% row.names(grna)], Y_responses[!Y_responses %in% row.names(grna)])
 
 effects_df = NULL
-for(Y_name in unique(AY$gene)) {
+for(Y_name in Y_responses) {
   print(sprintf("[%s]    - Y: %s", Sys.time(), Y_name))
   Y_info = list(Y_name = Y_name, 
                 Y_norm = gene_norm[Y_name, ], # replace w gene_norm_subset maybe
@@ -475,7 +514,7 @@ for(Y_name in unique(AY$gene)) {
                                                      grna=grna,
                                                      libsize_log=libsize_log, 
                                                      # info for NCs or covariates
-                                                     NCs_pca=NCs_pca,
+                                                     NCs=NCs,
                                                      Y_validsinglegenes=Y_validsinglegenes,
                                                      covariates=NULL,
                                                      # saving intermediateATEs
@@ -483,8 +522,8 @@ for(Y_name in unique(AY$gene)) {
                                                      skip_if_saved_intermediateATEs=SETTING$skip_if_saved_intermediateATEs,
                                                      intermediateATEs_folder = sprintf('%s/AY/%s/intermediateATEs/', save_dir, AY_SETTING_NAME),
                                                      # which proximal estimates
-                                                     run_proximal_linear_pca         = SETTING$prox_methods$run_proximal_linear_pca,
-                                                     run_proximal_negbin_pca         = SETTING$prox_methods$run_proximal_negbin_pca,
+                                                     run_proximal_linear_NClist         = SETTING$prox_methods$run_proximal_linear_NClist,
+                                                     run_proximal_negbin_NClist         = SETTING$prox_methods$run_proximal_negbin_NClist,
                                                      run_proximal_linear_singlegenes = SETTING$prox_methods$run_proximal_linear_singlegenes,
                                                      run_proximal_negbin_singlegenes = SETTING$prox_methods$run_proximal_negbin_singlegenes,
                                                      subsample_control_size = NA)

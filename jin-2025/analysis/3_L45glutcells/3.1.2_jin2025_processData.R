@@ -62,6 +62,7 @@ params = list(
 )
 
 save_dir <- paste0(save_dir, "/",  PARAMS[['subfolder']])
+h5file <- sprintf("%s/jin2025_%s.h5", save_dir, PARAMS[['TAG']])
 
 # =================== START ========================================================================
 print(sprintf("[%s] START: processData in Jin2025", Sys.time()))
@@ -245,7 +246,7 @@ if (!params$RUN_EVEN_IF_SAVED & "gene_dev.csv" %in% list.files(save_dir)) {
 print(sprintf("[%s]    - save as h5", Sys.time()))
 
 # save the norm and counts and metadata in a sep h5 file becuse that is easier to load
-h5file <- sprintf("%s/jin2025_%s.h5", save_dir, PARAMS[['TAG']])
+
 
 
 # metadata about this subtype of cell + subset grna
@@ -383,7 +384,7 @@ rm(list = setdiff(objects(),
 set.seed(12345)
 
 # sample treated cells more
-grna_h5   <- h5_read(h5file, "grna/grna") # R reads in row and colnames
+grna_h5   <- h5lite::h5_read(h5file, "grna/grna") # R reads in row and colnames
 gene_norm = HDF5Array::HDF5Array(h5file, name='gene_norm/gene_norm')
 row.names(gene_norm) = rhdf5::h5read(h5file, name = 'gene_norm/.gene_norm_dimnames/1') |> as.vector()
 colnames( gene_norm) = rhdf5::h5read(h5file, name = 'gene_norm/.gene_norm_dimnames/2') |> as.vector()
@@ -393,23 +394,129 @@ colnames( gene_norm) = rhdf5::h5read(h5file, name = 'gene_norm/.gene_norm_dimnam
 # subsample_cells = c(sample(trt_cells, size = min(length(trt_cells), round(.8*params$CELL_SUBSET_SIZE_PCA))) ,
 #                     sample(NT_cells,  size = min(length(NT_cells), round(.2*params$CELL_SUBSET_SIZE_PCA))))
 
-# perform only on Non_target cells
-gene_norm_PCA = gene_norm[,  names(which(grna_h5['Non_target', ] == 1))] |> t()
+gene_dev_df = read.csv(sprintf('%s/gene_dev.csv', save_dir))
+pca_genes = setdiff(row.names(gene_norm), gene_dev_df |> filter(is_grna_target | is_transcription_factor) |> pull(gene_name))
+
+
+
+# === perform only on Non_target cells
+gene_norm_PCA = gene_norm[pca_genes,  names(which(grna_h5['Non_target', ] == 1))] |> t()
 
 # perform pca
 pca_res = prcomp(x = gene_norm_PCA, rank.=50, retx = TRUE, center = TRUE, scale. = TRUE)
 
 # construct NCs as the actual loadings: [all cells x valid genes] %*% [rotation of valid genes x PCs]
 # NC_loadings = t(gene_norm) %*% pca_res$rotation
-NC_loadings = scale(t(gene_norm), center=TRUE,scale=TRUE) %*% pca_res$rotation # should center/scale first oops, but they are linearlly corr so i don't think it matters much hopefully
+NC_loadings = scale(t(gene_norm[pca_genes, ]), center=TRUE,scale=TRUE) %*% pca_res$rotation # should center/scale first oops, but they are linearlly corr so i don't think it matters much hopefully
+
+# or center and scale based on subsampled data? it does not matter, these lie on a line basically
+# NC_loadings2 = scale(t(gene_norm), center=pca_res$center,scale=pca_res$scale) %*% pca_res$rotation # should center/scale first oops, but they are linearlly corr so i don't think it matters much hopefully
+# ggplot(NULL, aes(x = NC_loadings[, 1], y = NC_loadings2[, 1])) + geom_point() + coord_cartesian(ylim = c(-10, 10), xlim = c(-10, 10))
+# ggplot(NULL, aes(x = NC_loadings[, 2], y = NC_loadings2[, 2])) + geom_point() + coord_cartesian(ylim = c(-10, 10), xlim = c(-10, 10))
+
 
 # save
 dir.create(sprintf('%s/pca/', save_dir), showWarnings = FALSE)
 saveRDS(NC_loadings, sprintf('%s/pca/NCloadings.rds', save_dir)) 
+saveRDS(    pca_res, sprintf('%s/pca/pca_res.rds', save_dir)) 
+
+
+# ===  perform on all cells
+gene_norm_PCA = gene_norm[pca_genes, ] |> t() # just use all cells i guess (no subsampling)
+pca_res = prcomp(x = gene_norm_PCA, rank.=50, retx = TRUE, center = TRUE, scale. = TRUE) # perform pca
+
+# construct NCs as the actual loadings: [all cells x valid genes] %*% [rotation of valid genes x PCs]
+NC_loadings = scale(t(gene_norm[pca_genes, ]), center=TRUE,scale=TRUE) %*% pca_res$rotation # should center/scale first oops, but they are linearlly corr so i don't think it matters much hopefully
+
+saveRDS(NC_loadings, sprintf('%s/pca/NCloadings_mixTrtUntrtCells.rds', save_dir)) 
+saveRDS(    pca_res, sprintf('%s/pca/pca_res_mixTrtUntrtCells.rds', save_dir)) 
 
 
 
-# ggplot(NC_loadings[sample(nrow(NC_loadings), 1000), ], aes(x=PC1, y=PC3))+geom_point()
+
+
+# checking pca results
+all(row.names(NC_loadings) == colnames(grna_h5))
+all(row.names(NC_loadings) == colnames(gene_norm))
+all(colnames(grna_h5) == colnames(gene_norm))
+
+cell_metadata = h5lite::h5_read(h5file, "cell_metadata/cell_metadata")
+all(row.names(cell_metadata) == colnames(grna_h5))
+
+cell_metadata$PC1 = NC_loadings[, 1]
+cell_metadata$PC2 = NC_loadings[, 2]
+cell_metadata$PC3 = NC_loadings[, 3]
+
+colnames(cell_metadata)
+ggplot(cell_metadata |> filter(gene_target != 'Non_target'), aes(x = PC1, y = PC2, color =  predicted_subclass)) + geom_point(alpha = .3) + theme(legend.position = 'bottom')
+ggplot(cell_metadata |> filter(gene_target != 'Non_target'), aes(x = PC1, y = PC2, color =  gene_target)) + geom_point(alpha = .3) + theme(legend.position = 'bottom')
+
+
+
+umap_res = umap::umap(NC_loadings)
+cell_metadata$UMAP1 = umap_res$layout[, 1]
+cell_metadata$UMAP2 = umap_res$layout[, 2]
+ggplot(cell_metadata, # |> filter(gene_target != 'Non_target'), 
+       aes(x = UMAP1, y = UMAP2, color =  predicted_subclass)) + geom_point(alpha = .3) + theme(legend.position = 'bottom')
+ggplot(cell_metadata |> filter(gene_target != 'Non_target'), 
+       aes(x = UMAP1, y = UMAP2, color =  gene_target)) + geom_point(alpha = .3) + theme(legend.position = 'bottom')
+
+
+ggplot(cell_metadata, aes(x = predicted_group_))
+
+
+
+
+
+
+
+
+
+
+ggplot(NULL, aes(x = 1:200, y = pca_res$sdev[1:200])) + geom_point() + geom_line() + coord_cartesian(ylim = c(0, 12))
+
+plot(NC_loadings[sample(nrow(NC_loadings), 1000), ], aes(x=PC1, y=PC3))+geom_point()
+
+
+
+
+
+
+cell_metadata$PC1 = NC_loadings[, 1]
+cell_metadata$PC2 = NC_loadings[, 2]
+cell_metadata$PC3 = NC_loadings[, 3]
+
+colnames(cell_metadata)
+ggplot(cell_metadata |> filter(gene_target != 'Non_target'), aes(x = PC1, y = PC2, color =  predicted_subclass)) + geom_point(alpha = .3) + theme(legend.position = 'bottom')
+ggplot(cell_metadata |> filter(gene_target != 'Non_target'), aes(x = PC1, y = PC2, color =  gene_target)) + geom_point(alpha = .3) + theme(legend.position = 'bottom')
+
+
+
+# compare NC loadings
+cell_metadata = h5lite::h5_read(h5file, "cell_metadata/cell_metadata")
+NC_loadings_cntrlcells = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir))
+NC_loadings_mixcells   = readRDS(sprintf('%s/pca/NCloadings_mixTrtUntrtCells.rds', save_dir))
+
+
+
+all(row.names(cell_metadata) == row.names(NC_loadings_cntrlcells))
+all(row.names(cell_metadata) == row.names(NC_loadings_mixcells))
+
+
+cor(NC_loadings_cntrlcells[, 1:5]) |> round(3) # not exactly 0s off diagonal bc subsampling
+cor(NC_loadings_mixcells[, 1:5]) |> round(3)
+
+plot_comparePCAres <- function(i) {
+  ggplot(NULL, aes(x = NC_loadings_cntrlcells[, i], y = NC_loadings_mixcells[, i])) + 
+    geom_abline(aes(intercept=0, slope=1)) + geom_point() + labs(title = paste0('PC ', i), x='PCA from Control Cells', y = 'PCA from Mix of Trt and Cntrl Cells')
+}
+
+g = list()
+for(i in 1:12) {
+  g[[i]] = plot_comparePCAres(i)
+}
+gridExtra::grid.arrange(grobs = g, ncol=3)
+
 
 
 
