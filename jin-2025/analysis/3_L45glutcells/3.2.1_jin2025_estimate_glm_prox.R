@@ -400,11 +400,11 @@ libsize_log      = log(metadata[, 'num_rna_umi'] + 1e-5)
 NCs = list()
 if(NCsListSetting$pca_cntrlcell) {
   NCs_pca = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir)) |> as.matrix() # PCA loadings
-  NCs['PCA'] = NCs_pca
+  NCs[['PCA']]= NCs_pca
 }
 if(NCsListSetting$pca_mixcell) {
   NCs_pca_mix = readRDS(sprintf('%s/pca/NCloadings_mixTrtUntrtCells.rds', save_dir)) |> as.matrix() # PCA loadings
-  NCs['PCA_mixcells'] = NCs_pca_mix
+  NCs[['PCA_mixcells']] = NCs_pca_mix
 }
 # NCs = list('PCA' = NCs_pca, 'PCA_mixcells' = NCs_pca_mix)
 
