@@ -160,10 +160,9 @@ estimate_effects_bygene <- function(
     
     # ===== \__ Negative Binomial Fit  ====
     t0 = Sys.time()
-    # nbfit = MASS::glm.nb(formula='Y ~ A + offset(libsize_log)', data = df)
-    # nbfit_summary = summary(nbfit)
     nbfit = tryCatch({  # give negbin results if works
       MASS::glm.nb(formula=negbin_formula, data = df)
+      nbfit_summary = summary(nbfit)
     },
     error = function(cond) { # give NA results if errored
       return(NULL)
@@ -182,7 +181,7 @@ estimate_effects_bygene <- function(
                         pval= NA,
                         time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
     } else {
-      nbfit_summary = summary(nbfit)
+      
       res = bind_rows(res, 
                       data.frame(
                         NC_type     = NA,
