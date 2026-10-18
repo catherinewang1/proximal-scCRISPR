@@ -49,9 +49,15 @@ suppressPackageStartupMessages(library(sparseMatrixStats))
 
 suppressPackageStartupMessages(library(future.apply))
 options(future.globals.maxSize= 5000*1024^2) #1st num is MB
-# plan(multisession, workers = 24)
-plan(multisession, workers = THREADS)
-# plan(sequential)
+
+if(THREADS == 1) {
+  plan(sequential)
+} else {
+  # plan(multisession, workers = 24)
+  plan(multisession, workers = THREADS)
+}
+
+
 
 
 
@@ -67,7 +73,7 @@ set.seed(PARAMS[['seed']])
 
 
 # AY_SETTING_NAME = 'denseSmall' # key of one of the following settings, prob change this to an arg parameter
-
+# for non-dense settings, probably do sequential by setting THREADS=1
 AY_SETTINGS = list(
   'small' = list(
     AY_NUM_NEGATIVE  = 150,
@@ -406,6 +412,9 @@ if(NCsListSetting$pca_mixcell) {
   NCs_pca_mix = readRDS(sprintf('%s/pca/NCloadings_mixTrtUntrtCells.rds', save_dir)) |> as.matrix() # PCA loadings
   NCs[['PCA_mixcells']] = NCs_pca_mix
 }
+
+housekeepinggenes = setdiff(validsinglegenes, gene_dev_df |> filter(is_housekeeping & is_normalized_gene & !is_grna_target & !is_transcription_factor))
+
 # NCs = list('PCA' = NCs_pca, 'PCA_mixcells' = NCs_pca_mix)
 
 
@@ -420,65 +429,6 @@ assertthat::assert_that(all(row.names(gene_norm_subset) == row.names(gene_counts
 assertthat::assert_that(all(colnames(gene_norm_subset) == colnames(gene_counts_subset))) # same cells and in same order
 # assertthat::assert_that(all(colnames(gene_norm_subset) == colnames(combined_grna))) # same cells and in same order
 
-
-
-# ============================================================================== #
-# ============= Initial LinReg and NegBin:                    ==================
-# ============= after choosing a control cell subsample size  ==================
-# ============================================================================== #
-
-# if('initial_glms.csv' %in% list.files(sprintf('%s/AY/%s/initiallinreg/', save_dir, AY_SETTING_NAME))) {
-#   print(sprintf("[%s]        - Loading glm (one fit per gene) on all pairs", Sys.time()))
-#   initial_glms = read.csv(sprintf('%s/AY/%s/initiallinreg/initial_glms.csv', save_dir, AY_SETTING_NAME))
-# } else {
-#   print(sprintf("[%s]        - Fitting glm (one fit per gene) on all pairs", Sys.time()))
-#   
-#   fit_glms_errorhandling <- function(AY_idx) {
-#     tryCatch({fit_glms(AY_idx=AY_idx, 
-#                        AY=AY, 
-#                        control_cell_idx=control_cell_idx, 
-#                        gene_norm=gene_norm_subset, 
-#                        gene_counts=gene_counts_subset, 
-#                        grna=grna, 
-#                        libsize_log=libsize_log, 
-#                        covariates=NULL, 
-#                        subsample_control_size=NA)
-#     },
-#     error = function(cond) {
-#       return(NULL)
-#     })
-#   }
-#   
-#   
-#   t0 = Sys.time()
-#   initial_glms_par = future.apply::future_mapply(
-#     fit_glms_errorhandling,
-#     AY_idx = 1:nrow(AY), 
-#     future.globals = TRUE,
-#     future.seed = 123456, 
-#     SIMPLIFY = FALSE)
-#   t1 = Sys.time()
-#   print(sprintf("[%s]        - %2.2f mins", Sys.time(), difftime(t1, t0, units = "mins")))
-#   
-#   initial_glms = NULL
-#   for(idx in 1:length(initial_glms_par)) {   initial_glms = rbind(initial_glms, initial_glms_par[[idx]])   }
-#   write.csv(initial_glms, sprintf('%s/AY/%s/initiallinreg/initial_glms.csv', save_dir, AY_SETTING_NAME))
-#   rm(initial_glms_par, t0, t1, fit_glms_errorhandling)
-# }
-
-
-
-
-
-# # 134k if use all. 50000 speeds up a lot, and lower actually loses power... for now, set at 50k cells
-# fit_glms(AY_idx=4, AY=AY, control_cell_idx=control_cell_idx, gene_norm=gene_norm, gene_counts=gene_counts, grna=grna, libsize_log=libsize_log, covariates=NULL, 
-#          subsample_control_size=NA)
-# fit_glms(AY_idx=4, AY=AY, control_cell_idx=control_cell_idx, gene_norm=gene_norm, gene_counts=gene_counts, grna=grna, libsize_log=libsize_log, covariates=NULL, 
-#          subsample_control_size=50000)
-# fit_glms(AY_idx=4, AY=AY, control_cell_idx=control_cell_idx, gene_norm=gene_norm, gene_counts=gene_counts, grna=grna, libsize_log=libsize_log, covariates=NULL, 
-#          subsample_control_size=10000)
-# fit_glms(AY_idx=4, AY=AY, control_cell_idx=control_cell_idx, gene_norm=gene_norm, gene_counts=gene_counts, grna=grna, libsize_log=libsize_log, covariates=NULL, 
-#          subsample_control_size=5000)
 
 
 
@@ -501,7 +451,11 @@ for(Y_name in Y_responses) {
                 Y_norm = gene_norm[Y_name, ], # replace w gene_norm_subset maybe
                 Y_count = gene_counts[Y_name, ])
   # choose a smaller set, but still larger than max numNCs so that there is less randomness from bad selection
-  Y_validsinglegenes = gene_norm[sample(setdiff(validsinglegenes, Y_name), size = round(2*2*max(SETTING$numNCs)), replace = FALSE), ]
+  # Y_validsinglegenes = gene_norm[sample(setdiff(validsinglegenes, Y_name), size = round(2*2*max(SETTING$numNCs)), replace = FALSE), ]
+  
+  Y_validsinglegenes = list('singlegene'              = gene_norm[sample(setdiff(validsinglegenes,  Y_name), size = round(2*2*max(SETTING$numNCs)), replace = FALSE), ],
+                            'singlegene_housekeeping' = gene_norm[sample(setdiff(housekeepinggenes, Y_name), size = round(2*2*max(SETTING$numNCs)), replace = FALSE), ])
+  
   
   # estimate effects: parallel calls within this function
   cur_effects_df = tryCatch({estimate_effects_bygene(Y_info=Y_info, 

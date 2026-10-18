@@ -55,7 +55,7 @@ PARAMS = list(
 # parameters just for this 
 params = list(
   NUM_IMPORTANT_GENES  = 4000,
-  CELL_SUBSET_SIZE     = 25000,
+  CELL_SUBSET_SIZE     = 25000, # for deviance
   CELL_SUBSET_SIZE_PCA = 25000,
   RUN_EVEN_IF_SAVED    = TRUE,
   GENE_MIN_NONZERO_TRTCELLS=3000
@@ -417,8 +417,8 @@ NC_loadings = scale(t(gene_norm[pca_genes, ]), center=TRUE,scale=TRUE) %*% pca_r
 
 # save
 dir.create(sprintf('%s/pca/', save_dir), showWarnings = FALSE)
-saveRDS(NC_loadings, sprintf('%s/pca/NCloadings.rds', save_dir)) 
-saveRDS(    pca_res, sprintf('%s/pca/pca_res.rds', save_dir)) 
+saveRDS(NC_loadings, sprintf('%s/pca/NCloadings_UnTrtCells.rds', save_dir)) 
+saveRDS(    pca_res, sprintf('%s/pca/pca_res_UnTrtCells.rds', save_dir)) 
 
 
 # ===  perform on all cells

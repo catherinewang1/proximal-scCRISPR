@@ -143,7 +143,7 @@ for i in np.arange(PARAMS['NUM_FAKE_GRNA']):
 NT_controls = np.setdiff1d(NT_names, list(fake_grna_map.keys())) # rest of the NT names
 
 
-# create new col that includes fake NT
+# create new col that includes fake NT: original gene_target if not chosen for a fake NT combo, else the fake NT combo name
 gene_target_w_fakeNT = [jin2025_celltype.obs['gene_target'].iloc[i, ] if (fake_grna_map.get(jin2025_celltype.obs['guide_call'].iloc[i, ])==None) 
                         else fake_grna_map.get(jin2025_celltype.obs['guide_call'].iloc[i, ]) 
                         for i in np.arange(jin2025_celltype.obs.shape[0])]
@@ -152,14 +152,14 @@ jin2025_celltype.obs['gene_target_w_fakeNT'] = gene_target_w_fakeNT
 
 
 # subsample rest of controls
-trt_cells   = jin2025_celltype.obs.query("gene_target_w_fakeNT != 'Non_target'").index.tolist()
+trt_cells   = jin2025_celltype.obs.query("gene_target != 'Non_target'").index.tolist()
 cntrl_cells = jin2025_celltype.obs[jin2025_celltype.obs['guide_call'].isin(NT_controls)].index
 cntrl_cells = rng.choice(cntrl_cells, size=min(PARAMS['NUM_SUBSAMPLE_CONTROL_CELLS'], len(cntrl_cells)), replace=False).tolist()
-subset_cells = trt_cells + cntrl_cells
+subset_cells = trt_cells + fakeNT_cellnames.tolist() + cntrl_cells
 
 # subset
 jin2025_subset = jin2025_celltype[subset_cells, ]
-
+ 
 # save
 jin2025_subset.write_h5ad(
     f'{PATHS['save_dir']}/jin2025_{PARAMS['TAG']}.h5ad',
