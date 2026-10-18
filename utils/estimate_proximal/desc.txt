@@ -1,0 +1,27 @@
+Re organize the code to estimate effects with proximal inference.
+
+
+
+Functions:
+ + `estimate_effect_one_estimator`- estimate one AY test with one specified method
+ + `estimate_effect_one_test`- estimate one AY test over a variety of specified methods
+      with nicely formatted inputs (e.g. Y's, A's, NC's match dimension)
+
+ + `estimate_effects_bygene` - Given a list of AY tests and specified estimators, estimate all effects by response gene Y
+    - estimate effects for many {A1, A2, ..., Ap} -> Y tests
+    - parallel over A names
+ 
+ + `estimate_effects_bygene_helper` - Helper for estimate_effects_bygene that estiamtes just one (Ai->Y) test 
+
+
++ `estimate_effects_byAY` - Given a list of AY tests and specified estimators, estimate all effects by each AY row
+    - parallel over each AY row 
+
++ `estimate_effects_byAY_helper`
+
++ `estimate_effects`
+
+
+
+
+
