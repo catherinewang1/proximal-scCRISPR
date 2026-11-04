@@ -1,0 +1,280 @@
+---
+title: "2.3.1_jin2025_visualize"
+format: 
+  html:
+    theme: flatly
+    toc: true
+    toc-depth: 4
+    fig-format: svg 
+    embed-resources: true
+    self-contained-math: true
+editor: source
+execute: 
+  echo: false
+  warning: false
+  error: false
+---
+
+```{r setup}
+# knitr::opts_knit$set(root.dir = '../') # set working dir 1 folder out
+knitr::opts_knit$set(root.dir = "/Users/catherinewang/Documents/School/proximal-scCRISPR-github/jin-2025/analysis/2_glutcells/")
+
+```
+
+Visualize fulldata jin-2020 results with few estimators (mostly check proximal): linear reg, neg bin, prox with PCA
+
+Visualize p-value results from various methods on jin-2025 glut cells
+- linear reg
+- Negative Binomial
+- causarray
+- DESeq2
+
+
+```{r}
+getwd()
+```
+
+
+
+# Load
+
+
+```{r output=FALSE}
+# Libraries and Parameters and data
+# ========================================================================================================================================================================
+suppressPackageStartupMessages(library(assertthat)) # for some assert statements
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(cowplot))
+suppressPackageStartupMessages(library(ggh4x))
+
+
+theme_set(theme_cowplot() +
+            theme(plot.title = element_text(hjust = .5),
+                  plot.subtitle = element_text(hjust = .5),
+                  strip.background = element_rect(fill = "white", color = 'black'),
+                  panel.grid.minor = element_blank(),
+                  panel.grid.major = element_blank()))
+
+
+# === === === === === === === === === === === === === === === === === === === === === === === === === 
+# parameters
+DEVICE                = 'macbook'
+AYZW_setting_name     = 'mediumNB'
+
+source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
+save_dir = paste0(save_dir, "/2_glutcells")
+# --- Folder ---
+plot_dir = sprintf('%s/AY/%s/plots/', save_dir, AYZW_setting_name)
+dir.create(plot_dir, showWarnings = FALSE, recursive=TRUE)
+
+# === === === === === === === === === === === === === === === === === === === === === === === === === 
+
+
+# setup colors/factors/etc...
+# ========================================================================================================================================================================
+# numNCs = c(1, 3, 5, 10, 15)
+numNCs = c(1, 3, 5, 8, 10, 15)
+
+
+method_long_order = c('lmNANA', 'negbinNANA', 
+                      'deseq2NANA',
+                      'causarrayNANA',
+                      paste0('proximallinear',        'PCA', numNCs), 
+                      paste0('proximallinear', 'singlegene', numNCs),
+                      paste0('proximalnegbin',        'PCA', numNCs), 
+                      paste0('proximalnegbin', 'singlegene', numNCs))
+method_long_nicenames = c("Lin Reg", "Neg Bin", 
+                          'deseq2', 
+                      'causarray',
+                      paste0('Prox Lin: PCA (#NC=',           numNCs, ')'), 
+                      paste0('Prox Lin: singlegene (#NC=',    numNCs, ')'),
+                      paste0('Prox NegBin: PCA (#NC=',        numNCs, ')'), 
+                      paste0('Prox NegBin: singlegene (#NC=', numNCs, ')')
+                      )
+method_long_colors = c('red3','darkorange1','pink', 'springgreen1',
+                       colorRampPalette(c('white', 'aquamarine4'))(length(numNCs) + 2)[3:(length(numNCs)+2)], 
+                       colorRampPalette(c('white', 'dodgerblue4'))(length(numNCs) + 2)[3:(length(numNCs)+2)],
+                       colorRampPalette(c('white', 'maroon3'))(length(numNCs) + 2)[3:(length(numNCs)+2)], 
+                       colorRampPalette(c('white', 'darkorchid4'))(length(numNCs) + 2)[3:(length(numNCs)+2)])
+names(method_long_colors) = method_long_nicenames
+
+
+
+get_AY_test_type <- function(isEqual) {
+  if(isEqual) {
+    return('positive')
+  } else {
+    return('discovery')
+  }
+}
+
+
+get_AY_test_type2 <- function(grna_name, gene_name) {
+  # negative if 'Non_target' is in grna_name
+  if(grepl('Non_target', grna_name)) {return('negative')} 
+  else if(grna_name == gene_name) {return('positive')} 
+  else {return('discovery')}
+}
+
+# For now, only keep the AY tests chosen in AY for causarray and deseq2 so that we compare the same set of tests
+# load chosen AYZW names
+AY   = read.csv(sprintf('%s/AY/%s/AY.csv', save_dir, AYZW_setting_name))
+
+
+
+
+# load proximal
+# ========================================================================================================================================================================
+
+
+effects_prox = read.csv(sprintf('%s/AY/%s/effects.csv', save_dir, AYZW_setting_name))
+# effects_prox[effects_prox$method == '2SLSpci2s', 'method'] = 'proximal' # replace 2SLSpci2s with proximal
+
+
+# # assemble together if not done yet
+# prox_intermediate_ATE_fns = list.files(sprintf('%s/AY/%s/intermediateATEs/', save_dir, AYZW_setting_name))
+# prox_intermediate_ATE_fns_ordered = as.integer(gsub(pattern = '[^0-9]',replacement =  '', x = prox_intermediate_ATE_fns))
+# names(prox_intermediate_ATE_fns_ordered) = prox_intermediate_ATE_fns
+# prox_intermediate_ATE_fns_ordered = names(sort(prox_intermediate_ATE_fns_ordered))
+# effects_prox = NULL
+# for(fn in prox_intermediate_ATE_fns_ordered[1:200]) {
+#   effects_prox = rbind(effects_prox, 
+#                        read.csv(sprintf('%s/AY/%s/intermediateATEs/%s', save_dir, AYZW_setting_name, fn)))
+# }
+
+
+
+
+
+# load causarray
+# ========================================================================================================================================================================
+INCLUDE_CAUSARRAY = TRUE
+if(INCLUDE_CAUSARRAY) {
+  # read in the previously formatted relevant rows when creating the AY pairs (2.3_xxx.r)
+  # effects_causarray = read.csv(sprintf('%s/causarray/LFC.csv', save_dir)) 
+  effects_causarray = read.csv(sprintf('%s/causarray/jin2025_glut/min_counts40/lfc.csv', save_dir)) 
+  
+  effects_causarray = effects_causarray |>
+    dplyr::rename(pval = pvalue, ATE = log2fc, se = log2fc_se, gene = gene_names, grna=trt) |>
+    dplyr::select(grna, gene, ATE, se, pval, padj, rej, n_treated, n_control, count_treated, count_control) |> 
+    dplyr::mutate(time_sec = NA, NC_type = NA,
+                  numNC = NA, method='causarray'
+                  )
+  
+  effects_causarray$type = mapply(FUN = get_AY_test_type2, grna_name = effects_causarray$grna, gene_name = effects_causarray$gene)
+  effects_causarray = effects_causarray |> relocate(type, .after=gene)
+  effects_causarray_all = effects_causarray
+  
+  # effects_causarray_all = effects_causarray_all |> mutate(type_bool = (grna==gene),
+  #                                                 type = sapply(type_bool, get_AY_test_type), .after=gene) |>
+  #                     select(-type_bool)
+  # effects_causarray = merge(AY, effects_causarray, by = c('grna', 'gene')) # AY adds test type
+  
+  
+  effects_causarray = merge(AY|>select(grna, gene), effects_causarray, by = c('grna', 'gene')) # select same positive and disc tests
+  effects_causarray = rbind(effects_causarray, effects_causarray_all |> filter(type == 'negative') |> slice_sample(n=sum(AY$type=='negative'))) # add back negative tests
+  
+  
+  effects_causarray
+
+} else {
+  effects_causarray = NULL
+}
+
+
+# load DESeq2
+# ========================================================================================================================================================================
+# read in the previously formatted relevant rows when creating the AY pairs (2.3_xxx.r)
+# INCLUDE_DESEQ2 = FALSE
+INCLUDE_DESEQ2 = TRUE
+if(INCLUDE_DESEQ2) {
+  effects_deseq = read.csv(sprintf('%s/deseq2/deseq_effects.csv', save_dir)) 
+
+  effects_deseq = effects_deseq |>
+    dplyr::rename(pval = pvalue, ATE = log2FoldChange, se = lfcSE) |>
+    dplyr::select(grna, gene, ATE, se, pval) |> 
+    dplyr::mutate(time_sec = NA, NC_type = NA,
+                  numNC = NA, method='deseq2'
+                  )
+  # effects_deseq_all = effects_deseq # keep original
+  
+  
+  effects_deseq = merge(AY, effects_deseq, by = c('grna', 'gene')) # AY adds test type
+} else {
+  effects_deseq = NULL
+}
+
+
+
+# assemble together
+# ========================================================================================================================================================================
+# bind GLM&Proximal  and  causarray  and deseq2
+effects = dplyr::bind_rows(effects_prox, effects_causarray, effects_deseq)
+
+
+# format method_long: ordering and nicenames
+effects = effects |> 
+             mutate(method_long_raw = paste0(method, NC_type, numNC),
+                        method_long = factor(method_long_raw, levels = method_long_order, labels = method_long_nicenames))
+
+# format AY test type: ordering and nicenames
+effects$type = factor(effects$type,
+       levels = c('negative', 'discovery', 'positive'),
+       labels = c(    'Null', 'Discovery', 'Alternative'))
+
+
+
+
+```
+
+
+
+
+
+
+```{r include=FALSE, eval=FALSE, echo=FALSE}
+
+# # count the number of tests that succeeded
+# effects |> group_by(method, type, NC_type, numNC) |> summarize(count = n(), .groups = 'drop') |> tidyr::pivot_wider(names_from = type, values_from = count)
+# effects
+# effects |> select(grna, n_trtmnt) |> distinct() |> pull(n_trtmnt) |> hist(breaks = seq(-100, 6000, by=100)) 
+# effects |> select(grna, n_trtmnt) |> distinct() |> pull(n_trtmnt) |> sort()
+
+effects |> pull(type) |> table()
+effects |> filter(grna == gene) |> pull(type) |> table()
+effects |> filter(method == 'lm') |> group_by(grna, gene) |> summarize(count = n()) |> arrange(count) |> head() # should only have 1 per pair
+
+effects_prox |> filter(type == 'positive') |> select(grna, gene) |> distinct() # should have 29 tests
+
+```
+
+
+# Perform BH pvalue adjustment?
+
+
+Does the fact that we combined Nulls and Discoveries and Positive together affect this? Because the rejection/adjustment for a test is affected by the others?
+
+
+For now, we should probably just do BH p-value adjustment on Discoveries and Positive tests together because this is realistic?
+
+
+Or within each perturbation? e.g. for each perturbation A, we test against ~2000 controls. 
+
+
+```{r}
+
+
+# separate p-values by each method.
+effects |> group_by(method_long_raw) |> group_modify(~ p.adjust(pval, method="BH"))
+
+
+
+p.adjust(pvalues, method="BH")
+```
+
+
+
+
+
+

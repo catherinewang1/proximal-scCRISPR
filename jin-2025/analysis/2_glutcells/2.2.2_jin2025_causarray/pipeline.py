@@ -1,7 +1,4 @@
-"""
-From Jin-Hong Du's tutorial for causarray
-
-Per-cell-type causarray + Wilcoxon pipeline for the mouse-brain Perturb-seq screen.
+"""Per-cell-type causarray + Wilcoxon pipeline for the mouse-brain Perturb-seq screen.
 
 Every step caches its output under ``results/<tag>/`` and is skipped when the
 cache exists, so a crashed or interrupted run resumes where it stopped. The
@@ -47,13 +44,6 @@ import crispyx
 from causarray import (LFC, fit_gcate, prep_causarray_data, estimate_propensity_scores,
                        refit_propensity_scores, select_propensity_factors)
 
-# HERE = Path(__file__).parent.resolve()
-# DATA_DIR = HERE / 'data'
-# RESULTS_DIR = HERE / 'results'
-TEST_DIR = Path(__file__).resolve()
-DATA_DIR    = (Path(__file__)/'../../../../saves/2_glutcells/').resolve()
-RESULTS_DIR = (Path(__file__)/'../../../../saves/2_glutcells/causarray/').resolve()
-
 
 PERT_COL = 'gene_target'
 CTRL_LABEL = 'Non_target'
@@ -67,6 +57,15 @@ MIN_COUNTS = 20      # LFC tests a gene in an arm only if (higher of the two arm
                      # counts expected in the smaller arm (package default 5); chosen from
                      # the null check in the notebook
 
+subfolder = '2_glutcells'
+
+# HERE = Path(__file__).parent.resolve()
+# DATA_DIR = HERE / 'data'
+TEST_DIR = Path(__file__).resolve()
+DATA_DIR    = (Path(__file__)/f'../../../../saves/{subfolder}/').resolve()
+RESULTS_DIR = (Path(__file__)/f'../../../../saves/{subfolder}/causarray/').resolve()
+# DATA_DIR    = None # set in notebook
+# RESULTS_DIR = None 
 
 def paths(tag, variant=''):
     """File layout for one cell type.

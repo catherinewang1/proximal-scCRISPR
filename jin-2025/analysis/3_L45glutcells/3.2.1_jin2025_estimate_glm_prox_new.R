@@ -14,9 +14,10 @@
 # - 2.2.2 deseq2
 # - 2.2.3 causarray
 # - 2.2.4 sceptre
+# Rscript 
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('macbook', 'small', 'pca_both', '8')
+# args = c('macbook', 'small2',  '8')
 
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
@@ -28,11 +29,8 @@ assertthat::assert_that(length(args) > 1, msg="must give arg for specifying AY s
 AY_SETTING_NAME = args[2]
 
 
-NCsListSettingName = args[3]
-
-
-assertthat::assert_that(length(args) > 3, msg="must give arg for specifying num threads eg 'Rscript <filename>.R ubergenno small 8'")
-THREADS = as.integer(args[4])
+assertthat::assert_that(length(args) > 2, msg="must give arg for specifying num threads eg 'Rscript <filename>.R ubergenno small 8'")
+THREADS = as.integer(args[3])
 
 
 
@@ -72,7 +70,8 @@ set.seed(PARAMS[['seed']])
 
 
 
-
+# SKIP_IF_SAVED_INTERMEDIATEATES = TRUE
+SKIP_IF_SAVED_INTERMEDIATEATES = FALSE
 
 # Set Parameters for Estimation: Choosing AY 
 # AY_SETTING_NAME = 'denseSmall' # key of one of the following settings, prob change this to an arg parameter
@@ -83,9 +82,9 @@ AY_SETTINGS = list(
     AY_NUM_DISCOVERY = 150,
     numNCs = c(1, 3, 5, 10)
   ),
-  'small2' = list( # run again but with both PCA NCs
-    AY_NUM_NEGATIVE  = 150,
-    AY_NUM_DISCOVERY = 150,
+  'small2' = list( # very small, to test all of the positive tests and many methods and parameter settings
+    AY_NUM_NEGATIVE  = 100,
+    AY_NUM_DISCOVERY = 100,
     numNCs = c(1, 3, 5, 10)
   ),
   'smallNB' = list(
@@ -124,6 +123,10 @@ assertthat::assert_that(AY_SETTING_NAME %in% names(AY_SETTINGS), msg=sprintf("AY
 SETTING = AY_SETTINGS[[AY_SETTING_NAME]]
 
 
+DEFAULT_NUM_NC = NULL
+DEFAULT_NUM_NC = c(1, 3, 5, 8, 10, 15)
+
+
 
 # create a list of settings for which estimators to run
 # named list where the names are the estimator method name
@@ -141,32 +144,64 @@ ESTIMATOR_SETTINGS = list(
   'nbYAX'=list(RUN=FALSE,
                Y_TYPE='count'), 
   'PCA_UntrtCells' =list(
-    RUN=TRUE,
-    IS_PROX=TRUE,
-    NUM_NCs=c(1, 3, 5, 8, 10, 15),   
+    RUN=FALSE,
+    IS_PROX=TRUE, 
+    NUM_NCs=if(!is.null(DEFAULT_NUM_NC)) {DEFAULT_NUM_NC} else {c(1, 3, 5, 8, 10, 15)},
     PROVIDES_NC_MATRIX=TRUE,   # in other list, must provide matrix of NCs (false=vector of gene names for singlegenes)
     NC_RANDOMIZEORDER=FALSE,
     PROXIMAL_METHOD = 'proximallinear',
-    NC_type = 'pca',
+    NC_type = 'PCA_UntrtCells',
     Y_TYPE='continuous'
   ),
-  'singlegene'= list(RUN=TRUE,
-                     IS_PROX=TRUE,
-                     NUM_NCs=c(1, 3, 5, 8, 10, 15),
-                     PROVIDES_NC_MATRIX=FALSE, # (false=vector of gene names for singlegenes)
-                     NC_RANDOMIZEORDER=TRUE, # whether to randomize order of given NC (yes for singlegenes)
-                     PROXIMAL_METHOD = 'proximallinear',
-                     NC_type = 'singlegene',
-                     Y_TYPE='continuous'
-  ),          
-  'singlegene_housekeeping'= list(RUN=TRUE,
-                                  IS_PROX=TRUE,
-                                  NUM_NCs=c(1, 3, 5, 8, 10, 15),
-                                  PROVIDES_NC_MATRIX=FALSE,
-                                  NC_RANDOMIZEORDER=TRUE,
-                                  PROXIMAL_METHOD = 'proximallinear',
-                                  NC_type = 'singlegene_housekeeping',
-                                  Y_TYPE='continuous'
+  'PCA_MixCells' =list(
+    RUN=TRUE,
+    IS_PROX=TRUE,
+    NUM_NCs=if(!is.null(DEFAULT_NUM_NC)) {DEFAULT_NUM_NC} else {c(1, 3, 5, 8)},
+    PROVIDES_NC_MATRIX=TRUE,   # in other list, must provide matrix of NCs (false=vector of gene names for singlegenes)
+    NC_RANDOMIZEORDER=FALSE,
+    PROXIMAL_METHOD = 'proximallinear',
+    NC_type = 'PCA_MixCells',
+    Y_TYPE='continuous'
+  ),
+  'PCA_MixCells_NB' =list(
+    RUN=FALSE,
+    IS_PROX=TRUE,
+    NUM_NCs=if(!is.null(DEFAULT_NUM_NC)) {DEFAULT_NUM_NC} else {c(1, 3, 5, 8, 10, 15)},  
+    PROVIDES_NC_MATRIX=TRUE,   # in other list, must provide matrix of NCs (false=vector of gene names for singlegenes)
+    NC_RANDOMIZEORDER=FALSE,
+    PROXIMAL_METHOD = 'proximalnegbin',
+    NC_type = 'PCA_MixCells',
+    Y_TYPE='count'
+  ),
+  'singlegene'= list(
+    RUN=TRUE,
+    IS_PROX=TRUE,
+    NUM_NCs=if(!is.null(DEFAULT_NUM_NC)) {DEFAULT_NUM_NC} else {c(1, 3, 5, 8)},  
+    PROVIDES_NC_MATRIX=FALSE, # (false=vector of gene names for singlegenes)
+    NC_RANDOMIZEORDER=TRUE, # whether to randomize order of given NC (yes for singlegenes)
+    PROXIMAL_METHOD = 'proximallinear',
+    NC_type = 'singlegene',
+    Y_TYPE='continuous'
+  ),    
+  'singlegene_NB'= list(
+    RUN=FALSE,
+    IS_PROX=TRUE,
+    NUM_NCs=if(!is.null(DEFAULT_NUM_NC)) {DEFAULT_NUM_NC} else {c(1, 3, 5, 8, 10, 15)},  
+    PROVIDES_NC_MATRIX=FALSE, # (false=vector of gene names for singlegenes)
+    NC_RANDOMIZEORDER=TRUE, # whether to randomize order of given NC (yes for singlegenes)
+    PROXIMAL_METHOD = 'proximalnegbin',
+    NC_type = 'singlegene',
+    Y_TYPE='count'
+  ), 
+  'singlegene_housekeeping'= list(
+    RUN=FALSE,
+    IS_PROX=TRUE,
+    NUM_NCs=if(!is.null(DEFAULT_NUM_NC)) {DEFAULT_NUM_NC} else {c(1, 3, 5, 8, 10, 15)},
+    PROVIDES_NC_MATRIX=FALSE,
+    NC_RANDOMIZEORDER=TRUE,
+    PROXIMAL_METHOD = 'proximallinear',
+    NC_type = 'singlegene_housekeeping',
+    Y_TYPE='continuous'
   )         
 )
 
@@ -328,7 +363,8 @@ if(!is.null(SETTING$DENSE) && SETTING$DENSE) {
 write.csv(AY, sprintf('%s/AY/%s/AY.csv', save_dir, AY_SETTING_NAME), row.names=FALSE)
 
 
-
+saveRDS(list(AY_SETTING_NAME=AY_SETTING_NAME, AY_SETTING=SETTING, ESTIMATOR_SETTINGS=ESTIMATOR_SETTINGS), 
+        sprintf('%s/AY/%s/run_settings.rds', save_dir, AY_SETTING_NAME))
 
 
 
@@ -396,46 +432,56 @@ print(sprintf("[%s]        + #unique gene=%s", Sys.time(), length(unique(AY$gene
 
 # call function here
 
-# 
-# whichRows = c(1:10)
+
+whichRows = c(1:10)
+whichRows = 1:nrow(AY)
 # source(sprintf('%s/estimate_proximal/estimate_effects_pci2s.r', util_dir))
-# # test the bygene version
-# x = estimate_effects_bygene(estimator_settings=ESTIMATOR_SETTINGS, 
-#                         AY = AY[whichRows, ], 
-#                         NCs = NCs,
-#                         grna=grna, 
-#                         gene_norm=gene_norm_subset, 
-#                         gene_counts=gene_counts_subset, 
-#                         control_cell_idx=control_cell_idx, 
-#                        libsize_log=libsize_log,
-#                        covariates=NULL, 
-#                        subsample_control_size=10000, # should already be subsampled
-#                        save_intermediateATEs=TRUE, 
-#                        skip_if_saved_intermediateATEs=FALSE,
-#                        intermediateATEs_folder=intermediateATEs_folder)
-# 
+# test the bygene version
+effects_df = estimate_effects_bygene(estimator_settings=ESTIMATOR_SETTINGS,
+                        AY = AY[whichRows, ],
+                        NCs = NCs,
+                        grna=grna,
+                        gene_norm=gene_norm_subset,
+                        gene_counts=gene_counts_subset,
+                        control_cell_idx=control_cell_idx,
+                       libsize_log=libsize_log,
+                       covariates=NULL,
+                       subsample_control_size=10000, # should already be subsampled
+                       save_intermediateATEs=TRUE,
+                       skip_if_saved_intermediateATEs=SKIP_IF_SAVED_INTERMEDIATEATES,
+                       intermediateATEs_folder=intermediateATEs_folder)
+
+
+
 # whichRows = c(1:10)
 # source(sprintf('%s/estimate_proximal/estimate_effects_pci2s.r', util_dir))
 # test by AY version
 
-whichRows = 1:nrow(AY)
-effects_df = estimate_effects_byAY(estimator_settings=ESTIMATOR_SETTINGS, 
-                          AY = AY[whichRows, ], 
-                          NCs = NCs,
-                          grna=grna, 
-                          gene_norm=gene_norm_subset, 
-                          gene_counts=gene_counts_subset, 
-                          control_cell_idx=control_cell_idx, 
-                          libsize_log=libsize_log,
-                          covariates=NULL, 
-                          subsample_control_size=10000, # should already be subsampled
-                          save_intermediateATEs=TRUE,
-                          skip_if_saved_intermediateATEs=FALSE,
-                          intermediateATEs_folder=intermediateATEs_folder)
+# whichRows = 1:nrow(AY)
+# effects_df = estimate_effects_byAY(estimator_settings=ESTIMATOR_SETTINGS, 
+#                           AY = AY[whichRows, ], 
+#                           NCs = NCs,
+#                           grna=grna, 
+#                           gene_norm=gene_norm_subset, 
+#                           gene_counts=gene_counts_subset, 
+#                           control_cell_idx=control_cell_idx, 
+#                           libsize_log=libsize_log,
+#                           covariates=NULL, 
+#                           subsample_control_size=10000, # should already be subsampled
+#                           save_intermediateATEs=TRUE,
+#                           skip_if_saved_intermediateATEs=FALSE,
+#                           intermediateATEs_folder=intermediateATEs_folder)
+
+
+
 
 write.csv(effects_df, file = sprintf('%s/AY/%s/effects.csv', save_dir, AY_SETTING_NAME), row.names = FALSE)
 
 
+
+
+# effects_df$time_sec |> sum() / length(whichRows) / 60 # approx this many mins (3.4 mins) per test when trying many methods and method settings
+# ggplot(effects_df, aes(x = sprintf('%02.f',numNC), y = pval |> log(), color = NC_type, group = NC_type)) + geom_point() + geom_line() + facet_grid(rows = vars(method), cols = vars(gene)) + coord_cartesian(ylim = c(-10, 0.1))
 
 
 

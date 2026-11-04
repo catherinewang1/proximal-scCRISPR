@@ -16,96 +16,163 @@
 # - 2.2.4 sceptre
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('macbook')
+# args = c('macbook', 'denseSmall', 'pca_both', '8')
 
 
 assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
 DEVICE = args[1]
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
-save_dir = paste0(save_dir, '/2_glutcells')
 assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
 
+assertthat::assert_that(length(args) > 1, msg="must give arg for specifying AY setting eg 'Rscript <filename>.R ubergenno small'")
+AY_SETTING_NAME = args[2]
 
 
-library(dplyr)
-# library(Seurat)
-# library(SeuratObject)
-# library(anndataR)
-library(ggplot2)
-library(h5lite)
-library(DelayedMatrixStats)
-library(sparseMatrixStats)
+NCsListSettingName = args[3]
 
-library(future.apply)
+
+assertthat::assert_that(length(args) > 3, msg="must give arg for specifying num threads eg 'Rscript <filename>.R ubergenno small 8'")
+THREADS = as.integer(args[4])
+
+
+
+
+# suppressPackageStartupMessages(library(Seurat))
+# suppressPackageStartupMessages(library(SeuratObject))
+# suppressPackageStartupMessages(library(anndataR))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+# suppressPackageStartupMessages(library(h5lite))
+                                                                                                                                   
+suppressPackageStartupMessages(library(DelayedMatrixStats))
+suppressPackageStartupMessages(library(sparseMatrixStats))
+
+suppressPackageStartupMessages(library(future.apply))
 options(future.globals.maxSize= 5000*1024^2) #1st num is MB
-# plan(multisession, workers = 24)
-plan(multisession, workers = 8)
-# plan(sequential)
 
-
-# AY_SETTING_NAME = 'medium2'
-# AY_NUM_NEGATIVE  = 1000
-# AY_NUM_DISCOVERY = 1000
-# numNCs = c(1, 3, 5, 8, 10, 15)
-
-# AY_SETTING_NAME = 'medium'
-# AY_NUM_NEGATIVE  = 1000
-# AY_NUM_DISCOVERY = 1000
-# numNCs = c(1, 3, 5, 8, 10, 15)
-
-
-# AY_SETTING_NAME = 'small'
-# AY_NUM_NEGATIVE  = 150
-# AY_NUM_DISCOVERY = 150
-# numNCs = c(1, 3, 5, 8, 10)
-# 
-# 
-# prox_methods = list(run_proximal_linear_pca         = TRUE,
-#                     run_proximal_negbin_pca         = TRUE,
-#                     run_proximal_linear_singlegenes = TRUE,
-#                     run_proximal_negbin_singlegenes = TRUE)
+if(THREADS == 1) {
+  plan(sequential)
+} else {
+  # plan(multisession, workers = 24)
+  plan(multisession, workers = THREADS)
+}
 
 
 
 
-# # Runs with NB proximal 
-# AY_SETTING_NAME = 'smallNB'
-# AY_NUM_NEGATIVE  = 150
-# AY_NUM_DISCOVERY = 150
-# numNCs = c(1, 3, 5, 10)
+
+PARAMS = list( 
+  'TAG'       = 'L45Glut',
+  'subfolder' = '3_L45glutcells',
+  'seed'      = 12345,
+  'A_MIN_TRTCELLS'  = 40, # filter for grnas with at least this number of cells (keep low here, set higher later))
+  'Y_MAX_GENE_IMPORTANCE' = 1500
+)
+save_dir = paste0(save_dir, '/', PARAMS[['subfolder']])
+set.seed(PARAMS[['seed']])
 
 
-# Runs with NB proximal 
-AY_SETTING_NAME = 'mediumNB'
-AY_NUM_NEGATIVE  = 250
-AY_NUM_DISCOVERY = 250
-numNCs = c(1, 3, 5, 8, 10, 15)
+# AY_SETTING_NAME = 'denseSmall' # key of one of the following settings, prob change this to an arg parameter
+# for non-dense settings, probably do sequential by setting THREADS=1
+AY_SETTINGS = list(
+  'small' = list(
+    AY_NUM_NEGATIVE  = 150,
+    AY_NUM_DISCOVERY = 150,
+    numNCs = c(1, 3, 5, 10),
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = FALSE,
+                        run_proximal_linear_singlegenes = TRUE,
+                        run_proximal_negbin_singlegenes = FALSE),
+    skip_if_saved_intermediateATEs=TRUE
+  ),
+  'small2' = list( # run again but with both PCA NCs
+    AY_NUM_NEGATIVE  = 150,
+    AY_NUM_DISCOVERY = 150,
+    numNCs = c(1, 3, 5, 10),
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = FALSE,
+                        run_proximal_linear_singlegenes = TRUE,
+                        run_proximal_negbin_singlegenes = FALSE),
+    skip_if_saved_intermediateATEs=TRUE
+  ),
+  'smallNB' = list(
+    AY_NUM_NEGATIVE  = 150,
+    AY_NUM_DISCOVERY = 150,
+    numNCs = c(1, 3, 5, 10),
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = TRUE,
+                        run_proximal_linear_singlegenes = TRUE,
+                        run_proximal_negbin_singlegenes = TRUE),
+    skip_if_saved_intermediateATEs=TRUE
+  ),
+  
+  'medium' = list(
+    AY_NUM_NEGATIVE  = 1000,
+    AY_NUM_DISCOVERY = 1000,
+    numNCs = c(1, 3, 5, 8, 10, 15),
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = FALSE,
+                        run_proximal_linear_singlegenes = TRUE,
+                        run_proximal_negbin_singlegenes = FALSE),
+    skip_if_saved_intermediateATEs=TRUE
+  ),
+  
+  'denseSmall' = list(
+    DENSE = TRUE,
+    NUM_Y = 100,
+    AY_NUM_NEGATIVE  = NA,
+    AY_NUM_DISCOVERY = NA,
+    numNCs = c(1, 3, 5, 8, 10, 15),
+    prox_methods = list(run_proximal_linear_NClist         = TRUE,
+                        run_proximal_negbin_NClist         = FALSE,
+                        run_proximal_linear_singlegenes = TRUE,
+                        run_proximal_negbin_singlegenes = FALSE),
+    skip_if_saved_intermediateATEs=FALSE
+  ), 
+  
+  'denseMedium' = list(
+    DENSE = TRUE,
+    NUM_Y = 1000,
+    AY_NUM_NEGATIVE  = NA,
+    AY_NUM_DISCOVERY = NA,
+    numNCs = c(1, 3, 5, 10),
+    prox_methods = list(run_proximal_linear_NClist      = TRUE,
+                        run_proximal_negbin_NClist      = FALSE,
+                        run_proximal_linear_singlegenes = TRUE,
+                        run_proximal_negbin_singlegenes = FALSE),
+    skip_if_saved_intermediateATEs=FALSE
+  )
+  
+)
 
-prox_methods = list(run_proximal_linear_pca         = TRUE,
-                    run_proximal_negbin_pca         = TRUE,
-                    run_proximal_linear_singlegenes = TRUE,
-                    run_proximal_negbin_singlegenes = TRUE)
+
+assertthat::assert_that(AY_SETTING_NAME %in% names(AY_SETTINGS), msg=sprintf("AY_SETTINGS input must be a member of the available setting names. Available AY_SETTINGS are: %s", 
+                                                                             paste0(names(AY_SETTINGS), collapse = ', ')))
+
+SETTING = AY_SETTINGS[[AY_SETTING_NAME]]
 
 
+NCsListSettings = list(
+  'pca_cntrlcell'=list(pca_cntrlcell=TRUE,
+                       pca_mixcell  =FALSE),
+  'pca_mixcell'  =list(pca_cntrlcell=FALSE,
+                       pca_mixcell  =TRUE),
+  'pca_both'     =list(pca_cntrlcell=TRUE,
+                       pca_mixcell  =TRUE),
+  'none'         =list(pca_cntrlcell=FALSE,
+                       pca_mixcell  =FALSE)
+)
+assertthat::assert_that(NCsListSettingName %in% names(NCsListSettings), msg=sprintf("NCsListSettingName input must be a member of the available setting names. Available NCsListSettingName are: %s", 
+                                                                             paste0(names(NCsListSettings), collapse = ', ')))
+NCsListSetting = NCsListSettings[[NCsListSettingName]]
 
-GENE_NUMNONZEROCELLS_MIN = 7500
-GENE_IMPORTANCERANK_MAX = 2000
-GENE_MIN_NONZERO_TRTCELLS = 10000 # filter for genes with at least this number of TREATED cells (not Non_target)
-
-GRNA_MIN_CELLS = 250 # filter for grnas with at least this number of cells
-
-
-NUM_SUBSAMPLE_CONTROL_CELLS = 10000
-
-
-
-set.seed(12345)
 
 # =================== START ========================================================================
 print(sprintf("[%s] START: glm and proximal estimates for Jin2025", Sys.time()))
 
 source(sprintf('%s/quick_estimate/quickGLMs.R', util_dir))
 source(sprintf('%s/quick_estimate/quickPCI2S.R', util_dir))
+source(sprintf('%s/quick_estimate/quickPCI2S_bygene.R', util_dir))
 
 
 dir.create(sprintf('%s/AY/', save_dir), showWarnings = FALSE)
@@ -117,7 +184,8 @@ dir.create(sprintf('%s/AY/%s/intermediateATEs/', save_dir, AY_SETTING_NAME), sho
 # =================== Load data from h5 ========================================
 # ============================================================================== #
 print(sprintf("[%s]    - load h5 (prev saved from processData)", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
-h5file   = sprintf('%s/jin2025_glut.h5', save_dir)
+h5file   = sprintf("%s/jin2025_%s.h5", save_dir, PARAMS[['TAG']])
+
 
 # =================== Load gene_norm
 gene_norm = HDF5Array::HDF5Array(h5file, name='gene_norm/gene_norm')
@@ -130,13 +198,25 @@ row.names(gene_counts) = rhdf5::h5read(h5file, name = 'gene_counts/.gene_counts_
 colnames( gene_counts) = rhdf5::h5read(h5file, name = 'gene_counts/.gene_counts_dimnames/2') |> as.vector()
 
 
-h5lite::h5_ls(h5file)
-rhdf5::h5closeAll()
+# h5lite::h5_ls(h5file)
+# rhdf5::h5closeAll()
+# rhdf5::h5ls(h5file)
 
 # =================== Load grna, grnaNT, metadata, gene_dev_df
-grna     = h5lite::h5_read(h5file, name = 'grna/grna')
-grnaNT   = h5lite::h5_read(h5file, name = 'grnaNT/grnaNT')
-metadata = h5lite::h5_read(h5file, name = 'cell_metadata/cell_metadata')
+
+# using h5lite package, it is slightly easier, but the package is only available for newer versions of R
+# grna     = h5lite::h5_read(h5file, name = 'grna/grna') # grna x cells
+# metadata = h5lite::h5_read(h5file, name = 'cell_metadata/cell_metadata')
+
+# use rhdf5 bc h5lite not available for R version 4.1 on server
+grna            = rhdf5::h5read(h5file, name = 'grna/grna') |> t()
+class(grna)     = "logical"
+row.names(grna) = rhdf5::h5read(h5file, name = 'grna/grna_rownames') 
+colnames( grna) = rhdf5::h5read(h5file, name = 'grna/grna_colnames') 
+
+metadata            = rhdf5::h5read(h5file, name = 'cell_metadata/cell_metadata')
+row.names(metadata) = rhdf5::h5read(h5file, name = 'cell_metadata/cell_metadata_rownames')
+
 
 gene_dev_df = read.csv(file = sprintf('%s/gene_dev.csv', save_dir)) 
 
@@ -159,132 +239,90 @@ assertthat::assert_that(all(colnames(gene_norm) == colnames(gene_counts))) # sam
 # check cellnames 
 assertthat::assert_that(all(colnames(gene_norm) == colnames(gene_counts))) # same cells and in same order
 assertthat::assert_that(all(colnames(gene_norm) == colnames(grna))) # same cells and in same order
-assertthat::assert_that(all(colnames(gene_norm) == colnames(grnaNT))) # same cells and in same order
+# assertthat::assert_that(all(colnames(gene_norm) == colnames(grnaNT))) # same cells and in same order
 assertthat::assert_that(all(colnames(gene_norm) == row.names(metadata))) # same cells and in same order
 
 
 # ============================================================================== #
 # =============  Construct AY tests: ===========================================
 # ============================================================================== #
+print(sprintf("[%s]    - construct AY tests", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
 
 # ================ some prep for constructing tests
-
-genes_nonzero = row.names(gene_counts)[(rowSums(gene_counts == 0) >= GENE_NUMNONZEROCELLS_MIN)] # genes that meet the nonzero threshold
+print(sprintf("[%s]        + some prep selecting possible As and Ys", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
+# genes_nonzero = row.names(gene_counts)[(rowSums(gene_counts == 0) >= GENE_NUMNONZEROCELLS_MIN)] # genes that meet the nonzero threshold, should be lready filtered
 all_Ys_df = gene_dev_df |>  
-  filter(gene_name %in% genes_nonzero) |>  
+  # filter(gene_name %in% genes_nonzero) |>  
   filter(is_normalized_gene) |> 
   # filter(!is_grna_target & !is_transcription_factor) |>
   arrange(importance_rank)
 
 validsinglegenes = all_Ys_df |> 
   filter(!is_grna_target & !is_transcription_factor) |> # no grna target and no TF
-  filter(importance_rank <= GENE_IMPORTANCERANK_MAX) |> pull(gene_name) # valid names for single genes
+  filter(importance_rank <= PARAMS$Y_MAX_GENE_IMPORTANCE) |> pull(gene_name) # valid names for single genes
 
 
-all_Ys = all_Ys_df |>filter(importance_rank <= GENE_IMPORTANCERANK_MAX | is_grna_target) |> pull(gene_name)
+all_Ys = all_Ys_df |>filter(importance_rank <= PARAMS$Y_MAX_GENE_IMPORTANCE | is_grna_target) |> pull(gene_name)
 
 
 # all valid treatments (not all grnas, eg if there weren't enough cells)
-all_As = row.names(grna)[rowSums(grna) >= GRNA_MIN_CELLS] |> setdiff('Non_target') |> sort()
+# all_As = row.names(grna)[rowSums(grna) >= PARAMS$A_MIN_TRTCELLS] |> setdiff('Non_target') |> sort()
+
+true_As = row.names(grna)[rowSums(grna) >= PARAMS$A_MIN_TRTCELLS]
+true_As = true_As[!grepl('Non_target', true_As)]
+
+fake_As = grep('Non_target', setdiff(row.names(grna), 'Non_target'), value=TRUE)
 
 
-
-# =============  \__Construct Negative tests: ===============================================
-
-# For now, just do 2 NT against others to try to make the sample sizes similar?
-# ggplot(NULL, aes(x = metadata |> filter(gene_target == 'Non_target') |> pull(guide_call) )) +
-#   geom_bar()
-# metadata |> filter(gene_target == 'Non_target') |> pull(guide_call) |> hist()
-
-NT_names = grnaNT |> row.names() 
-
-
-
-
-
-# 'Treatment' = groups of NT perturbations (sample size more similar to actual disc and pos tests)
-# choose groups of NT s.t. the n_trtmnt is in the range of 400-1000
-
-# grnaNT_counts = rowSums(grnaNT)
-
-
-# because of the way the control cells are subsampled, these lose a lot of sample 
-
-
-# separate NT perturbations into truly control or as Null tests
-set.seed(54321)
-NT_grnas_for_control = sample(NT_names, size = round(.75*length(NT_names)) )
-NT_grnas_for_null    = setdiff(NT_names, NT_grnas_for_control)
-
-
-prop_pairs    = .50
-prop_triplets = .25
-AY_NUM_NEGATIVE_TRIPLETS = round(prop_triplets*AY_NUM_NEGATIVE)
-AY_NUM_NEGATIVE_PAIRS    = round(prop_pairs*AY_NUM_NEGATIVE)
-AY_NUM_NEGATIVE_SINGLE   = AY_NUM_NEGATIVE - AY_NUM_NEGATIVE_TRIPLETS - AY_NUM_NEGATIVE_PAIRS
-
-
-# 'Treatment' = triplets of NT perturbations (sample size more similar to actual disc and pos tests)
-NT_triplets = replicate(AY_NUM_NEGATIVE_TRIPLETS*1.5, sample(NT_grnas_for_null, 3, replace = FALSE)) |> t() |> data.frame() |> distinct()
-NT_treatment_name = paste0(NT_triplets[, 1], '&', NT_triplets[, 2], '&', NT_triplets[, 3])[1:AY_NUM_NEGATIVE_TRIPLETS] # would err if the number specified is too large 
-NT_outcome_name = sample(all_Ys, size = length(NT_treatment_name), replace = TRUE)
-AY_negative_triplets = data.frame(
-  grna = NT_treatment_name, 
-  gene = NT_outcome_name, 
-  type = 'negative')
-
-
-# 'Treatment' = pairs of NT perturbations (sample size more similar to actual disc and pos tests)
-NT_pairs = replicate(AY_NUM_NEGATIVE_PAIRS*1.5, sample(NT_grnas_for_null, 2, replace = FALSE)) |> t() |> data.frame() |> distinct()
-NT_treatment_name = paste0(NT_pairs[, 1], '&', NT_pairs[, 2])[1:AY_NUM_NEGATIVE_PAIRS] # would err if the number specified is too large 
-NT_outcome_name = sample(all_Ys, size = length(NT_treatment_name), replace = TRUE)
-AY_negative_pairs = data.frame(
-  grna = NT_treatment_name, 
-  gene = NT_outcome_name, 
-  type = 'negative')
-
-# 'Treatment' = individual NT perturbations  (less mixup of NT pert)
-AY_negative_single = data.frame(
-  grna = sample(NT_grnas_for_null, size=AY_NUM_NEGATIVE_SINGLE*1.2, replace=TRUE), 
-  gene = sample(all_Ys,            size=AY_NUM_NEGATIVE_SINGLE*1.2, replace = TRUE), 
-  type = 'negative') |> distinct() |> head(AY_NUM_NEGATIVE_SINGLE)
-
-AY_negative = rbind(AY_negative_triplets, AY_negative_pairs, AY_negative_single)
-
-
-
-
-
-rm(NT_names, NT_pairs, NT_treatment_name, NT_outcome_name)
-
-# ============= \__Construct Discovery tests: ============================================
-
-# dim(gene_count)
-# gene_numnonzerocells = rowSums(gene_count); hist(gene_numnonzerocells)
-AY_discovery = data.frame(# grna = sample(setdiff(row.names(grna), 'Non_target'), size = AY_NUM_DISCOVERY, replace=TRUE),
-                          grna = sample(all_As, size=AY_NUM_DISCOVERY*1.2, replace=TRUE),
-                          gene = sample(all_Ys, size=AY_NUM_DISCOVERY*1.2, replace=TRUE),
-                          type = 'discovery') |> 
-               filter(grna != gene) |>        # random choice of grnas and genes may result in pos tests, so sample more
-               distinct() |> 
-               slice_sample(n=AY_NUM_DISCOVERY) # than needed, then remove and take the requested number of tests
-
-# ============= \__Construct Positive tests: ============================================
-pos_grna = row.names(grna)[row.names(grna) %in% row.names(gene_norm)]
-AY_positive = data.frame(grna = pos_grna, gene = pos_grna,type='positive')
-
-rm(pos_grna)
-
-
-# ============= \__Combine AY tests: ============================================
-AY = rbind( AY_positive, 
-            AY_negative, 
-           AY_discovery)
+# construct AY tests base on whether dense setting is chosen or not
+if(!is.null(SETTING$DENSE) && SETTING$DENSE) {
+  print(sprintf("[%s]        + select AYs under dense setting", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
+  # first select all the grna targets
+  # then choose other Ys from all_Ys. all_Ys should be arranged by importance rank, so choose the top important/most deviance genes as responses
+  selected_Ys = c(true_As, setdiff(all_Ys, true_As))[1:SETTING$NUM_Y]
+  
+  
+  AY = expand.grid(grna = c(true_As, fake_As), gene = selected_Ys, stringsAsFactors = FALSE) |> mutate(type = 'discovery')
+  AY[(AY$grna == AY$gene), 'type'] = 'positive'
+  AY[grepl(pattern='Non_target', x = AY$grna), 'type'] = 'negative'
+} else {
+  print(sprintf("[%s]        + select AYs under not dense setting", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
+  # =============  \__Construct Negative tests: ===============================================
+  AY_negative = data.frame(# grna = sample(setdiff(row.names(grna), 'Non_target'), size = AY_NUM_DISCOVERY, replace=TRUE),
+    grna = sample(fake_As, size=SETTING$AY_NUM_NEGATIVE*1.2, replace=TRUE),
+    gene = sample( all_Ys, size=SETTING$AY_NUM_NEGATIVE*1.2, replace=TRUE),
+    type = 'negative') |> 
+    filter(grna != gene) |>        # random choice of grnas and genes may result in pos tests, so sample more
+    distinct() |> 
+    slice_sample(n=SETTING$AY_NUM_NEGATIVE) # than needed, then remove and take the requested number of tests
+  
+  
+  # ============= \__Construct Discovery tests: ============================================
+  AY_discovery = data.frame(grna = sample(true_As, size=SETTING$AY_NUM_DISCOVERY*1.3, replace=TRUE),
+                            gene = sample( all_Ys, size=SETTING$AY_NUM_DISCOVERY*1.3, replace=TRUE),
+                            type = 'discovery') |> 
+    filter(grna != gene) |>        # random choice of grnas and genes may result in pos tests, so sample more
+    distinct() |> 
+    slice_sample(n=SETTING$AY_NUM_DISCOVERY) # than needed, then remove and take the requested number of tests
+  
+  # ============= \__Construct Positive tests: ============================================
+  pos_grna = row.names(grna)[row.names(grna) %in% row.names(gene_norm)]
+  AY_positive = data.frame(grna = pos_grna, gene = pos_grna,type='positive')
+  
+  rm(pos_grna)
+  
+  
+  # ============= \__Combine AY tests: ============================================
+  AY = rbind( AY_positive, 
+              AY_negative, 
+              AY_discovery)
+  rm(AY_negative, AY_discovery, AY_positive)
+}
 
 write.csv(AY, sprintf('%s/AY/%s/AY.csv', save_dir, AY_SETTING_NAME), row.names=FALSE)
 
 
-rm(AY_negative, AY_discovery, AY_positive)
+
 
 
 
@@ -293,117 +331,38 @@ rm(AY_negative, AY_discovery, AY_positive)
 # ============= Compare across control cell subsample sizes ====================
 # ============================================================================== #
 
-# positive tests across different NUM_SUBSAMPLE_CONTROL_CELLS sizes
-if('initial_glms_posneg_comparecontrolsubsamplesizes.csv' %in% list.files(sprintf('%s/AY/%s/initiallinreg/', save_dir, AY_SETTING_NAME))) {
-  # just skip if already done
-  initial_glms_pos_df = read.csv(sprintf('%s/AY/%s/initiallinreg/initial_glms_posneg_comparecontrolsubsamplesizes.csv', save_dir, AY_SETTING_NAME))
-  
-} else {
-  # realize some for this comparison
-  required_Y = unique(AY$gene) # only these response genes' expression are required
-  gene_counts_subset = gene_counts[required_Y, ] |> DelayedArray::realize()
-  gene_norm_subset   =   gene_norm[required_Y, ] |> DelayedArray::realize()
-  
-  # prep some used values
-  combined_grna = rbind(grna, grnaNT)
-  control_cell_idx = which(grna['Non_target', ] == 1) |> as.vector() # just the overall control cell idx. use setdiff for negative tests
-  libsize_log = log(metadata[, 'num_rna_umi'] + 1e-5)
-  
-  fit_glms_errorhandling <- function(AY_idx, subsamplesize) {
-    tryCatch({fit_glms(AY_idx=AY_idx, 
-                       AY=AY, 
-                       control_cell_idx=control_cell_idx, 
-                       gene_norm=gene_norm_subset, 
-                       gene_counts=gene_counts_subset, 
-                       grna=combined_grna, 
-                       libsize_log=libsize_log, 
-                       covariates=NULL, 
-                       subsample_control_size=subsamplesize)
-    },
-    error = function(cond) {
-      return(NULL)
-    })
-  }
-  # fit_glms_errorhandling(100, 500)
-  # fit_glms_errorhandling(179, 500)
-  # fit_glms(AY_idx=179, 
-  #          AY=AY, 
-  #          control_cell_idx=control_cell_idx, 
-  #          gene_norm=gene_norm_subset, 
-  #          gene_counts=gene_counts_subset, 
-  #          grna=combined_grna, 
-  #          libsize_log=libsize_log, 
-  #          covariates=NULL, 
-  #          subsample_control_size=400)
-  
-  initial_glms_pos_df = NULL
-  for(cur_subsample_size in c(NA, 100000, 75000, 50000, 25000, 15000, 10000, 5000, 1000, 500)) {
-    initial_glms_pos_par = future.apply::future_mapply(
-          fit_glms_errorhandling, 
-          MoreArgs = list(subsamplesize=cur_subsample_size),
-          AY_idx = which(AY$type == 'positive' | AY$type == 'negative'), 
-          future.globals = TRUE,
-          future.seed = 123456, 
-          SIMPLIFY = FALSE
-        )
-    
-    for(idx in 1:length(initial_glms_pos_par)) {   initial_glms_pos_df = rbind(initial_glms_pos_df, initial_glms_pos_par[[idx]])   }
-  }
-  
-  
-  write.csv(initial_glms_pos_df, sprintf('%s/AY/%s/initiallinreg/initial_glms_posneg_comparecontrolsubsamplesizes.csv', save_dir, AY_SETTING_NAME))
-
-  initial_glms_pos_df = merge(AY, initial_glms_pos_df, by = c('grna', 'gene')) # add test type
-  
-  
-  initial_glms_pos_df[, 'n_cntrl_clean'] = initial_glms_pos_df$n_cntrl
-  initial_glms_pos_df[initial_glms_pos_df$n_cntrl >=120000, 'n_cntrl_clean'] = '>130k'
-  initial_glms_pos_df$n_cntrl_clean = factor(initial_glms_pos_df$n_cntrl_clean, 
-                                             levels = c(initial_glms_pos_df |> filter(n_cntrl <= 120000) |> pull(n_cntrl) |> unique() |> sort() |> as.character(),  '>130k'))
-  
-  
-  
-  ggplot(initial_glms_pos_df, aes(x = n_cntrl_clean, y = pval)) + geom_violin() + facet_grid(rows = vars(method, type)) + theme_bw()
-  
-  
-  ggplot(initial_glms_pos_df, aes(y= pval)) + 
-    geom_histogram(binwidth = .01) + 
-    facet_grid(rows = vars(method, type), cols = vars(n_cntrl_clean), scales = 'free_x') + 
-    labs(title = 'Hist of pvals by #controls subsampled') +
-    theme_bw()
-  
-  ggsave(sprintf('%s/AY/%s/initiallinreg/histpvals_by_numsubsample.pdf', save_dir, AY_SETTING_NAME), height=10, width=10)
-  
-  
-  ggplot(initial_glms_pos_df, aes(y= log(pval+1e-10))) + 
-    geom_histogram(binwidth = 1) + 
-    facet_grid(rows = vars(method, type), cols = vars(n_cntrl_clean), scales = 'free_x') +
-    labs(title = 'Hist of log(pvals) by #controls subsampled') +
-    theme_bw()
-  
-  ggsave(sprintf('%s/AY/%s/initiallinreg/histpvals_by_numsubsample_log10.pdf', save_dir, AY_SETTING_NAME), height=10, width=10)
-
-  ggplot(initial_glms_pos_df, aes(y= se)) + 
-    geom_histogram(binwidth = .01) + 
-    facet_grid(rows = vars(method, type), cols = vars(n_cntrl_clean), scales = 'free_x') +
-    labs(title = 'Hist of standard errs by #controls subsampled') +
-    theme_bw()
-  
-  ggsave(sprintf('%s/AY/%s/initiallinreg/histstandarderr_by_numsubsample.pdf', save_dir, AY_SETTING_NAME), height=10, width=10)
-  
-  
-  ggplot(initial_glms_pos_df, aes(y= se)) + 
-    geom_histogram(binwidth = .0025) + 
-    facet_grid(rows = vars(method, type), cols = vars(n_cntrl_clean), scales = 'free_x') +
-    coord_cartesian(ylim = c(0, .2)) +
-    labs(title = 'Hist of standard errs by #controls subsampled') +
-    theme_bw()
-  
-  ggsave(sprintf('%s/AY/%s/initiallinreg/histstandarderr_by_numsubsample_zoomed.pdf', save_dir, AY_SETTING_NAME), height=10, width=10)
-  
-  
-  # subsampling for 10k cells seem ok (still have power, standard errors are pretty close to full sample)
-}
+# # positive tests across different NUM_SUBSAMPLE_CONTROL_CELLS sizes
+# if('initial_glms_posneg_comparecontrolsubsamplesizes.csv' %in% list.files(sprintf('%s/AY/%s/initiallinreg/', save_dir, AY_SETTING_NAME))) {
+#   # just skip if already done
+#   initial_glms_pos_df = read.csv(sprintf('%s/AY/%s/initiallinreg/initial_glms_posneg_comparecontrolsubsamplesizes.csv', save_dir, AY_SETTING_NAME))
+#   
+# } else {
+#   # realize some for this comparison
+#   required_Y = unique(AY$gene) # only these response genes' expression are required
+#   gene_counts_subset = gene_counts[required_Y, ] |> DelayedArray::realize()
+#   gene_norm_subset   =   gene_norm[required_Y, ] |> DelayedArray::realize()
+#   
+#   # prep some used values
+#   # combined_grna = rbind(grna, grnaNT)
+#   control_cell_idx = which(grna['Non_target', ] == 1) |> as.vector() # just the overall control cell idx. use setdiff for negative tests
+#   libsize_log = log(metadata[, 'num_rna_umi'] + 1e-5)
+#   
+#   fit_glms_errorhandling <- function(AY_idx, subsamplesize) {
+#     tryCatch({fit_glms(AY_idx=AY_idx, 
+#                        AY=AY, 
+#                        control_cell_idx=control_cell_idx, 
+#                        gene_norm=gene_norm_subset, 
+#                        gene_counts=gene_counts_subset, 
+#                        grna=grna, 
+#                        libsize_log=libsize_log, 
+#                        covariates=NULL, 
+#                        subsample_control_size=subsamplesize)
+#     },
+#     error = function(cond) {
+#       return(NULL)
+#     })
+#   }
+# }
 
 
 
@@ -413,24 +372,23 @@ if('initial_glms_posneg_comparecontrolsubsamplesizes.csv' %in% list.files(sprint
 required_Y = unique(AY$gene) # only these response genes' expression are required
 required_Y = unique(c(required_Y, validsinglegenes)) |> sort() # also for single genes
 
-set.seed(12345678)
 
-# separate NTs for control and for null tests
-subsample_ctrl_cells = sample(which(colSums(grnaNT[NT_grnas_for_control, ])==1)  |> names(), round(NUM_SUBSAMPLE_CONTROL_CELLS*1.1), replace=FALSE)# take a few more than necessary
-subsample_cells = c(which(grna['Non_target', ]==0) |> names(), 
-                    which(colSums(grnaNT[NT_grnas_for_null, ])==1)  |> names(),
-                    subsample_ctrl_cells) # all treated cells + null pert cells + the prev sampled cells
+# # separate NTs for control and for null tests
+# subsample_ctrl_cells = sample(which(colSums(grnaNT[NT_grnas_for_control, ])==1)  |> names(), round(NUM_SUBSAMPLE_CONTROL_CELLS*1.1), replace=FALSE)# take a few more than necessary
+# subsample_cells = c(which(grna['Non_target', ]==0) |> names(), 
+#                     which(colSums(grnaNT[NT_grnas_for_null, ])==1)  |> names(),
+#                     subsample_ctrl_cells) # all treated cells + null pert cells + the prev sampled cells
 
 # if NTs were mixed up
 # subsample_ctrl_cells = sample(which(grna['Non_target', ]==1) |> names(), round(NUM_SUBSAMPLE_CONTROL_CELLS*2), replace=FALSE)# take a few more than necessary
 # subsample_cells = c(which(grna['Non_target', ]==0) |> names(), subsample_ctrl_cells) # all treated cells + the prev sampled cells
 
-gene_counts_subset = gene_counts[required_Y, subsample_cells] |> DelayedArray::realize()
-gene_norm_subset   =   gene_norm[required_Y, subsample_cells] |> DelayedArray::realize()
+gene_counts_subset = gene_counts[required_Y, ] |> DelayedArray::realize()
+gene_norm_subset   =   gene_norm[required_Y, ] |> DelayedArray::realize()
 
-rm(subsample_ctrl_cells)
-rm(gene_counts, gene_norm)
-gc()
+# rm(subsample_ctrl_cells)
+# rm(gene_counts, gene_norm)
+# gc()
 
 
 format(object.size(gene_counts_subset), units='Gb')
@@ -441,15 +399,27 @@ format(object.size(gene_norm_subset), units='Gb')
 # ============================================================================== #
 
 # prep reused variables in estimating fns
-combined_grna    = rbind(grna[, subsample_cells], grnaNT[, subsample_cells])
-control_cell_idx = which(combined_grna['Non_target', ] == 1) |> as.vector() 
-libsize_log      = log(metadata[subsample_cells, 'num_rna_umi'] + 1e-5)
+control_cell_idx = which(grna['Non_target', ] == 1) |> as.vector() 
+libsize_log      = log(metadata[, 'num_rna_umi'] + 1e-5)
 
 # prep reused variables in estimating fns (prox)
-NCs_pca = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir)) |> as.matrix() # PCA loadings
+NCs = list()
+if(NCsListSetting$pca_cntrlcell) {
+  NCs_pca = readRDS(sprintf('%s/pca/NCloadings.rds', save_dir)) |> as.matrix() # PCA loadings
+  NCs[['PCA']]= NCs_pca
+}
+if(NCsListSetting$pca_mixcell) {
+  NCs_pca_mix = readRDS(sprintf('%s/pca/NCloadings_mixTrtUntrtCells.rds', save_dir)) |> as.matrix() # PCA loadings
+  NCs[['PCA_mixcells']] = NCs_pca_mix
+}
 
-rm(grna, grnaNT, metadata)
-gc()
+housekeepinggenes = setdiff(validsinglegenes, gene_dev_df |> filter(is_housekeeping & is_normalized_gene & !is_grna_target & !is_transcription_factor))
+
+# NCs = list('PCA' = NCs_pca, 'PCA_mixcells' = NCs_pca_mix)
+
+
+rm(metadata)
+invisible(gc())
 
 # ================ checks
 assertthat::assert_that(all(row.names(gene_norm_subset) == row.names(gene_counts_subset))) # same genes and in same order
@@ -457,75 +427,82 @@ assertthat::assert_that(all(row.names(gene_norm_subset) == row.names(gene_counts
 
 # check cellnames 
 assertthat::assert_that(all(colnames(gene_norm_subset) == colnames(gene_counts_subset))) # same cells and in same order
-assertthat::assert_that(all(colnames(gene_norm_subset) == colnames(combined_grna))) # same cells and in same order
+# assertthat::assert_that(all(colnames(gene_norm_subset) == colnames(combined_grna))) # same cells and in same order
+
 
 
 
 # ============================================================================== #
-# ============= Initial LinReg and NegBin:                    ==================
-# ============= after choosing a control cell subsample size  ==================
+# =================== Get ATEs by gene (parallel) ==============================
 # ============================================================================== #
+print(sprintf("[%s]    - Get Estimates by gene (parallel)", Sys.time()))
 
-if('initial_glms.csv' %in% list.files(sprintf('%s/AY/%s/initiallinreg/', save_dir, AY_SETTING_NAME))) {
-  print(sprintf("[%s]        - Loading glm (one fit per gene) on all pairs", Sys.time()))
-  initial_glms = read.csv(sprintf('%s/AY/%s/initiallinreg/initial_glms.csv', save_dir, AY_SETTING_NAME))
-} else {
-  print(sprintf("[%s]        - Fitting glm (one fit per gene) on all pairs", Sys.time()))
+print(sprintf("[%s]        + nrow(AY)=%s", Sys.time(), nrow(AY)))
+print(sprintf("[%s]        + #unique grna=%s", Sys.time(), length(unique(AY$grna))))
+print(sprintf("[%s]        + #unique gene=%s", Sys.time(), length(unique(AY$gene))))
+
+Y_responses = unique(AY$gene) # put the grna responses first
+Y_responses = c(Y_responses[Y_responses %in% row.names(grna)], Y_responses[!Y_responses %in% row.names(grna)])
+
+effects_df = NULL
+for(Y_name in Y_responses) {
+  print(sprintf("[%s]    - Y: %s", Sys.time(), Y_name))
+  Y_info = list(Y_name = Y_name, 
+                Y_norm = gene_norm[Y_name, ], # replace w gene_norm_subset maybe
+                Y_count = gene_counts[Y_name, ])
+  # choose a smaller set, but still larger than max numNCs so that there is less randomness from bad selection
+  # Y_validsinglegenes = gene_norm[sample(setdiff(validsinglegenes, Y_name), size = round(2*2*max(SETTING$numNCs)), replace = FALSE), ]
   
-  fit_glms_errorhandling <- function(AY_idx) {
-    tryCatch({fit_glms(AY_idx=AY_idx, 
-                       AY=AY, 
-                       control_cell_idx=control_cell_idx, 
-                       gene_norm=gene_norm_subset, 
-                       gene_counts=gene_counts_subset, 
-                       grna=combined_grna, 
-                       libsize_log=libsize_log, 
-                       covariates=NULL, 
-                       subsample_control_size=NUM_SUBSAMPLE_CONTROL_CELLS)
-    },
-    error = function(cond) {
-      return(NULL)
-    })
-  }
+  Y_validsinglegenes = list('singlegene'              = gene_norm[sample(setdiff(validsinglegenes,  Y_name), size = round(2*2*max(SETTING$numNCs)), replace = FALSE), ],
+                            'singlegene_housekeeping' = gene_norm[sample(setdiff(housekeepinggenes, Y_name), size = round(2*2*max(SETTING$numNCs)), replace = FALSE), ])
   
   
-  t0 = Sys.time()
-  initial_glms_par = future.apply::future_mapply(
-    fit_glms_errorhandling,
-    AY_idx = 1:nrow(AY), 
-    future.globals = TRUE,
-    future.seed = 123456, 
-    SIMPLIFY = FALSE)
-  t1 = Sys.time()
-  print(sprintf("[%s]        - %2.2f mins", Sys.time(), difftime(t1, t0, units = "mins")))
+  # estimate effects: parallel calls within this function
+  cur_effects_df = tryCatch({estimate_effects_bygene(Y_info=Y_info, 
+                                                     # test information
+                                                     AY=AY, 
+                                                     # proximal number of NCs
+                                                     numNCs=SETTING$numNCs, 
+                                                     # data
+                                                     control_cell_idx=control_cell_idx, 
+                                                     grna=grna,
+                                                     libsize_log=libsize_log, 
+                                                     # info for NCs or covariates
+                                                     NCs=NCs,
+                                                     Y_validsinglegenes=Y_validsinglegenes,
+                                                     covariates=NULL,
+                                                     # saving intermediateATEs
+                                                     save_intermediateATEs=TRUE, 
+                                                     skip_if_saved_intermediateATEs=SETTING$skip_if_saved_intermediateATEs,
+                                                     intermediateATEs_folder = sprintf('%s/AY/%s/intermediateATEs/', save_dir, AY_SETTING_NAME),
+                                                     # which proximal estimates
+                                                     run_proximal_linear_NClist         = SETTING$prox_methods$run_proximal_linear_NClist,
+                                                     run_proximal_negbin_NClist         = SETTING$prox_methods$run_proximal_negbin_NClist,
+                                                     run_proximal_linear_singlegenes = SETTING$prox_methods$run_proximal_linear_singlegenes,
+                                                     run_proximal_negbin_singlegenes = SETTING$prox_methods$run_proximal_negbin_singlegenes,
+                                                     subsample_control_size = NA)
+  },
+  error = function(cond) {
+    message(sprintf('Error est ATE w pci2s with %s',
+                    Y_name))
+    return(NULL)
+  })
   
-  initial_glms = NULL
-  for(idx in 1:length(initial_glms_par)) {   initial_glms = rbind(initial_glms, initial_glms_par[[idx]])   }
-  write.csv(initial_glms, sprintf('%s/AY/%s/initiallinreg/initial_glms.csv', save_dir, AY_SETTING_NAME))
-  rm(initial_glms_par, t0, t1, fit_glms_errorhandling)
+  if(!is.null(cur_effects_df)) {
+    effects_df = rbind(effects_df, cur_effects_df)
+  } 
 }
 
 
-
-
-
-# # 134k if use all. 50000 speeds up a lot, and lower actually loses power... for now, set at 50k cells
-# fit_glms(AY_idx=4, AY=AY, control_cell_idx=control_cell_idx, gene_norm=gene_norm, gene_counts=gene_counts, grna=grna, libsize_log=libsize_log, covariates=NULL, 
-#          subsample_control_size=NA)
-# fit_glms(AY_idx=4, AY=AY, control_cell_idx=control_cell_idx, gene_norm=gene_norm, gene_counts=gene_counts, grna=grna, libsize_log=libsize_log, covariates=NULL, 
-#          subsample_control_size=50000)
-# fit_glms(AY_idx=4, AY=AY, control_cell_idx=control_cell_idx, gene_norm=gene_norm, gene_counts=gene_counts, grna=grna, libsize_log=libsize_log, covariates=NULL, 
-#          subsample_control_size=10000)
-# fit_glms(AY_idx=4, AY=AY, control_cell_idx=control_cell_idx, gene_norm=gene_norm, gene_counts=gene_counts, grna=grna, libsize_log=libsize_log, covariates=NULL, 
-#          subsample_control_size=5000)
+write.csv(x = effects_df, file = sprintf('%s/AY/%s/effects.csv', save_dir, AY_SETTING_NAME), row.names = FALSE)
 
 
 
 
 # ============================================================================== #
-# =================== Get ATEs (parallel) ======================================
+# =================== Get ATEs by AY_idx (parallel) ============================
 # ============================================================================== #
-# 
+if(F) {
 # numNCs = c(1,3)
 # 
 # control_cell_idx = which(grna['Non_target', ] == 1) |> as.vector() # just the overall control cell idx. use setdiff for negative tests
@@ -544,12 +521,12 @@ estimate_effects_errorhandling <- function(AY_idx) {
                                       # test information
                                       AY=AY, 
                                       # proximal number of NCs
-                                      numNCs=numNCs, 
+                                      numNCs=SETTING$numNCs, 
                                       # data
                                       control_cell_idx=control_cell_idx, 
                                       gene_norm=gene_norm_subset, 
                                       gene_counts=gene_counts_subset, 
-                                      grna=combined_grna,
+                                      grna=grna,
                                       libsize_log=libsize_log, 
                                       # info for NCs or covariates
                                       NCs_pca=NCs_pca,
@@ -560,11 +537,11 @@ estimate_effects_errorhandling <- function(AY_idx) {
                                       skip_if_saved_intermediateATEs=TRUE,
                                       intermediateATEs_folder = sprintf('%s/AY/%s/intermediateATEs/', save_dir, AY_SETTING_NAME),
                                       # which proximal estimates
-                                      run_proximal_linear_pca         = prox_methods$run_proximal_linear_pca,
-                                      run_proximal_negbin_pca         = prox_methods$run_proximal_negbin_pca,
-                                      run_proximal_linear_singlegenes = prox_methods$run_proximal_linear_singlegenes,
-                                      run_proximal_negbin_singlegenes = prox_methods$run_proximal_negbin_singlegenes,
-                                      subsample_control_size = NUM_SUBSAMPLE_CONTROL_CELLS)
+                                      run_proximal_linear_pca         = SETTING$prox_methods$run_proximal_linear_pca,
+                                      run_proximal_negbin_pca         = SETTING$prox_methods$run_proximal_negbin_pca,
+                                      run_proximal_linear_singlegenes = SETTING$prox_methods$run_proximal_linear_singlegenes,
+                                      run_proximal_negbin_singlegenes = SETTING$prox_methods$run_proximal_negbin_singlegenes,
+                                      subsample_control_size = NA)
                     },
                     error = function(cond) {
                       # message(sprintf('Error est ATE w pci2s with %s', 
@@ -592,7 +569,7 @@ estimate_effects_errorhandling <- function(AY_idx) {
 #                  control_cell_idx=control_cell_idx,
 #                  gene_norm=gene_norm_subset,
 #                  gene_counts=gene_counts_subset,
-#                  grna=combined_grna,
+#                  grna=grna,
 #                  libsize_log=libsize_log,
 #                  # info for NCs or covariates
 #                  NCs_pca=NCs_pca,
@@ -646,7 +623,7 @@ effects_df = NULL
 for(whichROWS_idx in 1:length(whichROWS)) { # whichROWS_idx is always 1, 2, ...
   cur_effects_par = effects_par[[whichROWS_idx]]
   if(!is.null(cur_effects_par)) {
-    # AY test is whichROWS[whichROWS_idx]  = AY_idx!!! 
+    # AY test is whichROWS[whichROWS_idx]  = AY_idx 
     effects_df = dplyr::bind_rows(effects_df, cur_effects_par)
   }
   rm(cur_effects_par)
@@ -655,13 +632,478 @@ write.csv(x = effects_df, file = sprintf('%s/AY/%s/effects.csv', save_dir, AY_SE
 
 
 
+}
+
+
+
+
+
+
 # ===========================================================================
 print(sprintf("[%s] END", Sys.time()))
 
 
 
+# ===========================================================================
+# ===========================================================================
+# ===========================================================================
+# ===========================================================================
+# ===========================================================================
+
+if(F) {
+# writing function
+
+
+AY = rbind(AY, data.frame(grna = c("Zbtb7a", 'Uba5', "Non_target_64&Non_target_370&Non_target_4&Non_target_219&Non_target_107&Non_target_290&Non_target_246&Non_target_349&Non_target_157&Non_target_319"),
+                          gene = c('Prdm10', 'Prdm10', 'Prdm10'), type = 'discovery')) |> distinct()
+
+# writing function
+
+Y_infos = list()
+for(Y_name in unique(AY$gene)) {
+  Y_infos[[Y_name]] = list(Y_name = Y_name, 
+                           Y_norm = gene_norm[Y_name, ],
+                           Y_count = gene_counts[Y_name, ])
+  # choose a smaller set, but still larger than max numNCs so that there is less randomness from bad selection
+  Y_validsinglegenes = gene_norm[sample(setdiff(validsinglegenes, Y_name), size = round(1.5*2*max(SETTING$numNCs)), replace = FALSE), ]
+  
+  estimate_effects_bygene()
+}
 
 
 
 
+
+  
+
+Y_info = Y_infos[[33]]
+Y_info$Y_name
+
+
+
+# === start fn
+res = NULL
+
+
+A_names = AY |> filter(gene == Y_info$Y_name) |> pull(grna)
+A_names = c(A_names, 'Stxbp1&Srebf2')
+
+# construct A's and collect the used cell idx
+
+# for the treatments already in grna
+# A_01 = grna[A_name[A_name %in% row.names(grna))], ] 
+
+# the indices of the chosen cells (cells receiving this perturbation)
+AY_data_idx = which(colSums(grna[A_names[A_names %in% row.names(grna)], ]) == 1) |> unname()
+# the A treatment in factor form
+A_factor = row.names(grna)[apply(grna[, AY_data_idx], MARGIN=2, FUN = function(x){which(x==1)})]
+
+
+control_cell_idx_noNTtrt = control_cell_idx
+# for the treatments not already in grna 
+# needs to handle combined perturbations that aren't pre-constructed in grna (e.g. some NT1&NT2 are already constructed in grna. But some are)
+for(A_name in A_names[! A_names %in% row.names(grna)]) {
+  # needs to be w pattern <name>&<name>... where <name> is a member of grna row.names
+  # parse NT combo name (e.g. 'NT1&NT2')
+  grnacombo_vector = strsplit(A_name, '&')[[1]]
+  
+  grnacombo_01 = colSums(grna[grnacombo_vector, , drop=FALSE]) |> as.vector()
+  grnacombo_idx = which(grnacombo_01 == 1) |> unname()
+  
+  control_cell_idx_noNTtrt = setdiff(control_cell_idx_noNTtrt, grnacombo_idx) # remove these from control cell set
+  
+  AY_data_idx = c(AY_data_idx, grnacombo_idx)
+  A_factor = c(A_factor, rep(A_name, times = length(grnacombo_idx)))
+  
+  rm(grnacombo_vector, grnacombo_01, grnacombo_idx)
+}
+
+# deal with subsampling if requested
+if(is.na(subsample_control_size) | (subsample_control_size >= length(control_cell_idx_noNTtrt))) {
+  selected_control_cells = control_cell_idx_noNTtrt
+} else {
+  selected_control_cells = sample(x=control_cell_idx_noNTtrt, size=subsample_control_size, replace=FALSE)
+}
+
+
+
+
+AY_data_idx = c(AY_data_idx, selected_control_cells)
+A_factor    = c(A_factor, rep('control_cell', times = length(selected_control_cells))) |> factor() |> relevel('control_cell')
+
+A_01 = model.matrix(~ A_ - 1, data = data.frame(A_=A_factor), check.names=FALSE)
+
+df = data.frame(
+  A_01,
+  Y_count     = Y_info$Y_count[AY_data_idx], 
+  Y_norm      = Y_info$Y_norm[AY_data_idx],
+  libsize_log = libsize_log[AY_data_idx], 
+  check.names=FALSE
+)
+
+# add covariates to 
+if(!is.null(covariates)) {
+  covariates = covariates[AY_data_idx, ]
+  colnames(covariates) = paste0('X', 1:ncol(covariates)) # rename columns to avoid potential naming mixups/collisions
+  df = cbind(df, covariates)
+  cov_suffix = paste0(paste0('+', colnames(covariates)), collapse = '') 
+} else {
+  covariates = NULL # set NULL for input for pci2s X
+}
+
+
+# === start over...
+
+
+# map of A_name to the cell indicies that received this perturbation (or combo of perturbations)
+A_map_idx = list()
+for(A_name in A_names) {
+  if(A_name %in% row.names(grna)) {
+    A_map_idx[[A_name]]= which(grna[A_name, ] == 1) |> unname()
+  } else {
+    # needs to be w pattern <name>&<name>... where <name> is a member of grna row.names
+    # parse NT combo name (e.g. 'NT1&NT2')
+    grnacombo_vector = strsplit(A_name, '&')[[1]]
+    
+    grnacombo_01 = colSums(grna[grnacombo_vector, , drop=FALSE]) |> as.vector()
+    grnacombo_idx = which(grnacombo_01 == 1) |> unname()
+    
+    A_map_idx[[A_name]] = grnacombo_idx
+    
+    control_cell_idx_noNTtrt = setdiff(control_cell_idx_noNTtrt, grnacombo_idx) # remove these from control cell set
+    
+    rm(grnacombo_vector, grnacombo_01, grnacombo_idx)
+  }
+}
+
+
+
+
+run_proximal_linear_pca         = TRUE
+run_proximal_negbin_pca         = TRUE
+run_proximal_linear_singlegenes = TRUE
+run_proximal_negbin_singlegenes = TRUE
+
+
+# create a function to estimate per specified treatment 
+inner_estimate_effect <- function(A_name) {
+  # A_name = A_names[1]
+  
+  res = NULL
+  
+  # current used cell idx for this test
+  cur_idx = c(control_cell_idx_noNTtrt, A_map_idx[[A_name]])
+  
+  df = data.frame(
+    A = c(rep(0, times = length(control_cell_idx_noNTtrt)), 
+          rep(1, times = length(A_map_idx[[A_name]]))),
+    Y_count     = Y_info$Y_count[cur_idx], 
+    Y_norm      = Y_info$Y_norm[cur_idx],
+    libsize_log = libsize_log[cur_idx], 
+    check.names=FALSE
+  )
+  
+  # add covariates to 
+  lm_formula     = 'Y_norm ~ A'
+  negbin_formula = 'Y_count ~ A + offset(libsize_log)'
+  if(!is.null(covariates)) {
+    cur_covariates = covariates[cur_idx, ]
+    colnames(cur_covariates) = paste0('X', 1:ncol(cur_covariates)) # rename columns to avoid potential naming mixups/collisions
+    
+    # append to df
+    df = cbind(df, cur_covariates)
+    # append to glm formulas
+    cov_suffix = paste0(paste0('+', colnames(cur_covariates)), collapse = '') 
+    lm_formula     = paste0(    lm_formula, cov_suffix)
+    negbin_formula = paste0(negbin_formula, cov_suffix)
+    rm(cov_suffix)
+  } else {
+    cur_covariates = NULL # set NULL for input for pci2s X
+  }
+  
+  
+  # ===== estimate =====
+  # ===== \__Linear Model Fit =====
+  t0 = Sys.time()
+  lmfit = lm(formula=lm_formula, data = df)
+  lmfit_summary = summary(lmfit)
+  t1 = Sys.time()
+  
+  res = bind_rows(res, 
+                  data.frame(
+                    NC_type     = NA,
+                    method      = 'lm',
+                    method_type = 'glm',
+                    numNC       = NA,
+                    ATE = lmfit_summary$coefficients['A', 'Estimate'],
+                    se  = lmfit_summary$coefficients['A', 'Std. Error'],
+                    tstat= lmfit_summary$coefficients['A', 't value'],
+                    pval= lmfit_summary$coefficients['A', 'Pr(>|t|)'],
+                    time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+  rm(lmfit, lmfit_summary, t1, t0)
+  # return(res)
+  
+  # ===== \__ Negative Binomial Fit  ====
+  t0 = Sys.time()
+  # nbfit = MASS::glm.nb(formula='Y ~ A + offset(libsize_log)', data = df)
+  # nbfit_summary = summary(nbfit)
+  nbfit = tryCatch({  # give negbin results if works
+    MASS::glm.nb(formula=negbin_formula, data = df)
+  },
+  error = function(cond) { # give NA results if errored
+    return(NULL)
+  })
+  t1 = Sys.time()
+  if(is.null(nbfit)) {
+    res = bind_rows(res, 
+                    data.frame(
+                      NC_type     = NA,
+                      method      = 'negbin',
+                      method_type = 'glm',
+                      numNC       = NA,
+                      ATE = NA,
+                      se  = NA,
+                      tstat= NA,
+                      pval= NA,
+                      time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+  } else {
+    nbfit_summary = summary(nbfit)
+    res = bind_rows(res, 
+                    data.frame(
+                      NC_type     = NA,
+                      method      = 'negbin',
+                      method_type = 'glm',
+                      numNC       = NA,
+                      ATE = nbfit_summary$coefficients['A', 'Estimate'],
+                      se  = nbfit_summary$coefficients['A', 'Std. Error'],
+                      tstat= nbfit_summary$coefficients['A', 'z value'],
+                      pval= nbfit_summary$coefficients['A', 'Pr(>|z|)'],
+                      time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+    rm(nbfit_summary)
+  }
+  
+  
+  # res = bind_rows(res, 
+  #                 data.frame(
+  #                   NC_type     = NA,
+  #                   method      = 'negbin',
+  #                   method_type = 'glm',
+  #                   numNC       = NA,
+  #                   ATE = nbfit_summary$coefficients['A', 'Estimate'],
+  #                   se  = nbfit_summary$coefficients['A', 'Std. Error'],
+  #                   tstat= nbfit_summary$coefficients['A', 'z value'],
+  #                   pval= nbfit_summary$coefficients['A', 'Pr(>|z|)'],
+  #                   time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+  rm(nbfit, t1, t0)
+  
+  # ===== \__ Proximal PCA ====
+  # Proximal with PCA loadings
+  dfZ = NCs_pca[cur_idx, seq(from = 2, to = min(2*max(numNCs), ncol(NCs_pca)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
+  dfW = NCs_pca[cur_idx, seq(from = 1, to = min(2*max(numNCs), ncol(NCs_pca)), by = 2)] # odds
+  colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
+  colnames(dfW) = paste0('W', 1:ncol(dfW))
+  for(numNCs_ in numNCs)  {
+    if(run_proximal_linear_pca) {
+      # ===== \__\__Proximal Linear ====
+      t0 = Sys.time()
+      pci2s_res = tryCatch({  # give pci2s results if works
+        pci2s::p2sls.lm(
+          Y = df$Y_norm, 
+          A = df$A, 
+          W = dfZ[,1:numNCs_] |> as.data.frame(), 
+          Z = dfW[,1:numNCs_] |> as.data.frame(), 
+          X = cur_covariates,
+          variance = TRUE)
+      },
+      error = function(cond) { # give NA results if errored
+        return(list(summary_second_stage=
+                      matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
+                             dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
+      })
+      t1 = Sys.time()
+      
+      res = bind_rows(res, 
+                      data.frame(
+                        NC_type     = 'PCA',
+                        method      = 'proximallinear',
+                        method_type = 'proximal',
+                        numNC       = numNCs_,
+                        ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
+                        se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
+                        tstat= pci2s_res$summary_second_stage['A', 'z value'],
+                        pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
+                        time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+      
+      rm(pci2s_res, t0, t1)
+    }
+    
+    # ===== \__\__Proximal Negative Binomial ====
+    if(run_proximal_negbin_pca){   
+      # return(df)
+      t0 = Sys.time()
+      pci2s_res = tryCatch({  # give pci2s results if works
+        pci2s::p2sls.negbin(
+          Y = df$Y_count, 
+          A = df$A, 
+          W = dfZ[,1:numNCs_] |> as.data.frame(), 
+          Z = dfW[,1:numNCs_] |> as.data.frame(), 
+          X = cur_covariates,
+          offset = df$libsize_log,
+          nco_type = rep("linear", numNCs_),
+          # nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}), # No offsets for continuous versions
+          variance = TRUE,
+          verbose = FALSE)
+      },
+      error = function(cond) { # give NA results if errored
+        return(list(summary_second_stage=
+                      matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
+                             dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
+      })
+      t1 = Sys.time()
+      
+      res = bind_rows(res, 
+                      data.frame(
+                        NC_type     = 'PCA',
+                        method      = 'proximalnegbin',
+                        method_type = 'proximal',
+                        numNC       = numNCs_,
+                        ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
+                        se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
+                        tstat= pci2s_res$summary_second_stage['A', 'z value'],
+                        pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
+                        time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+      
+      rm(pci2s_res, t0, t1)
+    }
+    
+  }
+  rm(dfZ, dfW, numNCs_)
+  
+  
+  # ===== \__ Proximal singlegenes ====
+  if(run_proximal_linear_singlegenes | run_proximal_negbin_singlegenes) {
+    if(is.null(Y_validsinglegenes)) {
+      print('Error with prox singlegenes: did not give Y_validsinglegenes input')
+    } else {
+      # print('run_proximal_linear_singlegenes')
+      # ===== \__\__Proximal Linear ====
+      NCs_singlegene = Y_validsinglegenes[sample(nrow(Y_validsinglegenes), 2*max(numNCs)), cur_idx] |> t() |> as.data.frame()
+      dfZ = NCs_singlegene[ , seq(from = 2, to = min(2*max(numNCs), ncol(NCs_singlegene)), by = 2)] # evens which((1:ncol(NCs)) %% 2 == 0)
+      dfW = NCs_singlegene[ , seq(from = 1, to = min(2*max(numNCs), ncol(NCs_singlegene)), by = 2)] # odds
+      colnames(dfZ) = paste0('Z', 1:ncol(dfZ))
+      colnames(dfW) = paste0('W', 1:ncol(dfW))
+      rm(NCs_singlegene)
+      for(numNCs_ in numNCs)  {
+        if(run_proximal_linear_singlegenes) {
+          t0 = Sys.time()
+          pci2s_res = tryCatch({  # give pci2s results if works
+            pci2s::p2sls.lm(
+              Y = df$Y_norm, 
+              A = df$A, 
+              W = dfZ[,1:numNCs_], 
+              Z = dfW[,1:numNCs_], 
+              X = cur_covariates,
+              variance = TRUE)
+          },
+          error = function(cond) { # give NA results if errored
+            return(list(summary_second_stage=
+                          matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
+                                 dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
+          })
+          t1 = Sys.time()
+          
+          res = bind_rows(res, 
+                          data.frame(
+                            NC_type     = 'singlegene',
+                            method      = 'proximallinear',
+                            method_type = 'proximal',
+                            numNC       = numNCs_,
+                            ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
+                            se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
+                            tstat= pci2s_res$summary_second_stage['A', 'z value'],
+                            pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
+                            time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+          
+          rm(pci2s_res, t0, t1)
+        }
+        
+        
+        # ===== \__\__Proximal Negative Binomial ====
+        if(run_proximal_negbin_singlegenes){ 
+          t0 = Sys.time()
+          pci2s_res = tryCatch({  # give pci2s results if works
+            pci2s::p2sls.negbin(
+              Y = df$Y_count, 
+              A = df$A, 
+              W = dfZ[,1:numNCs_] |> as.data.frame(), 
+              Z = dfW[,1:numNCs_] |> as.data.frame(), 
+              X = cur_covariates,
+              offset = df$libsize_log,
+              nco_type = rep("linear", numNCs_),
+              # nco_args = lapply(X = 1:num_NCs, FUN = function(x){list(init=NA, offset=log(df_all$library_size))}), # No offsets for continuous versions
+              variance = TRUE,
+              verbose = FALSE)
+          },
+          error = function(cond) { # give NA results if errored
+            return(list(summary_second_stage=
+                          matrix(c(NA, NA, NA, NA), nrow=1, ncol=4, 
+                                 dimnames = list(c('A'), c('Estimate', 'Std. Error', 'z value', 'Pr(>|z|)')))))
+          })
+          t1 = Sys.time()
+          
+          res = bind_rows(res, 
+                          data.frame(
+                            NC_type     = 'singlegene',
+                            method      = 'proximalnegbin',
+                            method_type = 'proximal',
+                            numNC       = numNCs_,
+                            ATE  = pci2s_res$summary_second_stage['A', 'Estimate'],
+                            se   = pci2s_res$summary_second_stage['A', 'Std. Error'],
+                            tstat= pci2s_res$summary_second_stage['A', 'z value'],
+                            pval = pci2s_res$summary_second_stage['A', 'Pr(>|z|)'],
+                            time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
+          
+          rm(pci2s_res, t0, t1)
+        }
+      }
+      rm(dfZ, dfW, numNCs_)
+    } # end numNCs_
+  }   # end singlegenes
+  
+  
+  # ===== return ==== 
+  res = res |> mutate(grna = A_name, gene = Y_name, 
+                      type = AY |> filter(grna == A_name & gene == Y_name) |> head(1) |> pull(type), 
+                      n_trtmnt = sum(df$A==1), n_cntrl=sum(df$A==0), .before = 1)
+  
+  if(save_intermediateATEs) {
+    write.csv(res, sprintf('%s/ATE_%s.csv', intermediateATEs_folder, which((AY$grna == A_name) & (AY$gene == Y_name))))
+  }
+  return(res)
+}
+
+res_all = NULL
+for(A_name in A_names) {
+  inner_estimate_effect(A_name)
+}
+
+
+res_par = future.apply::future_mapply(inner_estimate_effect,
+                                          A_name = A_names, 
+                                          future.globals = TRUE,
+                                          future.seed = 123456, 
+                                          SIMPLIFY = FALSE)
+
+
+res_df = NULL
+for(i in 1:length(res_par)) { 
+  cur_effects_par = res_par[[i]]
+  if(!is.null(cur_effects_par)) {
+    res_df = dplyr::bind_rows(res_df, cur_effects_par)
+  }
+  rm(cur_effects_par)
+}
+
+return(res_df)
+}
 

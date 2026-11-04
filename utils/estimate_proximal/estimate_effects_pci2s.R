@@ -1,4 +1,15 @@
 
+#' Gather the used NC types from the specified estimator settings
+#' used when subsetting NCs and useful for removing unnecessary NCs
+gather_used_nctypes <- function(estimator_settings) {
+  estimator_settings_nctypes = c() # all the NC_types used in the specified runs, will skip input NCs if none are used
+  for(estimator_name in names(estimator_settings)) {
+    if(estimator_settings[[estimator_name]][['RUN']] && !is.null(estimator_settings[[estimator_name]][['NC_type']])) {
+      estimator_settings_nctypes = c(estimator_settings_nctypes, estimator_settings[[estimator_name]][['NC_type']])
+    }
+  }
+  unique(estimator_settings_nctypes)
+}
 
 
 
@@ -23,7 +34,7 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
   # === Linear/GLM Models   === === === ===
   # === === === === === === === === === ===
 
-  print(sprintf('start estimate_effect_one_estimator: %s', estimator_name))
+  # print(sprintf('start estimate_effect_one_estimator: %s', estimator_name))
 
   # === \__Linear Model: Y ~ A (no confounder adj) ===
   if(estimator_name == 'lmYA') { # if specified and not already done
@@ -33,7 +44,9 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
     t1 = Sys.time()
     
     
-    return(data.frame( method      = 'lmYA',
+    return(data.frame(n_trtmnt = sum(A==1),
+                      n_cntrl  = sum(A==0),
+                      method      = 'lmYA',
                       method_type = 'lm',
                       NC_type     = NA,
                       numNC       = NA,
@@ -59,7 +72,9 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
       lmfit_summary = summary(lmfit)
       t1 = Sys.time()
 
-      return(data.frame(method     = 'lmYAU',
+      return(data.frame(n_trtmnt = sum(A==1),
+                        n_cntrl  = sum(A==0),
+                        method     = 'lmYAU',
                         method_type = 'lm',
                         numNC = NA,
                         estimate    = lmfit_summary$coefficients['A', 'Estimate'],
@@ -88,7 +103,9 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
                         time_sec = difftime(t1, t0, units = 'secs') |> as.numeric()))
     } else {
       nbfit_summary = summary(nbfit)
-      return(data.frame(method      = 'nbYAU',
+      return(data.frame(n_trtmnt = sum(A==1),
+                        n_cntrl  = sum(A==0),
+                        method      = 'nbYAU',
                         method_type = 'nb',
                         NC_type     = NA,
                         numNC       = NA,
@@ -126,6 +143,8 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
     } else {
       nbfit_summary = summary(nbfit)
       return(data.frame(
+              n_trtmnt = sum(A==1),
+              n_cntrl  = sum(A==0),
               method      = 'nbYAX',
               method_type = 'nb',
               NC_type     = NA,
@@ -172,6 +191,8 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
       } else {
         res = dplyr::bind_rows(res, 
                 data.frame(
+                  n_trtmnt = sum(A==1),
+                  n_cntrl  = sum(A==0),
                   method      = 'proximallinear',
                   method_type = 'proximal',
                   NC_type     = estimator_setting$NC_type,
@@ -212,6 +233,8 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
       } else {
         res = dplyr::bind_rows(res, 
                 data.frame(
+                  n_trtmnt = sum(A==1),
+                  n_cntrl  = sum(A==0),
                   method      = 'proximalnegbin',
                   method_type = 'proximal',
                   NC_type     =  estimator_setting$NC_type,
@@ -252,8 +275,9 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
 #' @param NCs (list) of matrix/dataframe of negative controls. The names should match with the names of which_estimators
 estimate_effect_one_test <- function(estimator_settings, Y_norm, Y_count, A, 
                                      X=NULL, NCs=NULL, libsize_log=NULL) { 
-  
-  res = data.frame( method      = character(0),
+  res = data.frame( n_trtmnt = numeric(0),
+                    n_cntrl  = numeric(0),
+                    method      = character(0),
                     method_type = character(0),
                     NC_type  = character(0),
                     numNC    =   numeric(0),
@@ -272,7 +296,7 @@ estimate_effect_one_test <- function(estimator_settings, Y_norm, Y_count, A,
     } 
     
     # check that if method is a proximal method, there must be a NCs list value (to specify how NCs are gathered)
-    if(!is.null(estimator_setting$IS_PROX) && estimator_setting$IS_PROX && !(estimator_name %in% names(NCs))) {
+    if(!is.null(estimator_setting$IS_PROX) && estimator_setting$IS_PROX && !(estimator_setting$NC_type %in% names(NCs))) {
       print(sprintf('%s method must have a given NC', estimator_name))
       next
     }
@@ -287,23 +311,23 @@ estimate_effect_one_test <- function(estimator_settings, Y_norm, Y_count, A,
       print('in estimator_settings, specify the type of Y_TYPE as "count" or "continuous". default to continuous')
       Y = Y_norm
     }
-
+    
     # print('estimate for one estimator')
     # estimate and bind to results
     res = rbind(res, 
-                # tryCatch(
-                #   expr = {    
+                tryCatch(
+                  expr = {    
                     estimate_effect_one_estimator(
                         estimator_name=estimator_name, 
                         estimator_setting=estimator_setting, 
                         Y=Y, 
                         A=A,
                         X=X, 
-                        NC=NCs[[estimator_name]], 
+                        NC=NCs[[estimator_setting$NC_type]],
                         libsize_log=libsize_log)    
-                #   },
-                #   error = function(cond) {    NULL   }
-                # )
+                  },
+                  error = function(cond) {    NULL   }
+                )
     )
 
   }
@@ -363,7 +387,6 @@ estimate_effects_bygene <- function(estimator_settings, AY, NCs,
     Y_pos = AY |> dplyr::filter(type == 'positive') |> pull(gene) |> unique()
     Y_names = c(Y_pos, setdiff(Y_names, Y_pos))
   }
-  # browser()
   # for each Y response, estimate (A1->Y) (A2->Y) ... in parallel
   effects_df = NULL
   for(Y_name in Y_names) {
@@ -374,25 +397,30 @@ estimate_effects_bygene <- function(estimator_settings, AY, NCs,
     } else {
       A_names = AY |> filter(gene == Y_name) |> pull(grna)
       
+
+      used_nctypes = gather_used_nctypes(estimator_settings=estimator_settings)
+
       # update the NCs to matrices if not already (e.g. randomly choose a subset of singelgenes to use as NCs)
       NCs_mat = list()
-      for(estimator_name in names(NCs)) {
-        if(!estimator_name %in% names(estimator_settings)) {  next  }
-        
+      for(estimator_name in names(estimator_settings)) {
         estimator_setting = estimator_settings[[estimator_name]]
-        if(estimator_setting$RUN) {
-          if(estimator_setting$PROVIDES_NC_MATRIX) {
-            # NCs gives already a (cell x #NC) matrix
-            NCs_mat[[estimator_name]] = NCs[[estimator_name]]
-          } else {
-            # NCs gives a vector of potential singlegenes for these (A1, A2, ...) --> Y tests
-            singlegenes_Y = setdiff(NCs[[estimator_name]], Y_name) # randomly sample some singlegenes to be used for these tests (smaller subset in order to reduce the size of objects distributed)
-            NCs_mat[[estimator_name]] = gene_norm[sample(x = singlegenes_Y, 
-                                                          size = min(length(singlegenes_Y), round(2*2*max(estimator_setting$NUM_NCs))), 
-                                                          replace = FALSE),                                  ] |> t()
-          }
+
+        if(!estimator_setting$RUN) {   next   }
+        if(is.null(estimator_setting$NC_type)) {   next   }
+        if(!estimator_setting$NC_type %in% names(NCs)) {   next  } # should be specified, will err
+        if(estimator_setting$NC_type %in% names(NCs_mat)) {   next   } # already subsetted
+
+        if(estimator_setting$PROVIDES_NC_MATRIX) {
+          # NCs gives already a (cell x #NC) matrix
+          NCs_mat[[estimator_setting$NC_type]] = NCs[[estimator_setting$NC_type]]
+        } else {
+          # NCs gives a vector of potential singlegenes for these (A1, A2, ...) --> Y tests
+          singlegenes_Y = setdiff(NCs[[estimator_setting$NC_type]], Y_name) # randomly sample some singlegenes to be used for these tests (smaller subset in order to reduce the size of objects distributed)
+          NCs_mat[[estimator_setting$NC_type]] = gene_norm[sample(x = singlegenes_Y, 
+                                                        size = min(length(singlegenes_Y), round(2*2*max(estimator_setting$NUM_NCs))), 
+                                                        replace = FALSE),                                  ] |> t()
         }
-      }
+      }      
 
       # estimate_bygene_Y_name <- function(A_name) {
       #   estimate_bygene(A_name,
@@ -447,7 +475,6 @@ estimate_effects_bygene <- function(estimator_settings, AY, NCs,
       # print('gather par results')
       # gather parallel results into a dataframe
       res_df = NULL
-      print(names(res_par))
       for(i in 1:length(res_par)) { 
         cur_effects_par = res_par[[i]]
         if(!is.null(cur_effects_par)) {
@@ -455,7 +482,6 @@ estimate_effects_bygene <- function(estimator_settings, AY, NCs,
         }
         rm(cur_effects_par)
       }
-      print(res_df)
       
       if(save_intermediateATEs && !is.null(intermediateATEs_folder)) {
         write.csv(res_df, sprintf('%s/%s', intermediateATEs_folder, intermediateATE_fn), row.names=FALSE)
@@ -488,31 +514,28 @@ estimate_effects_bygene_helper <- function(A_name, grna, Y_norm, Y_count,
       
       A10 = c(rep(1, times = length(AY_data_idx_list[['trt_idx'  ]])),
               rep(0, times = length(AY_data_idx_list[['untrt_idx']])))
+
       # subset within the NCs: e.g. subset for the relevant idx
       # current used cell idx for this test
-      NCs_mat_AY = list() # subset just the relevant info for this test
-      for(estimator_name in names(NCs_mat)) {
-        print(estimator_name)
-        # if(estimator_name == 'singlegene') {
-        #   print(NCs_mat[[estimator_name]])
-        #   print(dim(NCs_mat[[estimator_name]]))
-        # }
+      NCs_mat_AY = list()
+      for(estimator_name in names(estimator_settings)) {
         estimator_setting = estimator_settings[[estimator_name]]
+
+        if(!estimator_setting$RUN) {   next   }
+        if(is.null(estimator_setting$NC_type)) {   next   }
+        if(!estimator_setting$NC_type %in% names(NCs)) {   next  } # should be specified and given in NCs if a prox method, will err
+        if(estimator_setting$NC_type %in% names(NCs_mat_AY)) {   next   } # already subsetted
+        
         # all should be matrices now. The outside call should have sampled for a smaller subset of valid single genes 
         # (reduce size of objects spread to different threads)
-        if(estimator_setting$RUN) {
-          print(ncol(NCs_mat[[estimator_name]]))
-          if(!is.null(estimator_setting$NC_RANDOMIZEORDER) && estimator_setting$NC_RANDOMIZEORDER) { # randomize the given NC order (good for singlegenes)
-            NCs_mat_AY[[estimator_name]] = NCs_mat[[estimator_name]][AY_data_idx, sample(ncol(NCs_mat[[estimator_name]]), size=2*max(estimator_setting$NUM_NCs))]
-          } else {
-            NCs_mat_AY[[estimator_name]] = NCs_mat[[estimator_name]][AY_data_idx, ]
-          }
-        }
-      }
-      # print('estimate one test')
-      # browser()
+        if(!is.null(estimator_setting$NC_RANDOMIZEORDER) && estimator_setting$NC_RANDOMIZEORDER) { # randomize the given NC order (good for singlegenes)
+          NCs_mat_AY[[estimator_setting$NC_type]] = NCs_mat[[estimator_setting$NC_type]][AY_data_idx, sample(ncol(NCs_mat[[estimator_setting$NC_type]]), size=2*max(estimator_setting$NUM_NCs))]
+        } else {
+          NCs_mat_AY[[estimator_setting$NC_type]] = NCs_mat[[estimator_setting$NC_type]][AY_data_idx, ]
+        }        
+      } 
       
-      Y_norm_AY = if(is.null( Y_norm)) NULL else  Y_norm[AY_data_idx]
+      Y_norm_AY  = if(is.null( Y_norm)) NULL else  Y_norm[AY_data_idx]
       Y_count_AY = if(is.null(Y_count)) NULL else Y_count[AY_data_idx]
 
 
@@ -541,7 +564,6 @@ estimate_effects_bygene_helper <- function(A_name, grna, Y_norm, Y_count,
       #   },
       #   error = function(cond) {  return(NULL)  }
       # )
-      print(res)
       return(res)
     },
     error = function(cond) { return(NULL) }
@@ -627,34 +649,40 @@ estimate_effects_byAY_helper <- function(AY_idx,
   A10 = c(rep(1, times = length(AY_data_idx_list[['trt_idx'  ]])),
           rep(0, times = length(AY_data_idx_list[['untrt_idx']])))
   
-  # subset within the NCs: e.g. subset for the relevant idx 
+  
+  # subset within the NCs: e.g. subset for the relevant idx
   # current used cell idx for this test
-  NCs_mat_AY = list() # subset just the relevant info for this test
-  for(estimator_name in names(NCs)) {
-    if(!estimator_name %in% names(estimator_settings)) {  next  }
-        
+  NCs_mat_AY = list()
+  for(estimator_name in names(estimator_settings)) {
     estimator_setting = estimator_settings[[estimator_name]]
-    if(!estimator_setting$RUN) {   next    }
+    
+    if(!estimator_setting$RUN) {   next   }
+    if(is.null(estimator_setting$NC_type)) {   next   }
+    if(!estimator_setting$NC_type %in% names(NCs)) {   next  } # should be specified and given in NCs if a prox method, will err
+    if(estimator_setting$NC_type %in% names(NCs_mat_AY)) {   next   } # already subsetted
 
-    if(!is.null(estimator_setting) && estimator_setting$PROVIDES_NC_MATRIX) {
-      cur_NC_mat = NCs[[estimator_name]][AY_data_idx, ]
-      if(estimator_setting$NC_RANDOMIZEORDER) {
+
+    if(!is.null(estimator_setting$PROVIDES_NC_MATRIX) && estimator_setting$PROVIDES_NC_MATRIX) {
+      cur_NC_mat = NCs[[estimator_setting$NC_type]][AY_data_idx, ]
+      if(!is.null(estimator_setting$NC_RANDOMIZEORDER) && estimator_setting$NC_RANDOMIZEORDER) {
         cur_NC_mat = cur_NC_mat[, sample(ncol(cur_NC_mat), size=min(ncol(cur_NC_mat), 2*max(estimator_setting$NUM_NCs)))]
       }   
+      NCs_mat_AY[[estimator_setting$NC_type]] = cur_NC_mat[, 1:min(ncol(cur_NC_mat), 2*max(estimator_setting$NUM_NCs))]
+      rm(cur_NC_mat)
     } else {
       # NCs gives a vector of potential singlegenes for these (A1, A2, ...) --> Y tests
-      chosen_NCgenes = setdiff(NCs[[estimator_name]], Y_name) # randomly sample some singlegenes to be used for these tests (smaller subset in order to reduce the size of objects distributed)
-      if(estimator_setting$NC_RANDOMIZEORDER) { # randomly take necessary NCs
+      chosen_NCgenes = setdiff(NCs[[estimator_setting$NC_type]], Y_name) # randomly sample some singlegenes to be used for these tests (smaller subset in order to reduce the size of objects distributed)
+      if(!is.null(estimator_setting$NC_RANDOMIZEORDER) && estimator_setting$NC_RANDOMIZEORDER) { # randomly take necessary NCs
         chosen_NCgenes = sample(x = chosen_NCgenes, size = min(length(chosen_NCgenes), 2*max(estimator_setting$NUM_NCs)))
       } else {  # choose first few NCs
         chosen_NCgenes = chosen_NCgenes[1:min(length(chosen_NCgenes), 2*max(estimator_setting$NUM_NCs))]
       }      
-      NCs_mat_AY[[estimator_name]] = gene_norm[chosen_NCgenes, ] |> t() 
-    }
-    NCs_mat_AY[[estimator_name]] = cur_NC_mat
+      NCs_mat_AY[[estimator_setting$NC_type]] = gene_norm[chosen_NCgenes, AY_data_idx] |> t() 
+      rm(chosen_NCgenes)
+    }      
   }
-
-
+  
+  
   res = tryCatch(
     expr = {
       estimate_effect_one_test(
@@ -662,7 +690,7 @@ estimate_effects_byAY_helper <- function(AY_idx,
           Y_norm  = if(is.null(gene_norm  )) NULL else   gene_norm[Y_name, AY_data_idx], 
           Y_count = if(is.null(gene_counts)) NULL else gene_counts[Y_name, AY_data_idx],
           A       = A10, 
-          X       = if(is.null(X)) NULL else X[AY_data_idx, ],
+          X       = if(is.null(covariates)) NULL else covariates[AY_data_idx, ],
           NCs     = if(length(NCs_mat_AY) == 0) NULL else NCs_mat_AY, 
           libsize_log=if(is.null(libsize_log)) NULL else libsize_log[AY_data_idx]
         )

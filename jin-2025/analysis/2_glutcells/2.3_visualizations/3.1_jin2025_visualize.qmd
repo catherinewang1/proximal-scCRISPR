@@ -17,7 +17,7 @@ execute:
 
 ```{r setup}
 # knitr::opts_knit$set(root.dir = '../') # set working dir 1 folder out
-knitr::opts_knit$set(root.dir = "/Users/catherinewang/Documents/School/proximal-scCRISPR-github/jin-2025/analysis/2_glutcells/")
+knitr::opts_knit$set(root.dir = "/Users/catherinewang/Documents/School/proximal-scCRISPR-github/jin-2025/analysis/3_L45glutcells/")
 
 ```
 
@@ -47,7 +47,7 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(cowplot))
 suppressPackageStartupMessages(library(ggh4x))
-
+suppressPackageStartupMessages(library(latex2exp))
 
 theme_set(theme_cowplot() +
             theme(plot.title = element_text(hjust = .5),
@@ -60,13 +60,14 @@ theme_set(theme_cowplot() +
 # === === === === === === === === === === === === === === === === === === === === === === === === === 
 # parameters
 DEVICE                = 'macbook'
-AYZW_setting_name     = 'mediumNB'
+# AYZW_setting_name     = 'denseSmall'
+AYZW_setting_name     = 'small2'
 
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
-save_dir = paste0(save_dir, "/2_glutcells")
+save_dir = paste0(save_dir, "/3_L45glutcells")
 # --- Folder ---
 plot_dir = sprintf('%s/AY/%s/plots/', save_dir, AYZW_setting_name)
-dir.create(plot_dir, showWarnings = FALSE, recursive=TRUE)
+dir.create(plot_dir, showWarnings = FALSE, recursive=FALSE)
 
 # === === === === === === === === === === === === === === === === === === === === === === === === === 
 
@@ -77,37 +78,46 @@ dir.create(plot_dir, showWarnings = FALSE, recursive=TRUE)
 numNCs = c(1, 3, 5, 8, 10, 15)
 
 
-method_long_order = c('lmNANA', 'negbinNANA', 
+method_long_order = c('lmYANANA', 'nbYAUNANA', 
                       'deseq2NANA',
                       'causarrayNANA',
-                      paste0('proximallinear',        'PCA', numNCs), 
-                      paste0('proximallinear', 'singlegene', numNCs),
-                      paste0('proximalnegbin',        'PCA', numNCs), 
-                      paste0('proximalnegbin', 'singlegene', numNCs))
+                      paste0('proximallinear',           'PCA_UntrtCells', numNCs), 
+                      paste0('proximallinear',             'PCA_MixCells', numNCs), 
+                      paste0('proximallinear',               'singlegene', numNCs),
+                      paste0('proximallinear',  'singlegene_housekeeping', numNCs),
+                      paste0('proximalnegbin',           'PCA_UntrtCells', numNCs),
+                      paste0('proximalnegbin',             'PCA_MixCells', numNCs), 
+                      paste0('proximalnegbin',               'singlegene', numNCs),
+                      paste0('proximalnegbin',  'singlegene_housekeeping', numNCs))
 method_long_nicenames = c("Lin Reg", "Neg Bin", 
                           'deseq2', 
                       'causarray',
-                      paste0('Prox Lin: PCA (#NC=',           numNCs, ')'), 
+                      paste0('Prox Lin: PCA cntrl cells (#NC=',           numNCs, ')'), 
+                      paste0('Prox Lin: PCA mix cells (#NC=',           numNCs, ')'),
                       paste0('Prox Lin: singlegene (#NC=',    numNCs, ')'),
-                      paste0('Prox NegBin: PCA (#NC=',        numNCs, ')'), 
-                      paste0('Prox NegBin: singlegene (#NC=', numNCs, ')')
+                      paste0('Prox Lin: singlegene houskeeping (#NC=',    numNCs, ')'),
+                      paste0('Prox NegBin: PCA cntrl cells (#NC=',        numNCs, ')'), 
+                      paste0('Prox NegBin: PCA mix cells (#NC=',        numNCs, ')'), 
+                      paste0('Prox NegBin: singlegene (#NC=', numNCs, ')'),
+                      paste0('Prox NegBin: singlegene housekeeping (#NC=', numNCs, ')')
                       )
-method_long_colors = c('red3','darkorange1','pink', 'chartreuse1',
-                       colorRampPalette(c('white', 'aquamarine4'))(length(numNCs) + 2)[3:(length(numNCs)+2)], 
-                       colorRampPalette(c('white', 'dodgerblue4'))(length(numNCs) + 2)[3:(length(numNCs)+2)],
-                       colorRampPalette(c('white', 'maroon3'))(length(numNCs) + 2)[3:(length(numNCs)+2)], 
-                       colorRampPalette(c('white', 'darkorchid4'))(length(numNCs) + 2)[3:(length(numNCs)+2)])
+method_long_colors = c('red3','darkorange1','pink', 'chartreuse1', # lm, nb, deseq2, causarray
+                       # proximallinear
+                       colorRampPalette(c('white', 'aquamarine4'))(length(numNCs) + 2)[3:(length(numNCs)+2)], # PCA cntrl cells
+                       colorRampPalette(c('white', 'darkseagreen3'))(length(numNCs) + 2)[3:(length(numNCs)+2)], # PCA mix cells cells
+                       colorRampPalette(c('white', 'dodgerblue4'))(length(numNCs) + 2)[3:(length(numNCs)+2)], # singlegene
+                       colorRampPalette(c('white', 'steelblue4'))(length(numNCs) + 2)[3:(length(numNCs)+2)], # singlegene houskeeping
+                       # proximalnegbin
+                       colorRampPalette(c('white', 'maroon3'))(length(numNCs) + 2)[3:(length(numNCs)+2)],     # PCA cntrl cells
+                       colorRampPalette(c('white', 'deeppink2'))(length(numNCs) + 2)[3:(length(numNCs)+2)],     # PCA mix cells cells
+                       colorRampPalette(c('white', 'darkorchid4'))(length(numNCs) + 2)[3:(length(numNCs)+2)], # singlegene
+                       colorRampPalette(c('white', 'purple2'))(length(numNCs) + 2)[3:(length(numNCs)+2)] # singlegene houskeeping
+                       )
 names(method_long_colors) = method_long_nicenames
 
 
 
-get_AY_test_type <- function(isEqual) {
-  if(isEqual) {
-    return('positive')
-  } else {
-    return('discovery')
-  }
-}
+
 
 
 get_AY_test_type2 <- function(grna_name, gene_name) {
@@ -127,9 +137,19 @@ AY   = read.csv(sprintf('%s/AY/%s/AY.csv', save_dir, AYZW_setting_name))
 # load proximal
 # ========================================================================================================================================================================
 
+if('effects.csv' %in% list.files(sprintf('%s/AY/%s/', save_dir, AYZW_setting_name))) {
+  effects_prox = read.csv(sprintf('%s/AY/%s/effects.csv', save_dir, AYZW_setting_name))
+} else {
+  # assemble together if not done yet
+  intermediateATEs_folder = sprintf('%s/AY/%s/intermediateATEs/', save_dir, AYZW_setting_name)
+  effects_prox = NULL
+  for(fn in list.files(intermediateATEs_folder)) {
+    effects_prox = rbind(effects_prox, read.csv(sprintf('%s/%s', intermediateATEs_folder, fn)))
+  }
+  # update AY to only these finished
+  AY = merge(AY, effects_prox |> select(grna, gene) |> distinct())
+}
 
-effects_prox = read.csv(sprintf('%s/AY/%s/effects.csv', save_dir, AYZW_setting_name))
-# effects_prox[effects_prox$method == '2SLSpci2s', 'method'] = 'proximal' # replace 2SLSpci2s with proximal
 
 
 # # assemble together if not done yet
@@ -143,10 +163,14 @@ effects_prox = read.csv(sprintf('%s/AY/%s/effects.csv', save_dir, AYZW_setting_n
 #                        read.csv(sprintf('%s/AY/%s/intermediateATEs/%s', save_dir, AYZW_setting_name, fn)))
 # }
 
-
+effects_prox = merge(effects_prox, AY, all.x=TRUE) 
+effects_prox = effects_prox |> dplyr::relocate(type, .after='gene')
 
 max_prox_n_trtmnt =  effects_prox |> filter(type == 'positive') |> pull(n_trtmnt) |> max()
 min_prox_n_trtmnt =  effects_prox |> filter(type == 'positive') |> pull(n_trtmnt) |> min()
+
+
+
 
 # load causarray
 # ========================================================================================================================================================================
@@ -154,11 +178,11 @@ INCLUDE_CAUSARRAY = TRUE
 if(INCLUDE_CAUSARRAY) {
   # read in the previously formatted relevant rows when creating the AY pairs (2.3_xxx.r)
   # effects_causarray = read.csv(sprintf('%s/causarray/LFC.csv', save_dir)) 
-  effects_causarray = read.csv(sprintf('%s/causarray/jin2025_glut/min_counts40/lfc.csv', save_dir)) 
+  effects_causarray = read.csv(sprintf('%s/causarray/jin2025_L45Glut/min_counts40/lfc.csv', save_dir)) 
   
   effects_causarray = effects_causarray |>
-    dplyr::rename(pval = pvalue, ATE = log2fc, se = log2fc_se, gene = gene_names, grna=trt, n_trtmnt=n_treated, n_cntrl=n_control) |>
-    dplyr::select(grna, gene, ATE, se, pval, padj, rej, n_trtmnt, n_cntrl, count_treated, count_control) |> 
+    dplyr::rename(pval = pvalue, estimate = log2fc, se = log2fc_se, gene = gene_names, grna=trt, n_trtmnt=n_treated, n_cntrl=n_control) |>
+    dplyr::select(grna, gene, estimate, se, pval, padj, rej, n_trtmnt, n_cntrl, count_treated, count_control) |> 
     dplyr::mutate(time_sec = NA, NC_type = NA,
                   numNC = NA, method='causarray'
                   )
@@ -193,8 +217,8 @@ if(INCLUDE_DESEQ2) {
   effects_deseq = read.csv(sprintf('%s/deseq2/deseq_effects.csv', save_dir)) 
 
   effects_deseq = effects_deseq |>
-    dplyr::rename(pval = pvalue, ATE = log2FoldChange, se = lfcSE) |>
-    dplyr::select(grna, gene, ATE, se, pval) |> 
+    dplyr::rename(pval = pvalue, estimate = log2FoldChange, se = lfcSE) |>
+    dplyr::select(grna, gene, estimate, se, pval) |> 
     dplyr::mutate(time_sec = NA, NC_type = NA,
                   numNC = NA, method='deseq2'
                   )
@@ -232,7 +256,9 @@ effects$type = factor(effects$type,
 
 
 # remove tests with too many trtmnt cells? (for nulls?)
-effects = effects |> filter(is.na(n_trtmnt) | ((n_trtmnt <= max_prox_n_trtmnt*1.05) & (n_trtmnt >= min_prox_n_trtmnt*.95)) )
+# effects = effects |> filter(is.na(n_trtmnt) | ((n_trtmnt <= max_prox_n_trtmnt*1.05) & (n_trtmnt >= min_prox_n_trtmnt*.95)) )
+
+effects = effects |> filter(!is.na(pval))
 
 
 ```
@@ -244,17 +270,12 @@ max_prox_n_trtmnt*1.05
 min_prox_n_trtmnt*.95
 ```
 
-```{r}
-max_prox_n_trtmnt
-min_prox_n_trtmnt
-```
-
 
 
 
 
 ```{r include=FALSE, eval=FALSE, echo=FALSE}
-
+effects |> filter(method == 'proximallinear' & type == 'Null') 
 # # count the number of tests that succeeded
 # effects |> group_by(method, type, NC_type, numNC) |> summarize(count = n(), .groups = 'drop') |> tidyr::pivot_wider(names_from = type, values_from = count)
 # effects
@@ -267,6 +288,7 @@ effects |> filter(method == 'lm') |> group_by(grna, gene) |> summarize(count = n
 
 effects_prox |> filter(type == 'positive') |> select(grna, gene) |> distinct() # should have 29 tests
 
+ggplot(effects_prox |> select(gene, grna, type, n_trtmnt) |> distinct(), aes(x = n_trtmnt, fill = type)) + geom_histogram() + labs(title = 'Treatment Sample Size by Test Type', x = 'treatment sample size')
 ```
 
 
@@ -282,7 +304,7 @@ Histogram of estimates
 plot_df = effects
 
 p = ggplot(plot_df,
-       aes(x = ATE, fill = method_long)) +
+       aes(x = estimate, fill = method_long)) +
   geom_histogram(aes(y = after_stat(..density..)), binwidth = .05) + # bins = 50) +
   geom_vline(aes(xintercept = 0), color = 'gray15', linewidth = .4) +
   coord_cartesian(xlim = c(-2, 1), ylim = c(0, 3)) +
@@ -389,7 +411,7 @@ ggsave(sprintf('%s/pval_hist_wide2.pdf', plot_dir), height = 4, width= 13)
 
 ```{r fig.width=20, fig.height = 4}
 # subset for only a few numNCs + Nulls with n_trtmnt closer to controls
-p = ggplot(plot_df |> filter(is.na(numNC) | numNC %in% c(8)) |> filter(n_trtmnt <= 1000),
+p = ggplot(plot_df |> filter(is.na(numNC) | numNC %in% c(5)) |> filter(n_trtmnt <= 1000),
        aes(x = pval, fill = method_long)) +
   geom_histogram(aes(y = after_stat(..density..)), binwidth = .020) + # bins = 50) +
   scale_x_continuous(limits = c(-.05, 1.05), breaks = c(0, .25, .5, .75, 1), labels = c('0', '.25', '.5', '.75', '1'), 
@@ -652,10 +674,13 @@ prefix_ggsave = '1numNC'
 # the 'rejection_rate' column is also the 'theoretical' for the uniform (1/n, 2/n, ..., n/n)
 plot_df = effects |> 
           filter(is.na(numNC) | 
-                 (NC_type == 'PCA'        & numNC == 8) |
-                 (NC_type == 'singlegene' & numNC == 8) ) |>
+                 (NC_type == 'PCA'          & numNC == 3) |
+                 (NC_type == 'PCA_mixcells' & numNC == 3) |
+                 (NC_type == 'singlegene'   & numNC == 3) ) |>
           group_by(type, method_long) |> 
-          reframe(pval=sort(pval), count=sum(!is.na(pval)), rejection_rate = (1:count)/count) 
+          reframe(pval=sort(pval), # count = length(pval),
+                  count=sum(!is.na(pval)),
+                 rejection_rate = (1:count)/count) 
   
 #----- p-values: qqplot vs uniform = rejection rate by pval threshold (all numNC)  ---------- 'pval_qqplot.pdf'
 p1 = ggplot(plot_df,
@@ -827,20 +852,32 @@ make_qqplots <- function(prox_name, NC_type_) {
 ## Proximal Linear with PCA 
 
 ```{r fig.height=3, fig.width=7}
-make_qqplots(prox_name = 'proximallinear', NC_type_ = 'PCA')
+make_qqplots(prox_name = 'proximallinear', NC_type_ = 'PCA_UntrtCells')
 ```
 
+## Proximal Linear with PCA from mixture of cells
 
+```{r fig.height=3, fig.width=7}
+make_qqplots(prox_name = 'proximallinear', NC_type_ = 'PCA_MixCells')
+```
 
 ## Proximal Linear with singlegene 
 
 ```{r fig.height=3, fig.width=7}
 make_qqplots(prox_name = 'proximallinear', NC_type_ = 'singlegene')
 ```
+
+
+```{r fig.height=3, fig.width=7}
+make_qqplots(prox_name = 'proximallinear', NC_type_ = 'singlegene_housekeeping')
+```
+
+
+
 ## Proximal Neg Bin with PCA 
 
 ```{r fig.height=3, fig.width=7}
-make_qqplots(prox_name = 'proximalnegbin', NC_type_ = 'PCA')
+make_qqplots(prox_name = 'proximalnegbin', NC_type_ = 'PCA_MixCells')
 ```
 
 
@@ -884,7 +921,7 @@ plot_df = effects |> filter(grna %in% strong_grnas) |>  mutate(grna = factor(grn
           filter(type == 'Discovery') |> mutate(is_sig_05 = as.integer(pval < .05))
 
 
-grna_label_pval = 
+
 # number of discoveries BEFORE multiple testing! (e.g. how many tests <.05)
 plot_df = plot_df |> group_by(method_long, grna) |> summarize(num_tests = n(), 
                                                   num_sig = sum(is_sig_05, na.rm = TRUE), 
@@ -919,12 +956,19 @@ ggplot(plot_df, aes(x = grna, y = num_sig, fill = method_long)) +
 
 ```{r}
 
-plot_df = effects |> filter(method == 'proximallinear' & NC_type == 'PCA' & numNC == 8)
-
+# plot_df = effects |> filter(method == 'proximallinear' & NC_type == 'PCA_MixCells' & numNC == 10)
+plot_df = effects |> filter(method == 'proximallinear' & NC_type == 'singlegene' & numNC == 5)
 
 ggplot(plot_df, aes(x = n_trtmnt)) +
   geom_histogram() +
-  facet_grid(cols = vars(type), scales = 'free')
+  facet_grid(cols = vars(type), scales = 'free') + 
+  labs(title = 'treatment sample size')
+
+
+ggplot(plot_df, aes(x = pval)) +
+  geom_histogram() +
+  facet_grid(cols = vars(type), scales = 'free') + 
+  labs(title = 'pval')
 
 ```
 
@@ -981,15 +1025,24 @@ make_qqplots('causarray', NA)
 
 
 
-# Compare Estiamtes for Proximal Estimators
+# Compare Estimates for Proximal Estimators
 ```{r fig.height=8, fig.width=12}
-plot_df = effects |> filter(method == 'proximallinear') |> select(grna, gene, type, NC_type, numNC, ATE) |> 
-          reshape2::dcast(type + grna + gene + numNC ~ NC_type, value.var = 'ATE', fun.aggregate = mean)
+plot_df = effects |> filter(method == 'proximallinear') |> select(grna, gene, type, NC_type, numNC, estimate) |> 
+          reshape2::dcast(type + grna + gene + numNC ~ NC_type, value.var = 'estimate', fun.aggregate = mean)
 
 
-ggplot(plot_df, aes(x = PCA, y = singlegene)) + 
+ggplot(plot_df, aes(x = PCA_UntrtCells, y = singlegene)) + 
   geom_abline(aes(slope=1, intercept=0)) +
   geom_point(alpha=.7) +
+  coord_cartesian(xlim = c(-1, 1), ylim = c(-1, 1)) +
+  labs(title = 'Est PCA vs singlegene') +
+  facet_grid(cols = vars(numNC), rows = vars(type))
+
+ggplot(plot_df, aes(x = PCA_MixCells, y = singlegene)) + 
+  geom_abline(aes(slope=1, intercept=0)) +
+  geom_point(alpha=.7) +
+  coord_cartesian(xlim = c(-1, 1), ylim = c(-1, 1)) +
+  labs(title = 'Est PCA_mixcells vs singlegene') +
   facet_grid(cols = vars(numNC), rows = vars(type))
 ```
 
@@ -997,11 +1050,17 @@ ggplot(plot_df, aes(x = PCA, y = singlegene)) +
 
 
 ```{r fig.height=8, fig.width=12}
-plot_df = effects |> filter(method %in% c('proximallinear', 'proximalnegbin')) |> select(method, grna, gene, type, NC_type, numNC, ATE) |> 
-          reshape2::dcast(method + type + grna + gene + numNC ~ NC_type, value.var = 'ATE', fun.aggregate = mean)
+plot_df = effects |> filter(method %in% c('proximallinear', 'proximalnegbin')) |> select(method, grna, gene, type, NC_type, numNC, estimate) |> 
+          reshape2::dcast(method + type + grna + gene + numNC ~ NC_type, value.var = 'estimate', fun.aggregate = mean)
 
 
-ggplot(plot_df, aes(x = PCA, y = singlegene)) + 
+ggplot(plot_df, aes(x = PCA_UntrtCells, y = singlegene)) + 
+  geom_abline(aes(slope=1, intercept=0)) +
+  geom_point(alpha=.7) +
+  geom_smooth(method='lm') +
+  facet_grid(cols = vars(numNC), rows = vars(method, type), scales = 'free')
+
+ggplot(plot_df, aes(x = PCA_MixCells, y = PCA_UntrtCells)) + 
   geom_abline(aes(slope=1, intercept=0)) +
   geom_point(alpha=.7) +
   geom_smooth(method='lm') +
@@ -1022,37 +1081,42 @@ effects |> filter(method %in% c('proximallinear', 'proximalnegbin')) |>
 ```
 
 
-
+ggplot(plot_df, aes(x = paste0(numNC, ' ', NC_type), y = se)) +
+  geom_point(aes(color = NC_type), position = position_jitter(width=.3, height=0, seed=1234), alpha=.3, size=1.5, stroke = NA) +
+  # geom_violin(aes(group = factor(numNC))) +
+  geom_boxplot(aes(group = paste0(numNC, ' ', NC_type)), alpha = .3, linewidth = 1, color = 'black', outlier.stroke = NA, outlier.alpha = .8) +
+  coord_cartesian(ylim = c(0, 100)) +
+  # scale_x_continuous(breaks = numNCs) +
+  labs(title = 'Standard Errors for Proximal Linear Method across #Negative Controls', 
+       x = 'Number of Negative Control Pairs + NC Type', y = 'Standard Error') + 
+  theme(axis.text.x = element_text(angle = 45, hjust =1))
 ## Linear Proximal
 
 
 ```{r fig.height=5, fig.width=10}
 plot_df = effects |> filter(method == 'proximallinear') 
 
-ggplot(plot_df, aes(x = numNC, y = se)) +
-  geom_point(position = position_jitter(width=.5, height=0, seed=1234), alpha=.3, size=1.5, stroke = NA, color = 'royalblue2') +
+p = ggplot(plot_df, aes(x = paste0(numNC, ' : ', NC_type), y = se)) +
+  geom_point(aes(color = NC_type), 
+             position = position_jitter(width=.5, height=0, seed=1234), alpha=.3, size=1.5, stroke = NA) +
   # geom_violin(aes(group = factor(numNC))) +
-  geom_boxplot(aes(group = factor(numNC)), alpha = .3, linewidth = 1, color = 'black', outlier.stroke = NA, outlier.alpha = .8) +
-  coord_cartesian(ylim = c(0, .2)) +
-  scale_x_continuous(breaks = numNCs) +
+  geom_boxplot(aes(group = paste0(numNC, ' : ', NC_type)),
+               alpha = .3, linewidth = 1, color = 'black', outlier.stroke = NA, outlier.alpha = .8) +
+  # coord_cartesian(ylim = c(0, 100)) +
   labs(title = 'Standard Errors for Proximal Linear Method across #Negative Controls', 
-       x = 'Number of Negative Control Pairs', y = 'Standard Error') + 
-  facet_grid(rows = vars(NC_type))
+       x = '#NC Pairs : NC Type', y = 'Standard Error') +
+  theme(axis.text.x = element_text(angle = 45, hjust =1))
+
+p + coord_cartesian(ylim = c(0, 50)) + labs(subtitle = 'y-axis: cut off limits')
+p + coord_cartesian(ylim = c(0, .4)) + labs(subtitle = 'y-axis: cut off limits')
+p + scale_y_log10(expand=c(0,0)) + labs(subtitle = 'y-axis: log scale')
+
+
 ```
 
 
 
-```{r fig.height=10, fig.width=10}
-plot_df = effects |> filter(method == 'proximallinear') 
 
-ggplot(plot_df, aes(x = numNC, y = se)) +
-  geom_point(position = position_jitter(width=.5, height=0, seed=1234), alpha=.3, size=1.5, stroke = NA, color = 'royalblue2') +
-  # geom_violin(aes(group = factor(numNC))) +
-  geom_boxplot(aes(group = factor(numNC)), alpha = .3, linewidth = 1, color = 'black', outlier.stroke = NA, outlier.alpha = .8) +
-  coord_cartesian(ylim = c(0, .2)) +
-  scale_x_continuous(breaks = numNCs) +
-  facet_grid(rows = vars(NC_type, type))
-```
 
 
 ```{r}
@@ -1060,7 +1124,7 @@ ggplot(plot_df, aes(x = paste0(numNC, ' ', type), y = se)) +
   geom_point(aes(color = type), position = position_jitter(width=.5, height=0, seed=1234), alpha=.3, size=1.5, stroke = NA) +
   # geom_violin(aes(group = factor(numNC))) +
   geom_boxplot(aes(group = factor(paste0(numNC, type))), alpha = .3, linewidth = 1, color = 'black', outlier.stroke = NA, outlier.alpha = .8) +
-  coord_cartesian(ylim = c(0, .2)) +
+  coord_cartesian(ylim = c(0, 20)) +
   # scale_x_continuous(breaks = numNCs) +
   facet_grid(rows = vars(NC_type)) +
   theme(axis.text.x = element_text(angle = 45, hjust =1))
@@ -1073,7 +1137,7 @@ ggplot(plot_df, aes(x = paste0(numNC, ' ', NC_type), y = se)) +
   geom_point(aes(color = NC_type), position = position_jitter(width=.3, height=0, seed=1234), alpha=.3, size=1.5, stroke = NA) +
   # geom_violin(aes(group = factor(numNC))) +
   geom_boxplot(aes(group = paste0(numNC, ' ', NC_type)), alpha = .3, linewidth = 1, color = 'black', outlier.stroke = NA, outlier.alpha = .8) +
-  coord_cartesian(ylim = c(0, .2)) +
+  coord_cartesian(ylim = c(0, 100)) +
   # scale_x_continuous(breaks = numNCs) +
   labs(title = 'Standard Errors for Proximal Linear Method across #Negative Controls', 
        x = 'Number of Negative Control Pairs + NC Type', y = 'Standard Error') + 
@@ -1082,13 +1146,34 @@ ggplot(plot_df, aes(x = paste0(numNC, ' ', NC_type), y = se)) +
 
 
 
-```{r}
-head(AY)
+```{r fig.width=15, fig.height=4}
+# plot_df = effects |> filter(NC_type == 'PCA')
+# plot_df = effects |> filter(NC_type == 'PCA_MixCells')
+plot_df = effects |> filter(NC_type == 'singlegene')
 
-AY[c(375, 391), ]
+ggplot(plot_df, aes(x = estimate, y = se)) +
+  geom_point() +
+  # geom_histogram(binwidth = 1) +
+  coord_cartesian(xlim = c(0, 1), ylim = c(0, 10)) +
+  facet_grid(cols = vars(numNC))
 
-dim(AY)
-distinct(AY)
+
+ggplot(plot_df, aes(x = se)) +
+  geom_histogram(binwidth = .5) +
+  coord_cartesian(xlim = c(0, 100)) +
+  facet_grid(cols = vars(numNC))
+
+plot_df |> group_by(numNC) |> summarize(se_avg = mean(se), 
+                                        se_sd  = sd(se), 
+                                        se_min = min(se),
+                                        se_max = max(se))
+
+
+
+plot_df |> group_by(numNC) |> summarize(estimate_avg = mean(estimate), 
+                                        estimate_sd  = sd(estimate), 
+                                        estimate_min = min(estimate),
+                                        estimate_max = max(estimate))
 ```
 
 
@@ -1099,13 +1184,99 @@ distinct(AY)
 effects_causarray_all |> group_by(type) |> summarize(avg_rej = mean(rej))
 
 
-effects_causarray_all |> filter(type == 'negative') |> mutate(pval_is_small = as.integer(pval < .01)) |> 
-  group_by(gene) |> summarize(count = n(), num_small_tests = sum(pval_is_small), frac_small_tests = mean(pval_is_small)) |> arrange(desc(frac_small_tests))
+effects_causarray_all |> filter(type == 'negative') |> 
+  mutate(pval_is_small = as.integer(pval < .01)) |> 
+  group_by(gene) |> summarize(count = n())
 
 
 
 ```
 
+
+
+# Compare Causarray to 1 Proximal
+
+```{r fig.height=6, fig.width=8}
+
+plot_df = merge(
+      effects |> filter(method == 'proximallinear' & NC_type == 'singlegene' & numNC == 5), 
+      effects |> filter(method == 'causarray') |> select(grna, gene, estimate, se, pval, padj), # the tests from causarray that are also tested in prox
+      all.x = TRUE, all.y = FALSE,
+      by = c('grna', 'gene'), 
+      suffixes = c('.proximal', '.causarray')
+)
+
+plot_df = plot_df |> filter(!is.na(estimate.proximal) & !is.na(estimate.causarray))
+plot_df = plot_df |> mutate(same_sign = (sign(estimate.proximal) == sign(estimate.causarray)))
+plot_df = plot_df |> mutate(causarray_rej_padj = sapply(padj.causarray, 
+                                                        FUN = function(x) {if(x < .05) {'reject'} else {'not reject'}}))
+
+# head(plot_df)
+
+ggplot(plot_df |> filter(type == 'Alternative'), 
+       aes(x = estimate.causarray, y = estimate.proximal)) +
+  geom_rect(data=data.frame(xmin = -Inf, xmax =   0, ymin =    0, ymax = Inf), 
+            mapping=aes(xmin = xmin, xmax =   xmax, ymin =    ymin, ymax = ymax), 
+            fill = scales::alpha("rosybrown1", .5), inherit.aes = FALSE) +
+  geom_rect(data=data.frame(xmin =    0, xmax = Inf, ymin = -Inf, ymax =   0), 
+            mapping=aes(xmin = xmin, xmax =   xmax, ymin =    ymin, ymax = ymax),
+            fill = scales::alpha("rosybrown1", .5), inherit.aes = FALSE) +
+  geom_abline(aes(slope = 1, intercept = 0), linetype = 'dashed', linewidth = .5) +
+  geom_smooth(method = "lm",  linewidth = .5, color = 'black', fullrange = TRUE, fill = 'grey80') +
+  geom_point(aes(shape = same_sign, color = causarray_rej_padj), alpha = .9, size = 2) +
+  scale_shape_manual(values = c(4, 16), guide='none') +
+  scale_x_continuous(limits = c(-1.2, 1.8), expand=c(0, 0)) +
+  scale_color_manual(values = c('gray20', 'purple2')) +
+  labs(x = 'Causarray log2 Fold Change Estimate', y='Proximal Average Treatment Effect Estimate', 
+       title = 'Causarray vs Proximal ATE Estimates for Alternative Tests', 
+       subtitle = 'Proximal using singlegene as NCs with 5 NC pairs', 
+       color = TeX('causarray reject after multiple testing correction at $alpha$=.05')) +
+  theme(legend.position = 'top', 
+        legend.justification = "center")
+
+
+ggsave(sprintf('%s/estimate_causarray_vs_prox_singlegene5.pdf', plot_dir), height = 6, width= 8)
+
+```
+
+
+
+```{r}
+
+ggplot() +  geom_rect(aes(xmin = -Inf, xmax =   0, ymin =    0, ymax = Inf), fill = scales::alpha("red", .05))
+
+ggplot(plot_df |> filter(type == 'Alternative'), 
+       aes(x = estimate.causarray, y = estimate.proximal)) +  
+  geom_rect(aes(xmin = -Inf, xmax =   0, ymin =    0, ymax = Inf), fill = scales::alpha("red", .05))
+
+
+ggplot(mtcars, aes(x = wt, y = mpg)) +  
+  geom_rect(data=data.frame(xmin = -Inf, xmax =   0, ymin =    0, ymax = Inf), 
+            mapping=aes(xmin = xmin, xmax =   xmax, ymin =    ymin, ymax = ymax), 
+            fill = scales::alpha("red", .05), inherit.aes = FALSE) + 
+  geom_point()
+
+ggplot(plot_df |> filter(type == 'Alternative'), 
+       aes(x = estimate.causarray, y = estimate.proximal)) +
+  geom_rect(xmin = -Inf, xmax =   0, ymin =    0, ymax = Inf, fill = scales::alpha("red", .05), inherit.aes = FALSE) +
+  geom_rect(xmin =    0, xmax = Inf, ymin = -Inf, ymax =   0, fill = scales::alpha("red", .05), inherit.aes = FALSE) +
+  scale_x_continuous(limits = c(-1.2, 1.8), expand=c(0, 0)) 
+
+ggplot(mtcars, aes(wt, mpg)) +
+  geom_point(shape="\u25D2", colour="red", size=3) +
+  geom_point(shape="\u25D3", colour="blue", size=3) +
+  geom_point(shape=1, colour="white", size=3.05) +
+  geom_point(shape=1, colour="white", size=2.8) +
+  theme_bw()
+
+ggplot(mtcars) +
+    geom_text(aes(x = wt-0.027, y=mpg, label = "\u25D7"),  family = "Arial",  angle = 45,    size = 8  , color = 'red') +
+  # geom_point(aes(wt-0.027, mpg), shape="\u25D6", colour="red", size=3) +
+  geom_point(aes(wt+0.027, mpg), shape="\u25D7", colour="blue", size=3) +
+  theme_bw()
+
+
+```
 
 
 
