@@ -22,7 +22,7 @@ gather_used_nctypes <- function(estimator_settings) {
 #' X: Covariates (measured) 
 #' Negative Controls: NCE and NCOs (ZWs)
 #' @param estimator_name (character) of method name
-#' GLMs will have special names 'lmYA', 'lmYAU', 'nbYA', 'nbYAU'.
+#' GLMs will have special names 'lmYA', 'lmYAX', 'nbYA', 'nbYAX'.
 #' Otherwise, will perform proximal and use this as the estimator name and use NC
 #' @param Y (vector) of response  
 #' @param A (vector) of treatment
@@ -61,11 +61,11 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
   if(estimator_name == 'lmYAX') {
     # must give X to perf lmYAX 
     if(is.null(X)) {
-      # print('skip lmYAU')
+      # print('skip lmYAX')
       return(data.frame(method      = 'lmYAX',
                         method_type = 'lm'))
     } else {
-      # print('perform lmYAU')
+      # print('perform lmYAX')
       t0 = Sys.time()
       df = cbind(data.frame(Y=Y, A=A), X |> `colnames<-`(paste0('X', seq_len(ncol(X)))))
       lmfit = lm(paste0('Y~A+', paste0('X', seq_len(ncol(X)), collapse='+')), df)
@@ -74,7 +74,7 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
 
       return(data.frame(n_trtmnt = sum(A==1),
                         n_cntrl  = sum(A==0),
-                        method     = 'lmYAU',
+                        method     = 'lmYAX',
                         method_type = 'lm',
                         numNC = NA,
                         estimate    = lmfit_summary$coefficients['A', 'Estimate'],
@@ -105,7 +105,7 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
       nbfit_summary = summary(nbfit)
       return(data.frame(n_trtmnt = sum(A==1),
                         n_cntrl  = sum(A==0),
-                        method      = 'nbYAU',
+                        method      = 'nbYA',
                         method_type = 'nb',
                         NC_type     = NA,
                         numNC       = NA,
@@ -267,7 +267,7 @@ estimate_effect_one_estimator <- function(estimator_name, estimator_setting, Y, 
 #' A: Exposure/Treatment
 #' X: Covariates (measured) 
 #' Negative Controls: NCE and NCOs (ZWs)
-#' @param method (character) of method name ('lmYA', 'lmYAU', )
+#' @param method (character) of method name ('lmYA', 'lmYAX', )
 #' @param Y_norm (vector) of continuous response  
 #' @param Y_count (vector) of count response
 #' @param A (vector) of treatment
