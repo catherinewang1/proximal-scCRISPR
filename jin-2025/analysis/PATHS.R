@@ -14,13 +14,13 @@ data_dir = switch(DEVICE,
 save_dir = switch(DEVICE,
                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/proximal-scCRISPR-github/proximal-scCRISPR/jin-2025/saves', 
                   'macbook'='/Users/catherinewang/Documents/School/proximal-scCRISPR-github/jin-2025/saves',
-                  'ubergenno'='/home/catheri2/proximal-scCRISPR-github/jin-2025/saves')
+                  'ubergenno'='/raid6/home/catheri2/proximal-scCRISPR-github/jin-2025/saves')
 
 # really should be named util_dir
 util_dir = switch(DEVICE,
                   'laptop'='C:/Users/Cathe/Documents/School/Genetic Hypothesis Testing using Negative Controls/proximal-scCRISPR-github/proximal-scCRISPR/utils', 
                   'macbook'='/Users/catherinewang/Documents/School/proximal-scCRISPR-github/utils',
-                  'ubergenno'='/home/catheri2/proximal-scCRISPR-github/utils')
+                  'ubergenno'='/raid6/home/catheri2/proximal-scCRISPR-github/utils')
 
 
 assertthat::assert_that(!is.null(data_dir), msg='DEVICE must be: laptop or macbook or ubergenno')

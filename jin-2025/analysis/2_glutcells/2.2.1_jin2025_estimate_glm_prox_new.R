@@ -130,22 +130,6 @@ DEFAULT_NUM_NC = c(1, 3, 5, 8, 10, 15)
 # (it is just easier to change when looking here)
 
 # for smaller test, perform for a larger number of methods
-ESTIMATOR_SETTINGS_RUN = list(
-  # glms
-  'lmYA' = TRUE, 
-  'lmYAX'= FALSE, 
-  'nbYA' = TRUE, 
-  'nbYAX'= FALSE, 
-  # proximal methods
-  'PCA_UntrtCells'         = TRUE,
-  'PCA_MixCells'           = TRUE,
-  'PCA_MixCells_NB'        = TRUE,
-  'singlegene'             = TRUE,    
-  'singlegene_NB'          = TRUE, 
-  'singlegene_housekeeping'= TRUE       
-)
-
-# # later, only perform a small number of prox methods
 # ESTIMATOR_SETTINGS_RUN = list(
 #   # glms
 #   'lmYA' = TRUE, 
@@ -153,13 +137,29 @@ ESTIMATOR_SETTINGS_RUN = list(
 #   'nbYA' = TRUE, 
 #   'nbYAX'= FALSE, 
 #   # proximal methods
-#   'PCA_UntrtCells'         = FALSE,
+#   'PCA_UntrtCells'         = TRUE,
 #   'PCA_MixCells'           = TRUE,
-#   'PCA_MixCells_NB'        = FALSE,
+#   'PCA_MixCells_NB'        = TRUE,
 #   'singlegene'             = TRUE,    
-#   'singlegene_NB'          = FALSE, 
-#   'singlegene_housekeeping'= FALSE       
+#   'singlegene_NB'          = TRUE, 
+#   'singlegene_housekeeping'= TRUE       
 # )
+
+# later, only perform a small number of prox methods
+ESTIMATOR_SETTINGS_RUN = list(
+  # glms
+  'lmYA' = TRUE,
+  'lmYAX'= FALSE,
+  'nbYA' = TRUE,
+  'nbYAX'= FALSE,
+  # proximal methods
+  'PCA_UntrtCells'         = FALSE,
+  'PCA_MixCells'           = TRUE,
+  'PCA_MixCells_NB'        = FALSE,
+  'singlegene'             = TRUE,
+  'singlegene_NB'          = FALSE,
+  'singlegene_housekeeping'= FALSE
+)
 
 
 # create a list of settings for which estimators to run
@@ -245,7 +245,7 @@ for(est_name in names(ESTIMATOR_SETTINGS)) {
 # =================== START ========================================================================
 print(sprintf("[%s] START: glm and proximal estimates for Jin2025", Sys.time()))
 
-source(sprintf('%s/estimate_proximal/estimate_effects_pci2s.r', util_dir))
+source(sprintf('%s/estimate_proximal/estimate_effects_pci2s.R', util_dir))
 
 
 
@@ -432,7 +432,7 @@ housekeepinggenes = setdiff(validsinglegenes, gene_dev_df |> filter(is_housekeep
 max_num_ncs = 0
 for(n_ in names(ESTIMATOR_SETTINGS)) {max_num_ncs = max(max_num_ncs, ESTIMATOR_SETTINGS[[n_]][['NUM_NCs']])}
 NCs = list(
-  'PCA_UntrtCells' = as.matrix(readRDS(sprintf('%s/pca/NCloadings_UntrtCells.rds',       save_dir)))[, 1:(2*max_num_ncs)],  # PCA loadings from PCA on Untreated Cells
+  'PCA_UntrtCells' = as.matrix(readRDS(sprintf('%s/pca/NCloadings_UnTrtCells.rds',       save_dir)))[, 1:(2*max_num_ncs)],  # PCA loadings from PCA on Untreated Cells
   'PCA_MixCells'   = as.matrix(readRDS(sprintf('%s/pca/NCloadings_mixTrtUntrtCells.rds', save_dir)))[, 1:(2*max_num_ncs)],  # PCA loadings from PCA on Mix of Cells
   'singlegene'              = validsinglegenes, 
   'singlegene_housekeeping' = housekeepinggenes
