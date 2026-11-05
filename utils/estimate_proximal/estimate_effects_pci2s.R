@@ -751,9 +751,41 @@ estimate_effects <- function(estimator_settings, AY, NCs,
 
   
   if(parallel_by_gene) { # by each response Y
-    return(estimate_effects_bygene(...))
+    return(
+      estimate_effects_bygene(
+        estimator_settings=estimator_settings, 
+        AY=AY, 
+        NCs=NCs,
+        grna=grna, 
+        gene_norm=gene_norm, 
+        gene_counts=gene_counts, 
+        control_cell_idx=control_cell_idx, 
+        libsize_log=libsize_log,
+        covariates=covariates, 
+        subsample_control_size=subsample_control_size,
+        save_intermediateATEs=save_intermediateATEs, 
+        skip_if_saved_intermediateATEs=skip_if_saved_intermediateATEs,
+        intermediateATEs_folder=intermediateATEs_folder
+      )
+    )
   } else { # by each AY row
-    return(estimate_effects_byAY(...))
+    return(
+      estimate_effects_byAY(
+        estimator_settings=estimator_settings, 
+        AY=AY, 
+        NCs=NCs,
+        grna=grna, 
+        gene_norm=gene_norm, 
+        gene_counts=gene_counts, 
+        control_cell_idx=control_cell_idx, 
+        libsize_log=libsize_log,
+        covariates=covariates, 
+        subsample_control_size=subsample_control_size,
+        save_intermediateATEs=save_intermediateATEs, 
+        skip_if_saved_intermediateATEs=skip_if_saved_intermediateATEs,
+        intermediateATEs_folder=intermediateATEs_folder
+      )
+    )
   }
 }
 
