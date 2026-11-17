@@ -96,7 +96,7 @@ AY_SETTINGS = list(
   'medium' = list(
     AY_NUM_NEGATIVE  = 1000,
     AY_NUM_DISCOVERY = 1000,
-    numNCs = c(1, 3, 5, 8, 10, 15)
+    numNCs = c(1, 3, 5, 8, 10)
   ),
   
   'denseSmall' = list(
@@ -124,6 +124,7 @@ SETTING = AY_SETTINGS[[AY_SETTING_NAME]]
 
 
 DEFAULT_NUM_NC = NULL
+# DEFAULT_NUM_NC = c(1, 3, 5, 8, 10)
 DEFAULT_NUM_NC = c(1, 3, 5, 8, 10, 15)
 
 # Create a list of settings specifying which estimators to run 
@@ -132,17 +133,20 @@ DEFAULT_NUM_NC = c(1, 3, 5, 8, 10, 15)
 # for smaller test, perform for a larger number of methods
 # ESTIMATOR_SETTINGS_RUN = list(
 #   # glms
-#   'lmYA' = TRUE, 
-#   'lmYAX'= FALSE, 
-#   'nbYA' = TRUE, 
-#   'nbYAX'= FALSE, 
+#   'lmYA' = TRUE,
+#   'lmYAX'= FALSE,
+#   'nbYA' = TRUE,
+#   'nbYAX'= FALSE,
 #   # proximal methods
+#   # - Lin Prox Methods
 #   'PCA_UntrtCells'         = TRUE,
 #   'PCA_MixCells'           = TRUE,
-#   'PCA_MixCells_NB'        = TRUE,
-#   'singlegene'             = TRUE,    
-#   'singlegene_NB'          = TRUE, 
-#   'singlegene_housekeeping'= TRUE       
+#   'singlegene'             = TRUE,
+#   'singlegene_housekeeping'= TRUE,
+#   # - NB Prox Methods
+#   'PCA_MixCells_NB'           = TRUE,
+#   'singlegene_NB'             = TRUE,
+#   'singlegene_housekeeping_NB'= TRUE
 # )
 
 # later, only perform a small number of prox methods
@@ -153,12 +157,15 @@ ESTIMATOR_SETTINGS_RUN = list(
   'nbYA' = TRUE,
   'nbYAX'= FALSE,
   # proximal methods
+  # - Lin Prox Methods
   'PCA_UntrtCells'         = FALSE,
   'PCA_MixCells'           = TRUE,
-  'PCA_MixCells_NB'        = FALSE,
-  'singlegene'             = TRUE,
-  'singlegene_NB'          = FALSE,
-  'singlegene_housekeeping'= FALSE
+  'singlegene'             = FALSE,
+  'singlegene_housekeeping'= TRUE,
+  # - NB Prox Methods
+  'PCA_MixCells_NB'           = FALSE,
+  'singlegene_NB'             = FALSE,
+  'singlegene_housekeeping_NB'= FALSE
 )
 
 
@@ -485,7 +492,7 @@ print(sprintf("[%s]        Start Estimating ATEs:", Sys.time()))
 
 
 whichRows = c(1:10)
-source(sprintf('%s/estimate_proximal/estimate_effects_pci2s.r', util_dir))
+# source(sprintf('%s/estimate_proximal/estimate_effects_pci2s.r', util_dir))
 # test by AY version
 whichRows = 1:nrow(AY)
 effects_df = estimate_effects_byAY(estimator_settings=ESTIMATOR_SETTINGS,
