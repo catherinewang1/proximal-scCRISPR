@@ -14,23 +14,29 @@
 # - 2.2.2 deseq2
 # - 2.2.3 causarray
 # - 2.2.4 sceptre
-# Rscript 
+# Rscript 2.2.1_jin2025_estimate_glm_prox_new.R ubergenno medium someestimators 1-3-5-8-10-15 20
 # ------------------------------------------------------------------------------------------------ #
 args = commandArgs(trailingOnly = TRUE)
-# args = c('macbook', 'small2',  '8')
+# args = c('macbook', 'small2', 'allestimators', '1-3-5-8-10-15', '8')
+# args = c('macbook', 'medium', 'someestimators', '1-3-5-8-10-15', '8')
 
-
-assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
+tmp=assertthat::assert_that(length(args) > 0, msg="must give arg for specifying device eg 'Rscript <filename>.R ubergenno'")
 DEVICE = args[1]
 source('../PATHS.R') # load in data_dir and save_dir and CODE_DIR, depending on DEVICE value
-assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
+tmp=assertthat::assert_that(!is.null(data_dir), msg='first arg must be: laptop, desktop, or ubergenno')
 
-assertthat::assert_that(length(args) > 1, msg="must give arg for specifying AY setting eg 'Rscript <filename>.R ubergenno small'")
+tmp=assertthat::assert_that(length(args) > 1, msg="must give arg for specifying AY setting eg 'Rscript <filename>.R ubergenno small'")
 AY_SETTING_NAME = args[2]
 
+tmp=assertthat::assert_that(length(args) > 2, msg="must give arg for specifying which estimators to run eg 'Rscript <filename>.R ubergenno small allestimators 8'")
+ESTIMATORS_ARG = args[3]
 
-assertthat::assert_that(length(args) > 2, msg="must give arg for specifying num threads eg 'Rscript <filename>.R ubergenno small 8'")
-THREADS = as.integer(args[3])
+tmp=assertthat::assert_that(length(args) > 3, msg="must give arg for specifying num NCs eg 'Rscript <filename>.R ubergenno small allestimators 1-3-5  8'")
+DEFAULT_NUM_NC_ARG = args[4]
+# if given, use this numNCs, or else default to AY_SETTING numNCs (if given), or else default to estimator numNCs
+
+tmp=assertthat::assert_that(length(args) > 4, msg="must give arg for specifying num threads eg 'Rscript <filename>.R ubergenno small allestimators  8'")
+THREADS = as.integer(args[5])
 
 
 
@@ -56,6 +62,7 @@ if(THREADS == 1) {
 }
 
 
+# =================== INITIAL SETTINGS ========================================================================
 
 PARAMS = list( 
   'TAG'       = 'glut',
@@ -66,6 +73,8 @@ PARAMS = list(
 )
 save_dir = paste0(save_dir, '/', PARAMS[['subfolder']])
 set.seed(PARAMS[['seed']])
+
+
 
 
 
@@ -118,19 +127,136 @@ AY_SETTINGS = list(
 )
 
 
-assertthat::assert_that(AY_SETTING_NAME %in% names(AY_SETTINGS), msg=sprintf("AY_SETTINGS input must be a member of the available setting names. Available AY_SETTINGS are: %s", 
+tmp = assertthat::assert_that(AY_SETTING_NAME %in% names(AY_SETTINGS), msg=sprintf("AY_SETTINGS input must be a member of the available setting names. Available AY_SETTINGS are: %s", 
                                                                              paste0(names(AY_SETTINGS), collapse = ', ')))
-SETTING = AY_SETTINGS[[AY_SETTING_NAME]]
+AY_SETTING = AY_SETTINGS[[AY_SETTING_NAME]]
 
 
-DEFAULT_NUM_NC = NULL
+
+
+
+# ------- Deal with DEFAULT_NUM_NC = how many num NCs to use for all methods.
+
+#' parse the argument for DEFAULT_NUM_NC
+#' DEFAULT_NUM_NC_ARG (character) of a sequence of integers separated by '-' or Null
+#' e.g. '1-3-5-8-10'
+parse_default_num_nc_arg <- function(DEFAULT_NUM_NC_ARG) {
+  if(DEFAULT_NUM_NC_ARG == 'Null' || DEFAULT_NUM_NC_ARG == 'null') {
+    return(NULL)
+  }
+  
+  res = strsplit(DEFAULT_NUM_NC_ARG, split='-')[[1]] |> as.integer() |> unique() |> sort(na.last=NA) # remove non-numeric args
+  if(length(res) == 0) {
+    return(NULL)
+  } else {
+    return(res)
+  }
+}
+
+# DEFAULT_NUM_NC = NULL
 # DEFAULT_NUM_NC = c(1, 3, 5, 8, 10)
-DEFAULT_NUM_NC = c(1, 3, 5, 8, 10, 15)
+# DEFAULT_NUM_NC = c(1, 3, 5, 8, 10, 15)
+DEFAULT_NUM_NC = parse_default_num_nc_arg(DEFAULT_NUM_NC_ARG)
+if(is.null(DEFAULT_NUM_NC) && !is.null(AY_SETTING$numNCs)) { # if not specified and AY_SETTING has specified
+  DEFAULT_NUM_NC = AY_SETTING$numNCs
+}
 
+# ------- Deal with ESTIMATORS = which estimators to run
 # Create a list of settings specifying which estimators to run 
-# (it is just easier to change when looking here)
 
-# for smaller test, perform for a larger number of methods
+#' parse the ESTIMATORS argument
+#' @param ESTIMATORS_ARG (character)
+#' Options for input argument
+#' - single estimator name
+#' - sequence of estimator names separated by '-'
+#' - short name for a collection of estimators:
+#'     + 'allestimators' = all for exploration, DEFAULT_NUM_NC = c(1, 3, 5, 8, 10, 15)
+#'     + 'someestimators'= better selection of estimators, DEFAULT_NUM_NC = c(1, 3, 5, 8, 10, 15)
+#'     + 'fewestimators' = only the best ones
+#' ESTIMATORS = 'allestimators'
+#' @return named list of chosen settings. key is estimator name and value is TRUE or FALSE if selected to run.
+#'  if a estimator is not present as a key, later code should treat as FALSE (not run)
+parse_estimators_arg <- function(ESTIMATORS_ARG) {
+  # list of possible settings to choose from
+  possible_settings = c('lmYA',
+                        'lmYAX',
+                        'nbYA',
+                        'nbYAX',
+                        'PCA_UntrtCells',
+                        'PCA_MixCells',
+                        'singlegene',
+                        'singlegene_housekeeping',
+                        'PCA_MixCells_NB',
+                        'singlegene_NB',
+                        'singlegene_housekeeping_NB')
+  # special short names for collections of estimators that typically go together
+  if(ESTIMATORS_ARG == 'allestimators') {
+    return(list(
+      # glms
+      'lmYA' = TRUE,
+      'lmYAX'= FALSE,
+      'nbYA' = TRUE,
+      'nbYAX'= FALSE,
+      # proximal methods
+      # - Lin Prox Methods
+      'PCA_UntrtCells'         = TRUE,
+      'PCA_MixCells'           = TRUE,
+      'singlegene'             = TRUE,
+      'singlegene_housekeeping'= TRUE,
+      # - NB Prox Methods
+      'PCA_MixCells_NB'           = TRUE,
+      'singlegene_NB'             = TRUE,
+      'singlegene_housekeeping_NB'= TRUE
+    ))
+  } else if(ESTIMATORS_ARG == 'someestimators') {
+    return(list(
+      # glms
+      'lmYA' = TRUE,
+      'lmYAX'= FALSE,
+      'nbYA' = TRUE,
+      'nbYAX'= FALSE,
+      # proximal methods
+      # - Lin Prox Methods
+      'PCA_UntrtCells'         = FALSE,
+      'PCA_MixCells'           = TRUE,
+      'singlegene'             = FALSE,
+      'singlegene_housekeeping'= TRUE,
+      # - NB Prox Methods
+      'PCA_MixCells_NB'           = FALSE,
+      'singlegene_NB'             = FALSE,
+      'singlegene_housekeeping_NB'= FALSE
+    ))
+  } else if(ESTIMATORS_ARG == 'fewestimators') {
+    return(list(
+      # glms
+      'lmYA' = TRUE,
+      'lmYAX'= FALSE,
+      'nbYA' = TRUE,
+      'nbYAX'= FALSE,
+      # proximal methods
+      # - Lin Prox Methods
+      'PCA_UntrtCells'         = FALSE,
+      'PCA_MixCells'           = FALSE,
+      'singlegene'             = FALSE,
+      'singlegene_housekeeping'= TRUE,
+      # - NB Prox Methods
+      'PCA_MixCells_NB'           = FALSE,
+      'singlegene_NB'             = FALSE,
+      'singlegene_housekeeping_NB'= FALSE
+    ))
+  }
+  # single or sequence of estimator names
+  ESTIMATORS_split = strsplit(ESTIMATORS_ARG, split = '-')
+  res = list()
+  for(x in possible_settings[possible_settings %in% ESTIMATORS_split]) {res[[x]] = TRUE}
+  
+  # end
+  return(res)
+}
+
+ESTIMATOR_SETTINGS_RUN = parse_estimators_arg(ESTIMATORS_ARG)
+
+# or can overwrite by hand here but will change the script.
 # ESTIMATOR_SETTINGS_RUN = list(
 #   # glms
 #   'lmYA' = TRUE,
@@ -139,34 +265,15 @@ DEFAULT_NUM_NC = c(1, 3, 5, 8, 10, 15)
 #   'nbYAX'= FALSE,
 #   # proximal methods
 #   # - Lin Prox Methods
-#   'PCA_UntrtCells'         = TRUE,
+#   'PCA_UntrtCells'         = FALSE,
 #   'PCA_MixCells'           = TRUE,
-#   'singlegene'             = TRUE,
+#   'singlegene'             = FALSE,
 #   'singlegene_housekeeping'= TRUE,
 #   # - NB Prox Methods
-#   'PCA_MixCells_NB'           = TRUE,
-#   'singlegene_NB'             = TRUE,
-#   'singlegene_housekeeping_NB'= TRUE
+#   'PCA_MixCells_NB'           = FALSE,
+#   'singlegene_NB'             = FALSE,
+#   'singlegene_housekeeping_NB'= FALSE
 # )
-
-# later, only perform a small number of prox methods
-ESTIMATOR_SETTINGS_RUN = list(
-  # glms
-  'lmYA' = TRUE,
-  'lmYAX'= FALSE,
-  'nbYA' = TRUE,
-  'nbYAX'= FALSE,
-  # proximal methods
-  # - Lin Prox Methods
-  'PCA_UntrtCells'         = FALSE,
-  'PCA_MixCells'           = TRUE,
-  'singlegene'             = FALSE,
-  'singlegene_housekeeping'= TRUE,
-  # - NB Prox Methods
-  'PCA_MixCells_NB'           = FALSE,
-  'singlegene_NB'             = FALSE,
-  'singlegene_housekeeping_NB'= FALSE
-)
 
 
 # create a list of settings for which estimators to run
@@ -245,6 +352,40 @@ for(est_name in names(ESTIMATOR_SETTINGS)) {
     ESTIMATOR_SETTINGS[[est_name]][['RUN']] = FALSE
   }
 }
+
+
+# ------- print summary of settings?
+
+print(sprintf("[%s] SETTINGS:", Sys.time()))
+
+# general save settings
+print(sprintf('   - TAG: %s / subfolder: %s / save_dir: %s', PARAMS[['TAG']], PARAMS[['subfolder']], save_dir))
+
+# selection of tests
+if(!is.null(AY_SETTING$DENSE) && AY_SETTING$DENSE) { # dense all A x #Ys
+  sprintf('   - AY: %s, #Y: ', AY_SETTING_NAME, AY_SETTING$NUM_Y)
+} else {                                             # not dense: #neg, #disc tests
+  sprintf('   - AY: %s, #NEGATIVE: %s, #DISCOVERY: %s', AY_SETTING_NAME, AY_SETTING$AY_NUM_NEGATIVE, AY_SETTING$AY_NUM_DISCOVERY)
+}
+
+# selection of numNCs
+if(is.null(DEFAULT_NUM_NC)) {
+  print(sprintf('   - #NCs: use estimator settings default num NC choices'))
+} else {
+  print(sprintf('   - #NCs: %s', paste0(DEFAULT_NUM_NC, collapse = ', ')))
+}
+
+# selection of estimators
+tmp = c()
+for(est_name in names(ESTIMATOR_SETTINGS)) {
+  if(ESTIMATOR_SETTINGS[[est_name]][['RUN']]) {
+    tmp = c(tmp, est_name)
+  }
+}
+print(sprintf('   - Estimators: %s', paste0(tmp, collapse=', ')))
+
+
+
 
 
 
@@ -355,11 +496,11 @@ fake_As = grep('Non_target', setdiff(row.names(grna), 'Non_target'), value=TRUE)
 
 
 # construct AY tests based on whether dense setting is chosen or not
-if(!is.null(SETTING$DENSE) && SETTING$DENSE) {
+if(!is.null(AY_SETTING$DENSE) && AY_SETTING$DENSE) {
   print(sprintf("[%s]        + select AYs under dense setting", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
   # first select all the grna targets
   # then choose other Ys from all_Ys. all_Ys should be arranged by importance rank, so choose the top important/most deviance genes as responses
-  selected_Ys = c(true_As, setdiff(all_Ys, true_As))[1:SETTING$NUM_Y]
+  selected_Ys = c(true_As, setdiff(all_Ys, true_As))[1:AY_SETTING$NUM_Y]
   
   
   AY = expand.grid(grna = c(true_As, fake_As), gene = selected_Ys, stringsAsFactors = FALSE) |> mutate(type = 'discovery')
@@ -369,21 +510,21 @@ if(!is.null(SETTING$DENSE) && SETTING$DENSE) {
   print(sprintf("[%s]        + select AYs under not dense setting", format(Sys.time(), "%Y-%m-%d %H:%M:%S")))
   # =============  \__Construct Negative tests: ===============================================
   AY_negative = data.frame(# grna = sample(setdiff(row.names(grna), 'Non_target'), size = AY_NUM_DISCOVERY, replace=TRUE),
-    grna = sample(fake_As, size=SETTING$AY_NUM_NEGATIVE*1.2, replace=TRUE),
-    gene = sample( all_Ys, size=SETTING$AY_NUM_NEGATIVE*1.2, replace=TRUE),
+    grna = sample(fake_As, size=AY_SETTING$AY_NUM_NEGATIVE*1.2, replace=TRUE),
+    gene = sample( all_Ys, size=AY_SETTING$AY_NUM_NEGATIVE*1.2, replace=TRUE),
     type = 'negative') |> 
     filter(grna != gene) |>        # random choice of grnas and genes may result in pos tests, so sample more
     distinct() |> 
-    slice_sample(n=SETTING$AY_NUM_NEGATIVE) # than needed, then remove and take the requested number of tests
+    slice_sample(n=AY_SETTING$AY_NUM_NEGATIVE) # than needed, then remove and take the requested number of tests
   
   
   # ============= \__Construct Discovery tests: ============================================
-  AY_discovery = data.frame(grna = sample(true_As, size=SETTING$AY_NUM_DISCOVERY*1.3, replace=TRUE),
-                            gene = sample( all_Ys, size=SETTING$AY_NUM_DISCOVERY*1.3, replace=TRUE),
+  AY_discovery = data.frame(grna = sample(true_As, size=AY_SETTING$AY_NUM_DISCOVERY*1.3, replace=TRUE),
+                            gene = sample( all_Ys, size=AY_SETTING$AY_NUM_DISCOVERY*1.3, replace=TRUE),
                             type = 'discovery') |> 
     filter(grna != gene) |>        # random choice of grnas and genes may result in pos tests, so sample more
     distinct() |> 
-    slice_sample(n=SETTING$AY_NUM_DISCOVERY) # than needed, then remove and take the requested number of tests
+    slice_sample(n=AY_SETTING$AY_NUM_DISCOVERY) # than needed, then remove and take the requested number of tests
   
   # ============= \__Construct Positive tests: ============================================
   pos_grna = row.names(grna)[row.names(grna) %in% row.names(gene_norm)]
@@ -402,7 +543,7 @@ if(!is.null(SETTING$DENSE) && SETTING$DENSE) {
 write.csv(AY, sprintf('%s/AY/%s/AY.csv', save_dir, AY_SETTING_NAME), row.names=FALSE)
 
 
-saveRDS(list(AY_SETTING_NAME=AY_SETTING_NAME, AY_SETTING=SETTING, ESTIMATOR_SETTINGS=ESTIMATOR_SETTINGS), 
+saveRDS(list(AY_SETTING_NAME=AY_SETTING_NAME, AY_SETTING=AY_SETTING, ESTIMATOR_SETTINGS=ESTIMATOR_SETTINGS), 
         sprintf('%s/AY/%s/run_settings.rds', save_dir, AY_SETTING_NAME))
 
 
@@ -470,11 +611,9 @@ print(sprintf("[%s]         + #unique gene=%s", Sys.time(), length(unique(AY$gen
 
 print(sprintf("[%s]        Start Estimating ATEs:", Sys.time()))
 
-# call function here
+# # test the bygene version
 # whichRows = c(1:10)
 # whichRows = 1:nrow(AY)
-# # source(sprintf('%s/estimate_proximal/estimate_effects_pci2s.r', util_dir))
-# # test the bygene version
 # effects_df = estimate_effects_bygene(estimator_settings=ESTIMATOR_SETTINGS,
 #                         AY = AY[whichRows, ],
 #                         NCs = NCs,
@@ -490,27 +629,43 @@ print(sprintf("[%s]        Start Estimating ATEs:", Sys.time()))
 #                        intermediateATEs_folder=intermediateATEs_folder)
 
 
+# # test by AY version
+# whichRows = c(1:10)
+# whichRows = 1:nrow(AY)
+# effects_df = estimate_effects_byAY(estimator_settings=ESTIMATOR_SETTINGS,
+#                           AY = AY[whichRows, ],
+#                           NCs = NCs,
+#                           grna=grna,
+#                           gene_norm=gene_norm_subset,
+#                           gene_counts=gene_counts_subset,
+#                           control_cell_idx=control_cell_idx,
+#                           libsize_log=libsize_log,
+#                           covariates=NULL,
+#                           subsample_control_size=10000, # should already be subsampled
+#                           save_intermediateATEs=TRUE,
+#                           skip_if_saved_intermediateATEs=FALSE,
+#                           intermediateATEs_folder=intermediateATEs_folder)
 
-whichRows = c(1:10)
-# source(sprintf('%s/estimate_proximal/estimate_effects_pci2s.r', util_dir))
-# test by AY version
+
+# use overall version, try to autodetect bygene or byAY
+# whichRows = c(1:10)
 whichRows = 1:nrow(AY)
-effects_df = estimate_effects_byAY(estimator_settings=ESTIMATOR_SETTINGS,
-                          AY = AY[whichRows, ],
-                          NCs = NCs,
-                          grna=grna,
-                          gene_norm=gene_norm_subset,
-                          gene_counts=gene_counts_subset,
-                          control_cell_idx=control_cell_idx,
-                          libsize_log=libsize_log,
-                          covariates=NULL,
-                          subsample_control_size=10000, # should already be subsampled
-                          save_intermediateATEs=TRUE,
-                          skip_if_saved_intermediateATEs=FALSE,
-                          intermediateATEs_folder=intermediateATEs_folder)
-
-
-
+effects_df = estimate_effects(
+    estimator_settings=ESTIMATOR_SETTINGS,
+    AY = AY[whichRows, ],
+    NCs = NCs,
+    grna=grna,
+    gene_norm=gene_norm_subset,
+    gene_counts=gene_counts_subset,
+    control_cell_idx=control_cell_idx,
+    parallel_by_gene = 'auto',
+    libsize_log=libsize_log,
+    covariates=NULL,
+    subsample_control_size=10000, # should already be subsampled
+    save_intermediateATEs=TRUE,
+    skip_if_saved_intermediateATEs=FALSE,
+    intermediateATEs_folder=intermediateATEs_folder
+  )
 
 write.csv(effects_df, file = sprintf('%s/AY/%s/effects.csv', save_dir, AY_SETTING_NAME), row.names = FALSE)
 
